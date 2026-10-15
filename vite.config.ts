@@ -5,25 +5,21 @@ export default defineConfig({
     "*": "vp check --fix --no-error-on-unmatched-pattern",
   },
   pack: {
-    deps: {
-      // tsdown <0.23 compatibility: resolve external dependency subpaths.
-      // Remove to preserve subpath imports as written (the new default).
-      // https://tsdown.dev/options/dependencies#deps-resolvedepsubpath
-      resolveDepSubpath: true,
-    },
+    entry: ["src/server.ts", "src/client.ts", "src/react.ts", "src/devtools.ts", "src/vite.ts"],
+    deps: { neverBundle: true, onlyBundle: [], resolveDepSubpath: false },
     dts: {
       generator: "tsgo",
     },
     exports: true,
   },
   lint: {
-    ignorePatterns: [".agents/**"],
+    ignorePatterns: [".agents/**", "**/routeTree.gen.ts"],
     options: {
       typeAware: true,
       typeCheck: true,
     },
   },
   fmt: {
-    ignorePatterns: [".agents/**"],
+    ignorePatterns: [".agents/**", "**/routeTree.gen.ts"],
   },
 });

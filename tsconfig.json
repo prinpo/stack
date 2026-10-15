@@ -6,7 +6,7 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "resolveJsonModule": true,
-    "types": ["node"],
+    "types": ["node", "bun"],
     "strict": true,
     "noUnusedLocals": true,
     "declaration": true,
@@ -17,5 +17,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "exclude": [".agents", "node_modules", "dist"]
+  "exclude": [".agents", "node_modules", "dist", "examples", ".stack-test-*", ".tanstack"]
 }
