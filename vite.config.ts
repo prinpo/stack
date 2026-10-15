@@ -2,7 +2,7 @@ import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   staged: {
-    "*": "vp check --fix",
+    "*": "vp check --fix --no-error-on-unmatched-pattern",
   },
   pack: {
     deps: {
@@ -17,10 +17,13 @@ export default defineConfig({
     exports: true,
   },
   lint: {
+    ignorePatterns: [".agents/**"],
     options: {
       typeAware: true,
       typeCheck: true,
     },
   },
-  fmt: {},
+  fmt: {
+    ignorePatterns: [".agents/**"],
+  },
 });
