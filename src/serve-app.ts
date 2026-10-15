@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Elysia } from "elysia";
 import { staticPlugin } from "@elysiajs/static";
-import { apiPrefix as normalizeApiPrefix } from "./api-prefix.ts";
+import { apiPrefix as normalizeApiPrefix, escapeRegExp } from "./api-prefix.ts";
 
 export interface ServeAppOptions {
   /** Browser build directory, relative to the server's working directory. */
@@ -22,6 +22,14 @@ export async function serveApp({ assets = "dist", apiPrefix = "/api" }: ServeApp
         assets: directory,
         prefix: "",
         alwaysStatic: true,
+        // The pinned static plugin skips registration entirely when this limit is exceeded.
+        staticLimit: Number.POSITIVE_INFINITY,
+        ignorePatterns: [
+          ".DS_Store",
+          ".git",
+          ".env",
+          new RegExp(`^${escapeRegExp(resolve(directory, `.${prefix}`))}(?:[/\\\\]|$)`),
+        ],
         maxAge: 0,
         directive: "no-cache",
       }),

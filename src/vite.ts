@@ -6,7 +6,7 @@ import {
 import { createRouterPluginContext } from "@tanstack/router-plugin/context";
 import type { PluginOption } from "vite";
 import { routerGenerator } from "./router-generator.ts";
-import { apiPrefix } from "./api-prefix.ts";
+import { apiPrefix, escapeRegExp } from "./api-prefix.ts";
 
 export interface StackOptions {
   /** Omit for a frontend-only app. Paths are forwarded without rewriting. */
@@ -32,7 +32,7 @@ export function stack(options: StackOptions = {}): PluginOption[] {
           server: options.api
             ? {
                 proxy: {
-                  [`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:/|\\?|$)`]: {
+                  [`^${escapeRegExp(prefix)}(?:/|\\?|$)`]: {
                     target: options.api.target,
                     changeOrigin: true,
                   },

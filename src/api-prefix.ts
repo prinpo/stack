@@ -7,3 +7,7 @@ export function apiPrefix(value = "/api") {
   }
   return prefix;
 }
+
+export function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
