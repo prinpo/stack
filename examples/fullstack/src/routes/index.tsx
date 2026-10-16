@@ -1,5 +1,5 @@
 import { createFileRoute } from "@prinpo/stack/react";
-import { useState, type FormEvent } from "react";
+import { type FormEvent, useState } from "react";
 
 import { api } from "../client";
 

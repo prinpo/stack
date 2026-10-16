@@ -1,5 +1,5 @@
 import { TanStackRouterDevtools } from "@prinpo/stack/devtools";
-import { createRootRoute, Link, Outlet } from "@prinpo/stack/react";
+import { Link, Outlet, createRootRoute } from "@prinpo/stack/react";
 
 export const Route = createRootRoute({ component: Layout });
 

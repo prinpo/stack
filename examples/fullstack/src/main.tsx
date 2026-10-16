@@ -1,4 +1,4 @@
-import { createRouter, RouterProvider } from "@prinpo/stack/react";
+import { RouterProvider, createRouter } from "@prinpo/stack/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 

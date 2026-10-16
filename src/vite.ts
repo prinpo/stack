@@ -2,8 +2,8 @@ import type { PluginOption } from "vite";
 
 import { createRouterPluginContext } from "@tanstack/router-plugin/context";
 import {
-  tanStackRouterCodeSplitter,
   type Config as RouterConfig,
+  tanStackRouterCodeSplitter,
 } from "@tanstack/router-plugin/vite";
 import react, { type Options as ReactOptions } from "@vitejs/plugin-react";
 

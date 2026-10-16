@@ -18,6 +18,9 @@ export default defineConfig({
       typeAware: true,
       typeCheck: true,
     },
+    rules: {
+      "sort-imports": ["warn", { ignoreDeclarationSort: true }],
+    },
   },
   fmt: {
     ignorePatterns: [".agents/**", "**/routeTree.gen.ts"],
