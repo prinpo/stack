@@ -35,8 +35,8 @@ Vite+ is application development tooling. The example's [package.json](examples/
 ## Browser tooling
 
 ```ts
-import { defineConfig } from "vite-plus";
 import { stack } from "@prinpo/stack/vite";
+import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   plugins: [stack({ api: { target: "http://localhost:3000" } })],
@@ -67,6 +67,7 @@ Keep listening in a separate server entry point. Browser code imports the contra
 
 ```ts
 import { treaty } from "@prinpo/stack/client";
+
 import type { App } from "./server/app";
 
 export const api = treaty<App>(window.location.origin);
@@ -81,6 +82,7 @@ Attach the opt-in plugin to an ordinary Elysia instance:
 
 ```ts
 import { serveApp } from "@prinpo/stack/server";
+
 import { app } from "./app";
 
 if (process.env.NODE_ENV === "production") {

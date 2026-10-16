@@ -1,9 +1,10 @@
-import * as fs from "node:fs/promises";
-import { resolve, sep } from "node:path";
-import { parse } from "@babel/parser";
-import { Generator, getConfig, type GeneratorEvent } from "@tanstack/router-generator";
 import type { Config, RouterPluginContext } from "@tanstack/router-plugin/vite";
 import type { Plugin } from "vite";
+
+import { parse } from "@babel/parser";
+import { Generator, getConfig, type GeneratorEvent } from "@tanstack/router-generator";
+import * as fs from "node:fs/promises";
+import { resolve, sep } from "node:path";
 
 const publicModule = "@prinpo/stack/react";
 const nativeModule = "@tanstack/react-router";

@@ -1,8 +1,9 @@
-import { createServer as createHttpServer } from "node:http";
 import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { createServer as createHttpServer } from "node:http";
 import { join } from "node:path";
-import { afterEach, expect, test } from "vite-plus/test";
 import { createServer } from "vite";
+import { afterEach, expect, test } from "vite-plus/test";
+
 import { stack } from "../src/vite.ts";
 
 const cleanup: Array<() => Promise<unknown>> = [];

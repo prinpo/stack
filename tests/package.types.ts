@@ -1,6 +1,6 @@
-import { expectTypeOf } from "vite-plus/test";
-import DefaultElysia, { Elysia, t } from "@prinpo/stack/server";
 import { treaty } from "@prinpo/stack/client";
+import DefaultElysia, { Elysia, t } from "@prinpo/stack/server";
+import { expectTypeOf } from "vite-plus/test";
 
 const app = new Elysia()
   .get("/api/hello", ({ query }) => ({ message: query.name }), {

@@ -21,5 +21,16 @@ export default defineConfig({
   },
   fmt: {
     ignorePatterns: [".agents/**", "**/routeTree.gen.ts"],
+    sortImports: {
+      groups: [
+        "type-import",
+        ["value-builtin", "value-external"],
+        "type-internal",
+        "value-internal",
+        ["type-parent", "type-sibling", "type-index"],
+        ["value-parent", "value-sibling", "value-index"],
+        "unknown",
+      ],
+    },
   },
 });

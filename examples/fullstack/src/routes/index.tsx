@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from "react";
 import { createFileRoute } from "@prinpo/stack/react";
+import { useState, type FormEvent } from "react";
+
 import { api } from "../client";
 
 export const Route = createFileRoute("/")({

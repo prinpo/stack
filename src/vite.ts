@@ -1,12 +1,14 @@
-import react, { type Options as ReactOptions } from "@vitejs/plugin-react";
+import type { PluginOption } from "vite";
+
+import { createRouterPluginContext } from "@tanstack/router-plugin/context";
 import {
   tanStackRouterCodeSplitter,
   type Config as RouterConfig,
 } from "@tanstack/router-plugin/vite";
-import { createRouterPluginContext } from "@tanstack/router-plugin/context";
-import type { PluginOption } from "vite";
-import { routerGenerator } from "./router-generator.ts";
+import react, { type Options as ReactOptions } from "@vitejs/plugin-react";
+
 import { apiPrefix, escapeRegExp } from "./api-prefix.ts";
+import { routerGenerator } from "./router-generator.ts";
 
 export interface StackOptions {
   /** Omit for a frontend-only app. Paths are forwarded without rewriting. */

@@ -1,6 +1,7 @@
+import { createRouter, RouterProvider } from "@prinpo/stack/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { createRouter, RouterProvider } from "@prinpo/stack/react";
+
 import { routeTree } from "./routeTree.gen";
 import "./style.css";
 

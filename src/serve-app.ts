@@ -1,7 +1,8 @@
+import { staticPlugin } from "@elysiajs/static";
+import { Elysia } from "elysia";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { Elysia } from "elysia";
-import { staticPlugin } from "@elysiajs/static";
+
 import { apiPrefix as normalizeApiPrefix, escapeRegExp } from "./api-prefix.ts";
 
 export interface ServeAppOptions {

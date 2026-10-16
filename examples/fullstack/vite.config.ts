@@ -1,5 +1,5 @@
-import { defineConfig } from "vite-plus";
 import { stack } from "@prinpo/stack/vite";
+import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   plugins: [stack({ api: { target: "http://localhost:3000" } })],
