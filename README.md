@@ -10,11 +10,10 @@ From the repository root:
 
 ```sh
 bunx --bun vp install
-bunx --bun vp run example:setup
 bunx --bun vp run example:dev
 ```
 
-Open <http://localhost:5173>. Elysia runs on port 3000. The example uses an installed package artifact, so it exercises the public exports and declarations. Run `example:setup` again after changing Stack to rebuild and reinstall that artifact.
+Open <http://localhost:5173>. Elysia runs on port 3000. The example is a Bun workspace that imports Stack's TypeScript source directly through `@prinpo/stack/...`. Changes to the source feed into the running application without building, packing, or reinstalling Stack. `bunx --bun vp run dev` from the root starts the same example.
 
 The [full-stack example](examples/fullstack/README.md) documents its files and development workflow. `examples/` is a place to try real scenarios and evaluate the DX.
 
@@ -30,7 +29,7 @@ The [full-stack example](examples/fullstack/README.md) documents its files and d
 
 Import React and React DOM from their upstream packages. They are optional peers; UI applications install compatible versions themselves. Other integrated libraries are pinned regular dependencies. Backend entry points can run without React installed. Frontend-only applications still install the shared dependency set and omit the backend configuration.
 
-Vite+ is application development tooling. The example's [package.json](examples/fullstack/package.json) shows the tested versions, Vite alias, and explicit Bun package-manager setting.
+Vite+ is application development tooling. The example's [package.json](examples/fullstack/package.json) shows the tested versions, Vite alias, and explicit Bun package-manager setting. The private repository root manages development tooling; [src/package.json](src/package.json) defines the Stack workspace, its source exports, pinned libraries, and optional peers. A single root lockfile covers Stack and the examples.
 
 ## Browser tooling
 
@@ -94,19 +93,18 @@ app.listen(3000);
 
 `assets` defaults to `dist`, relative to the working directory; `apiPrefix` defaults to `/api`. The directory must contain `index.html`. Keep its contents limited to public browser build output. The plugin serves assets and returns the app shell for GET/HEAD browser navigations accepting HTML. Unknown API paths, missing asset paths with file extensions, and non-navigation requests keep their 404 responses.
 
-Production application build verification and end-to-end testing are deferred in this milestone.
+Stack builds, package distribution checks, production application builds, and end-to-end testing are deferred in the [source development milestone](docs/milestones/0002-source-linked-development.md). Existing build configuration and production wiring remain for later work.
 
 ## Working on Stack
 
 ```sh
-bunx --bun vp run build
 bunx --bun vp check
 bunx --bun vp test
-bunx --bun vp run check:package
-bunx --bun vp run example:setup
 bunx --bun vp run example:check
 ```
 
-Build before checking or testing: the compile-only contract checks use the built public entry points. The package check installs an artifact in a temporary consumer, verifies backend use without React, then checks browser-safe imports. Focused tests cover the Vite connection, route generation and watching, and the serving plugin's HTTP behavior.
+Checks and tests run against source without `dist` or package artifacts. Compile-only checks exercise Eden's inferred contract through the public exports. Existing tests cover the Vite connection, route generation and watching, and the serving plugin's HTTP behavior. Refresh behavior is verified manually at this stage.
+
+The example uses Vite's native config runner (`--configLoader runner`) to track the Stack preset and its source dependencies. Browser-used Stack modules use Vite's HMR, falling back to a page reload where necessary. Bun's watch mode restarts the backend when its imported source changes; reload the browser manually to fetch updated backend data. Tooling changes restart Vite automatically. Watching follows native dependency tracking with minimal configuration; broader reloads or restarts are a last resort.
 
 Stack maintainers update vulnerable dependencies and publish new Stack versions. Applications can use temporary package-manager overrides while an update is prepared; those versions fall outside the tested dependency set.

@@ -5,13 +5,13 @@
   "scripts": {
     "dev": "bun run --parallel dev:server dev:client",
     "dev:server": "bun --watch src/server/index.ts",
-    "dev:client": "bunx --bun vp dev",
+    "dev:client": "bunx --bun vp dev --configLoader runner",
     "build": "bunx --bun vp build",
     "start": "NODE_ENV=production bun src/server/index.ts",
     "check": "bunx --bun vp check"
   },
   "dependencies": {
-    "@prinpo/stack": "file:../../.artifacts/stack.tgz",
+    "@prinpo/stack": "workspace:*",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },

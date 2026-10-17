@@ -3,7 +3,40 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "stack",
+      "name": "@prinpo/stack-repo",
+      "devDependencies": {
+        "@prinpo/stack": "workspace:*",
+        "@types/bun": "1.4.3",
+        "@types/node": "^26.6.5",
+        "@types/react": "19.3.0",
+        "@types/react-dom": "19.3.0",
+        "bumpp": "^12.3.0",
+        "react": "19.3.1",
+        "react-dom": "19.3.1",
+        "typescript": "^7.0.2",
+        "vite": "npm:@voidzero-dev/vite-plus-core@1.2.0",
+        "vite-plus": "^1.2.0",
+      },
+    },
+    "examples/fullstack": {
+      "name": "@prinpo/stack-example-fullstack",
+      "dependencies": {
+        "@prinpo/stack": "workspace:*",
+        "react": "19.3.1",
+        "react-dom": "19.3.1",
+      },
+      "devDependencies": {
+        "@types/bun": "1.4.3",
+        "@types/react": "19.3.0",
+        "@types/react-dom": "19.3.0",
+        "typescript": "7.0.2",
+        "vite": "npm:@voidzero-dev/vite-plus-core@1.2.0",
+        "vite-plus": "1.2.0",
+      },
+    },
+    "src": {
+      "name": "@prinpo/stack",
+      "version": "0.0.0",
       "dependencies": {
         "@babel/parser": "7.29.9",
         "@elysiajs/eden": "1.4.9",
@@ -18,18 +51,6 @@
         "exact-mirror": "0.2.7",
         "file-type": "22.2.0",
         "openapi-types": "12.1.3",
-      },
-      "devDependencies": {
-        "@types/bun": "1.4.3",
-        "@types/node": "^26.6.5",
-        "@types/react": "19.3.0",
-        "@types/react-dom": "19.3.0",
-        "bumpp": "^12.3.0",
-        "react": "19.3.1",
-        "react-dom": "19.3.1",
-        "typescript": "^7.0.2",
-        "vite": "npm:@voidzero-dev/vite-plus-core@1.2.0",
-        "vite-plus": "^1.2.0",
       },
       "peerDependencies": {
         "react": "^19.3.1",
@@ -192,6 +213,10 @@
     "@oxlint/plugins": ["@oxlint/plugins@1.88.0", "", {}, "sha512-G2xbfWTrbqYRhR/vfeKNMQf/sS3/ti0iKJAAkRxHuXWZH/hne/dyIb9QKk5LuR6cJLARxsL6FMoAYmfspd74MQ=="],
 
     "@polka/url": ["@polka/url@1.0.0-next.29", "", {}, "sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww=="],
+
+    "@prinpo/stack": ["@prinpo/stack@workspace:src"],
+
+    "@prinpo/stack-example-fullstack": ["@prinpo/stack-example-fullstack@workspace:examples/fullstack"],
 
     "@quansync/fs": ["@quansync/fs@1.1.0", "", { "dependencies": { "quansync": "^1.0.0" } }, "sha512-qAPG/t3HqML1TlN7sY/pTbEjzFVAKsMjNNMGheyDosro+kT4iw2KCUoHcVdmliwWjorm4elZbgNQyU2eD97eDg=="],
 

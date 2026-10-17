@@ -11,7 +11,7 @@ const app = new Elysia()
   });
 const api = treaty<typeof app>("http://localhost:3000");
 
-// Compile-only checks through the built public entry points. Never sends requests.
+// Compile-only checks through the source public entry points. Never sends requests.
 export function nativeContractTypes() {
   expectTypeOf(DefaultElysia).toEqualTypeOf<typeof Elysia>();
   expectTypeOf(api.api.hello.get({ query: { name: "Stack" } })).resolves.toMatchTypeOf<{

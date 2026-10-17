@@ -1,5 +1,7 @@
 # Full-stack foundation
 
+The follow-up [source-linked development milestone](0002-source-linked-development.md) replaces this milestone's built-package example requirement with direct source consumption and defers package-build and distribution verification. The remaining foundation capabilities continue to apply.
+
 ## Purpose
 
 Make one basic full-stack application straightforward to assemble from Stack's independent blocks. Reduce repeated configuration while preserving the underlying libraries' native APIs and types.
