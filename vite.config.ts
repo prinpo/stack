@@ -5,12 +5,38 @@ export default defineConfig({
     "*": "vp check --fix --no-error-on-unmatched-pattern",
   },
   pack: {
-    entry: ["src/server.ts", "src/client.ts", "src/react.ts", "src/devtools.ts", "src/vite.ts"],
+    entry: [
+      "src/server.ts",
+      "src/client.ts",
+      "src/react.tsx",
+      "src/query.ts",
+      "src/devtools.ts",
+      "src/vite.ts",
+    ],
     deps: { neverBundle: true, onlyBundle: [], resolveDepSubpath: false },
     dts: {
       generator: "tsgo",
     },
     exports: true,
+  },
+  test: {
+    projects: [
+      {
+        test: {
+          name: "stack",
+          include: ["tests/**/*.test.{ts,tsx}"],
+          exclude: ["tests/eden-query/**"],
+        },
+      },
+      {
+        test: {
+          name: "eden-query",
+          include: ["tests/eden-query/**/*.test.{ts,tsx}"],
+          environment: "happy-dom",
+          setupFiles: ["./tests/eden-query/test-utils/testing-library.ts"],
+        },
+      },
+    ],
   },
   lint: {
     ignorePatterns: [".agents/**", "**/routeTree.gen.ts"],

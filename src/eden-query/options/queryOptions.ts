@@ -1,0 +1,236 @@
+// Modified for Prinpo Stack. See src/eden-query/README.md.
+
+/**
+ * Query options factory for TanStack Query integration.
+ * Creates type-safe query options from Eden route definitions.
+ */
+import type {
+  DataTag,
+  DefinedInitialDataOptions,
+  QueryFunction,
+  SkipToken,
+  UndefinedInitialDataOptions,
+  UnusedSkipTokenOptions,
+} from "@tanstack/react-query";
+
+import { queryOptions, skipToken } from "@tanstack/react-query";
+
+import type { EdenQueryKey, EdenQueryKeyPathParam } from "../keys/types";
+
+import { getQueryKey } from "../keys/queryKey";
+
+// ============================================================================
+// Input Types
+// ============================================================================
+
+/** Reserved options that are set by the library */
+type ReservedOptions = "queryKey" | "queryFn" | "queryHash";
+
+/** Base options for Eden requests */
+interface EdenQueryBaseOptions {
+  eden?: {
+    /** Abort request on component unmount */
+    abortOnUnmount?: boolean;
+  };
+}
+
+/** Result metadata added to query options */
+export interface EdenQueryOptionsResult {
+  eden: {
+    path: string;
+  };
+}
+
+/**
+ * Arguments for creating query options.
+ */
+export interface EdenQueryOptionsArgs<TInput, TOutput> {
+  /** Path segments (e.g., ['api', 'users', 'get']) */
+  path: string[];
+  /** Input parameters or skipToken */
+  input: TInput | SkipToken;
+  /** Cache identity for skipped queries with path params. */
+  inputForKey?: unknown;
+  /** Ordered path-parameter applications for cache identity. */
+  pathParams?: EdenQueryKeyPathParam[];
+  /** Function to fetch data */
+  fetch: (input: TInput, signal?: AbortSignal) => Promise<TOutput>;
+}
+
+// ============================================================================
+// Input Option Types
+// ============================================================================
+
+export interface UndefinedEdenQueryOptionsIn<TQueryFnData, TData, TError>
+  extends
+    Omit<
+      UndefinedInitialDataOptions<NoInfer<TQueryFnData>, TError, TData, EdenQueryKey>,
+      ReservedOptions
+    >,
+    EdenQueryBaseOptions {}
+
+export interface DefinedEdenQueryOptionsIn<TQueryFnData, TData, TError>
+  extends
+    Omit<
+      DefinedInitialDataOptions<NoInfer<TQueryFnData>, TError, TData, EdenQueryKey>,
+      ReservedOptions
+    >,
+    EdenQueryBaseOptions {}
+
+export interface UnusedSkipTokenEdenQueryOptionsIn<TQueryFnData, TData, TError>
+  extends
+    Omit<
+      UnusedSkipTokenOptions<NoInfer<TQueryFnData>, TError, TData, EdenQueryKey>,
+      ReservedOptions
+    >,
+    EdenQueryBaseOptions {}
+
+// ============================================================================
+// Output Option Types
+// ============================================================================
+
+export interface UndefinedEdenQueryOptionsOut<TQueryFnData, TData, TError>
+  extends
+    UndefinedInitialDataOptions<TQueryFnData, TError, TData, EdenQueryKey>,
+    EdenQueryOptionsResult {
+  queryKey: DataTag<EdenQueryKey, TQueryFnData, TError>;
+}
+
+export interface DefinedEdenQueryOptionsOut<TQueryFnData, TData, TError>
+  extends
+    DefinedInitialDataOptions<TQueryFnData, TError, TData, EdenQueryKey>,
+    EdenQueryOptionsResult {
+  queryKey: DataTag<EdenQueryKey, TQueryFnData, TError>;
+}
+
+export interface UnusedSkipTokenEdenQueryOptionsOut<TQueryFnData, TData, TError>
+  extends
+    UnusedSkipTokenOptions<TQueryFnData, TError, TData, EdenQueryKey>,
+    EdenQueryOptionsResult {
+  queryKey: DataTag<EdenQueryKey, TQueryFnData, TError>;
+}
+
+// ============================================================================
+// Union Types
+// ============================================================================
+
+type AnyEdenQueryOptionsIn<TQueryFnData, TData, TError> =
+  | UndefinedEdenQueryOptionsIn<TQueryFnData, TData, TError>
+  | DefinedEdenQueryOptionsIn<TQueryFnData, TData, TError>
+  | UnusedSkipTokenEdenQueryOptionsIn<TQueryFnData, TData, TError>;
+
+type AnyEdenQueryOptionsOut<TQueryFnData, TData, TError> =
+  | UndefinedEdenQueryOptionsOut<TQueryFnData, TData, TError>
+  | DefinedEdenQueryOptionsOut<TQueryFnData, TData, TError>
+  | UnusedSkipTokenEdenQueryOptionsOut<TQueryFnData, TData, TError>;
+
+// ============================================================================
+// Function Overloads
+// ============================================================================
+
+/**
+ * Create query options with defined initial data.
+ * The returned data will never be undefined.
+ */
+export function edenQueryOptions<TInput, TOutput, TError = Error, TData = TOutput>(
+  args: EdenQueryOptionsArgs<TInput, TOutput> & {
+    opts: DefinedEdenQueryOptionsIn<TOutput, TData, TError>;
+  },
+): DefinedEdenQueryOptionsOut<TOutput, TData, TError>;
+
+/**
+ * Create query options without skipToken.
+ * The returned data can be undefined until loaded.
+ */
+export function edenQueryOptions<TInput, TOutput, TError = Error, TData = TOutput>(
+  args: EdenQueryOptionsArgs<TInput, TOutput> & {
+    input: TInput;
+    opts?: UnusedSkipTokenEdenQueryOptionsIn<TOutput, TData, TError>;
+  },
+): UnusedSkipTokenEdenQueryOptionsOut<TOutput, TData, TError>;
+
+/**
+ * Create query options with skipToken support.
+ * Use skipToken to conditionally disable the query.
+ */
+export function edenQueryOptions<TInput, TOutput, TError = Error, TData = TOutput>(
+  args: EdenQueryOptionsArgs<TInput, TOutput> & {
+    opts?: UndefinedEdenQueryOptionsIn<TOutput, TData, TError>;
+  },
+): UndefinedEdenQueryOptionsOut<TOutput, TData, TError>;
+
+// ============================================================================
+// Implementation
+// ============================================================================
+
+/**
+ * Creates TanStack Query options for an Eden route.
+ *
+ * @example
+ * ```typescript
+ * const options = edenQueryOptions({
+ *   path: ['api', 'users', 'get'],
+ *   input: { id: '1' },
+ *   fetch: async (input, signal) => {
+ *     const response = await edenClient.api.users.get({ query: input, fetch: { signal } })
+ *     // Eden does not throw on HTTP errors - rethrow so the query errors out
+ *     if (response.error) throw response.error
+ *     return response.data
+ *   },
+ * })
+ *
+ * // Use with useQuery
+ * const { data } = useQuery(options)
+ *
+ * // Or prefetch
+ * await queryClient.prefetchQuery(options)
+ * ```
+ */
+export function edenQueryOptions<TInput, TOutput, TError = Error, TData = TOutput>(args: {
+  path: string[];
+  input: TInput | SkipToken;
+  inputForKey?: unknown;
+  pathParams?: EdenQueryKeyPathParam[];
+  fetch: (input: TInput, signal?: AbortSignal) => Promise<TOutput>;
+  opts?: AnyEdenQueryOptionsIn<TOutput, TData, TError>;
+}): AnyEdenQueryOptionsOut<TOutput, TData, TError> {
+  const { path, input, fetch: fetchFn, opts } = args;
+
+  const inputIsSkipToken = input === skipToken;
+
+  const queryKey = getQueryKey({
+    path,
+    input: inputIsSkipToken ? args.inputForKey : input,
+    pathParams: args.pathParams,
+    type: "query",
+  });
+
+  // Use unknown internally - types are enforced by function signature
+  const queryFn: QueryFunction<unknown, EdenQueryKey> = async (context) => {
+    const actualInput = input as TInput;
+
+    // Pass abort signal from query context
+    // If eden.abortOnUnmount is true, use the signal
+    const signal = opts?.eden?.abortOnUnmount ? context.signal : undefined;
+
+    const result = await fetchFn(actualInput, signal);
+    return result;
+  };
+
+  // Extract our custom eden options before passing to queryOptions
+  const { eden: _edenOpts, ...tanstackOpts } = opts ?? {};
+
+  const options = {
+    ...tanstackOpts,
+    queryKey,
+    queryFn: inputIsSkipToken ? undefined : queryFn,
+    ...(inputIsSkipToken ? { enabled: false } : {}),
+  };
+
+  // Build result - types are enforced by function overloads
+  return Object.assign(queryOptions(options as Parameters<typeof queryOptions>[0]), {
+    eden: {
+      path: path.join("."),
+    },
+  }) as AnyEdenQueryOptionsOut<TOutput, TData, TError>;
+}

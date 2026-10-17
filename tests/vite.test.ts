@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { createServer } from "vite";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { stack } from "../src/vite.ts";
+import { stack } from "../src/vite";
 
 const cleanup: Array<() => Promise<unknown>> = [];
 

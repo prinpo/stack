@@ -10,7 +10,8 @@ function About() {
       <ol>
         <li>The Stack Vite preset connects React, route generation, and the API proxy.</li>
         <li>Elysia defines the API. Eden infers its contract from a type-only import.</li>
-        <li>Router loads data and renders routes through Stack’s native reexports.</li>
+        <li>Router prefetches typed query options into the shared TanStack Query cache.</li>
+        <li>The Eden Query connector supplies query keys, mutations, and infinite queries.</li>
         <li>The serving plugin connects the browser build to Elysia for production.</li>
       </ol>
     </section>

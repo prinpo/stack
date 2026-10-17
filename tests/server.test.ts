@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { Elysia, serveApp } from "../src/server.ts";
+import { Elysia, serveApp } from "../src/server";
 
 const directories: string[] = [];
 beforeEach(() => {

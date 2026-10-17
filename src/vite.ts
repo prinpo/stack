@@ -7,8 +7,8 @@ import {
 } from "@tanstack/router-plugin/vite";
 import react, { type Options as ReactOptions } from "@vitejs/plugin-react";
 
-import { apiPrefix, escapeRegExp } from "./api-prefix.ts";
-import { routerGenerator } from "./router-generator.ts";
+import { apiPrefix, escapeRegExp } from "./api-prefix";
+import { routerGenerator } from "./router-generator";
 
 export interface StackOptions {
   /** Omit for a frontend-only app. Paths are forwarded without rewriting. */

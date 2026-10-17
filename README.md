@@ -1,8 +1,8 @@
 # @prinpo/stack
 
-A thin application framework for Bun, Elysia, Eden, and TanStack Router. Stack owns a tested set of library versions and connects their native APIs through a few utilities.
+A thin application framework for Bun, Elysia, Eden, TanStack Router, and TanStack Query. Stack owns a tested set of library versions and connects their native APIs through a few utilities.
 
-The first milestone includes file-based routing, router devtools, a Vite preset, a development API proxy, and an Elysia serving plugin. Query, database, auth, logging, and environment integrations follow separately. See the [milestone boundary](docs/milestones/0001-fullstack-foundation.md) and [architectural decisions](docs/adr/).
+The foundation includes file-based routing, router devtools, a Vite preset, a development API proxy, and an Elysia serving plugin. The initial Eden Query connector adds typed query options, keys, filters, mutations, and infinite queries. Database, auth, logging, and environment integrations follow separately. See the [original milestone boundary](docs/milestones/0001-fullstack-foundation.md) and [architectural decisions](docs/adr/).
 
 ## Try the full-stack example
 
@@ -23,6 +23,7 @@ The [full-stack example](examples/fullstack/README.md) documents its files and d
 | ------------------------ | ------------------------------------------------------------------- |
 | `@prinpo/stack/server`   | Native Elysia exports, including its default export, and `serveApp` |
 | `@prinpo/stack/client`   | Native Eden exports, including `treaty`                             |
+| `@prinpo/stack/query`    | Native TanStack React Query exports and the Eden Query connector    |
 | `@prinpo/stack/react`    | Native TanStack Router exports                                      |
 | `@prinpo/stack/devtools` | Native router devtools exports                                      |
 | `@prinpo/stack/vite`     | The `stack` Vite preset                                             |
@@ -78,6 +79,25 @@ const { data, error } = await api.api.hello.get({ query: { name: "Stack" } });
 ```
 
 The origin excludes `/api`: Elysia's route types already include that namespace. For a separately deployed backend, supply its explicit origin. Eden retains its native request, response, and error handling.
+
+## Eden and TanStack Query
+
+Import native Query hooks and the connector through `@prinpo/stack/query`:
+
+```ts
+import { createApiClient } from "@prinpo/stack/query";
+
+const { api, eden, queryClient, ApiProvider, useEden } = createApiClient<App>(
+  window.location.origin,
+  { prefix: "/api" },
+);
+const options = eden.hello.get.queryOptions({ name: "Stack" });
+const key = eden.hello.get.queryKey({ name: "Stack" });
+```
+
+The options work with native `useQuery`, `useMutation`, `useInfiniteQuery`, and QueryClient methods. `ApiProvider` supplies Query and Eden together. The factory returns typed hooks and scoped clients, while requests and keys retain the configured prefix. The original low-level factories remain available. The [connector guide](docs/eden-query.md) covers provider setup, Router loaders, keys, filters, and pagination. The fullstack example demonstrates these against real Elysia endpoints.
+
+This connector is adapted from **eden-tanstack-react-query by Ilya Zhidkov and contributors**. Stack maintains its source and pins Query to 5.102.8 alongside Elysia and Eden. All original functions and types are retained for review. See [upstream credit, baseline, and modifications](src/eden-query/README.md) and [third-party notices](src/THIRD_PARTY_NOTICES.md). The upstream material remains Apache-2.0 licensed.
 
 ## Serving the browser build
 

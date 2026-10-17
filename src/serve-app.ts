@@ -3,7 +3,7 @@ import { type AnyElysia, Elysia } from "elysia";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { escapeRegExp, apiPrefix as normalizeApiPrefix } from "./api-prefix.ts";
+import { escapeRegExp, apiPrefix as normalizeApiPrefix } from "./api-prefix";
 
 export interface ServeAppPluginsOptions {
   /** Browser build directory, relative to the server's working directory. */
