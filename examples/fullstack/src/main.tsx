@@ -1,6 +1,4 @@
-import { RouterProvider, createRouter } from "@prinpo/stack/react";
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
+import { createRootAndRender, createRouter } from "@prinpo/stack/react";
 
 import { routeTree } from "./routeTree.gen";
 import "./style.css";
@@ -13,10 +11,4 @@ declare module "@tanstack/react-router" {
   }
 }
 
-const root = document.getElementById("root");
-if (!root) throw new Error("Missing application root");
-createRoot(root).render(
-  <StrictMode>
-    <RouterProvider router={router} />
-  </StrictMode>,
-);
+createRootAndRender(router);

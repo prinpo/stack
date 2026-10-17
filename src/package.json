@@ -16,7 +16,7 @@
   "exports": {
     "./client": "./client.ts",
     "./devtools": "./devtools.ts",
-    "./react": "./react.ts",
+    "./react": "./react.tsx",
     "./server": "./server.ts",
     "./vite": "./vite.ts",
     "./package.json": "./package.json"
