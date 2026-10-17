@@ -20,7 +20,11 @@ export interface StackOptions {
 /** React, file-based routes, and an optional same-origin API connection. */
 export function stack(options: StackOptions = {}): PluginOption[] {
   const prefix = apiPrefix(options.api?.prefix);
-  const router = { target: "react" as const, autoCodeSplitting: true, ...options.router };
+  const router = {
+    target: "react" as const,
+    autoCodeSplitting: true,
+    ...options.router,
+  };
   const context = createRouterPluginContext();
   return [
     routerGenerator(router, context),
