@@ -9,8 +9,8 @@ Let examples exercise changes to Stack immediately during development. Prefer a 
 ## Agreed boundary
 
 - Examples inside this repository consume Stack's TypeScript source while retaining public `@prinpo/stack/...` imports.
-- Use Bun workspaces to link the examples to Stack, with Stack's public exports pointing directly to its TypeScript source for this stage. Keep resolution consistent across Bun, Vite, and TypeScript without separate aliases or development conditions.
-- The `src/` workspace is the Stack package and owns its library dependencies and optional peers. The private repository root owns development tooling, and one root lockfile covers all workspaces.
+- Keep examples as Bun workspaces with a `file:../..` dependency linking to the root Stack package. Stack's public exports point directly to its TypeScript source for this stage. Keep resolution consistent across Bun, Vite, and TypeScript without separate aliases or development conditions.
+- The root package is `@prinpo/stack` and owns its library dependencies, optional peers, source exports, and development tooling. `src/` contains source files only. Bun's hoisted linker shares the root `node_modules` across the library and examples, with shared tooling versions aligned and one root lockfile covering all workspaces.
 - Starting development requires no Stack build, package packing, or artifact installation.
 - Changes to Stack code used by the browser update the application through HMR where possible. A full page reload is acceptable when necessary.
 - Changes to Stack code used by the backend automatically restart the Bun process.

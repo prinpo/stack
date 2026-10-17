@@ -11,7 +11,7 @@
     "check": "bunx --bun vp check"
   },
   "dependencies": {
-    "@prinpo/stack": "workspace:*",
+    "@prinpo/stack": "file:../..",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },

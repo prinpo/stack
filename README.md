@@ -29,7 +29,11 @@ The [full-stack example](examples/fullstack/README.md) documents its files and d
 
 Import React and React DOM from their upstream packages. They are optional peers; UI applications install compatible versions themselves. Other integrated libraries are pinned regular dependencies. Backend entry points can run without React installed. Frontend-only applications still install the shared dependency set and omit the backend configuration.
 
-Vite+ is application development tooling. The example's [package.json](examples/fullstack/package.json) shows the tested versions, Vite alias, and explicit Bun package-manager setting. The private repository root manages development tooling; [src/package.json](src/package.json) defines the Stack workspace, its source exports, pinned libraries, and optional peers. A single root lockfile covers Stack and the examples.
+The root [package.json](package.json) defines `@prinpo/stack`, its source exports, pinned library dependencies, optional React peers, and development tools. `src/` contains source files only. The example is a private Bun workspace whose `file:../..` dependency links directly to the root package; no separate Stack workspace or self-dependency is needed.
+
+Vite+ is application development tooling. The example's [package.json](examples/fullstack/package.json) shows the tested versions, Vite alias, and explicit Bun package-manager setting. Shared tooling versions stay aligned with the root. [bunfig.toml](bunfig.toml) selects Bun's hoisted linker so Stack and the example share the root `node_modules` and lockfile; conflicting dependency versions can require nested installations. The example also stores Vite's cache under the root `node_modules`.
+
+When migrating an existing checkout from the former `src/` workspace layout, remove the generated root, `src/`, and example `node_modules` directories, then run `bun install --frozen-lockfile`. This one-time cleanup clears stale workspace links and install metadata.
 
 ## Browser tooling
 

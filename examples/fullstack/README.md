@@ -11,7 +11,9 @@ bunx --bun vp install
 bunx --bun vp run example:dev
 ```
 
-Open <http://localhost:5173>. The root install links this example to the Stack workspace in `src/`. Both application and Stack imports resolve to live TypeScript source through the same public `@prinpo/stack/...` paths. No library build or artifact setup is needed.
+Open <http://localhost:5173>. This example is a private Bun workspace. Its `file:../..` dependency links to the root `@prinpo/stack` package, whose public exports point into `src/`. Both application and Stack imports resolve to live TypeScript source through the same public `@prinpo/stack/...` paths. No library build or artifact setup is needed.
+
+The root install uses Bun's hoisted linker. Keep shared tooling versions aligned with the root manifest so dependencies stay in the root `node_modules`; Vite's cache also lives there.
 
 From this directory, use `bun run dev` to run both processes, or `bun run dev:server` and `bun run dev:client` in separate terminals. `bun run check` formats, lints, and typechecks the application after dependencies are installed. The generated route tree is committed so checking also works before the first dev-server run.
 
