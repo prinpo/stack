@@ -1,11 +1,11 @@
 import { staticPlugin } from "@elysiajs/static";
-import { Elysia } from "elysia";
+import { type AnyElysia, Elysia } from "elysia";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { escapeRegExp, apiPrefix as normalizeApiPrefix } from "./api-prefix.ts";
 
-export interface ServeAppOptions {
+export interface ServeAppPluginsOptions {
   /** Browser build directory, relative to the server's working directory. */
   assets?: string;
   /** Reserved API namespace. Unknown API paths never return the app shell. */
@@ -13,7 +13,10 @@ export interface ServeAppOptions {
 }
 
 /** Serve a built SPA on the same origin as an ordinary Elysia application. */
-export async function serveApp({ assets = "dist", apiPrefix = "/api" }: ServeAppOptions = {}) {
+async function serveAppPlugin({
+  assets = "dist",
+  apiPrefix = "/api",
+}: ServeAppPluginsOptions = {}) {
   const prefix = normalizeApiPrefix(apiPrefix);
   const directory = resolve(assets);
   const shell = await readFile(resolve(directory, "index.html"), "utf8");
@@ -50,4 +53,20 @@ export async function serveApp({ assets = "dist", apiPrefix = "/api" }: ServeApp
         headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" },
       });
     });
+}
+
+type ServeAppOptions = {
+  port?: number;
+  isProduction: boolean;
+} & ServeAppPluginsOptions;
+export function serveApp(
+  app: AnyElysia,
+  { port = 3000, isProduction, ...serveAppPluginOptions }: ServeAppOptions,
+) {
+  if (isProduction) {
+    app.use(serveAppPlugin(serveAppPluginOptions));
+  }
+
+  app.listen(port);
+  console.log(`API listening at ${app.server?.url}`);
 }
