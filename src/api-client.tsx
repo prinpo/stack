@@ -8,7 +8,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import type { EdenOptionsProxy } from "./eden-query/types/decorators";
 
-import { createEdenContext } from "./eden-query/context";
 import { createEdenOptionsProxy } from "./eden-query/proxy/createOptionsProxy";
 
 /** Select a static route branch without changing requests or cache keys. */
@@ -48,8 +47,6 @@ export interface ApiClient<TApp extends AnyElysia, TPrefix extends string = ""> 
   eden: ApiPath<EdenOptionsProxy<TApp>, TPrefix>;
   queryClient: QueryClient;
   ApiProvider: (props: { children: ReactNode }) => JSX.Element;
-  useEden: () => ApiPath<EdenOptionsProxy<TApp>, TPrefix>;
-  useEdenClient: () => ApiPath<Treaty.Create<TApp>, TPrefix>;
 }
 
 export function createApiClient<TApp extends AnyElysia>(origin: string): ApiClient<TApp>;
@@ -63,7 +60,7 @@ export function createApiClient<TApp extends AnyElysia, TPrefix extends string =
   options: CreateApiClientOptions<TApp, TPrefix>,
 ): ApiClient<TApp, TPrefix>;
 
-/** Create the Treaty client, Query cache, options proxy, and their shared React provider. */
+/** Create the Treaty client, Query cache, options proxy, and Query provider. */
 export function createApiClient<TApp extends AnyElysia, TPrefix extends string = "">(
   origin: string,
   options: ApiClientConfig & { prefix?: TPrefix } = {},
@@ -71,7 +68,6 @@ export function createApiClient<TApp extends AnyElysia, TPrefix extends string =
   const client = treaty<TApp>(origin, options.treaty);
   const queryClient = new QueryClient(options.query);
   const proxy = createEdenOptionsProxy<TApp>({ client });
-  const context = createEdenContext<TApp>();
   const segments = (options.prefix ?? "").split("/").filter(Boolean);
 
   function scope<T>(value: T): ApiPath<T, TPrefix> {
@@ -81,19 +77,7 @@ export function createApiClient<TApp extends AnyElysia, TPrefix extends string =
   }
 
   function ApiProvider({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <context.EdenProvider client={client}>{children}</context.EdenProvider>
-      </QueryClientProvider>
-    );
-  }
-
-  function useEden() {
-    return scope(context.useEden());
-  }
-
-  function useEdenClient() {
-    return scope(context.useEdenClient());
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   }
 
   return {
@@ -101,7 +85,5 @@ export function createApiClient<TApp extends AnyElysia, TPrefix extends string =
     eden: scope(proxy),
     queryClient,
     ApiProvider,
-    useEden,
-    useEdenClient,
   };
 }

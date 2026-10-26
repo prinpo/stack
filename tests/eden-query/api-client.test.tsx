@@ -98,16 +98,14 @@ test("scoped raw calls, mutations, dynamic parameters, and infinite queries shar
   ]);
 });
 
-test("ApiProvider supplies the factory cache and scoped Eden hooks", async () => {
+test("ApiProvider supplies the factory cache to queries using the standalone Eden proxy", async () => {
   const setup = client();
   clients.push(setup);
   const { result } = renderHook(
     () => {
-      const eden = setup.useEden();
       return {
         queryClient: useQueryClient(),
-        api: setup.useEdenClient(),
-        query: useQuery(eden.users.get.queryOptions({ name: "Grace" })),
+        query: useQuery(setup.eden.users.get.queryOptions({ name: "Grace" })),
       };
     },
     { wrapper: setup.ApiProvider },
@@ -116,7 +114,6 @@ test("ApiProvider supplies the factory cache and scoped Eden hooks", async () =>
   await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
   expect(result.current.queryClient).toBe(setup.queryClient);
   expect(result.current.query.data).toEqual({ name: "Grace", header: "Stack" });
-  expect((await result.current.api.users({ id: "7" }).get()).data).toEqual({ id: "7" });
   expect(setup.queryClient.getQueryData(setup.eden.users.get.queryKey({ name: "Grace" }))).toEqual(
     result.current.query.data,
   );

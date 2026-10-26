@@ -87,15 +87,14 @@ Import native Query hooks and the connector through `@prinpo/stack/query`:
 ```ts
 import { createApiClient } from "@prinpo/stack/query";
 
-const { api, eden, queryClient, ApiProvider, useEden } = createApiClient<App>(
-  window.location.origin,
-  { prefix: "/api" },
-);
+const { api, eden, queryClient, ApiProvider } = createApiClient<App>(window.location.origin, {
+  prefix: "/api",
+});
 const options = eden.hello.get.queryOptions({ name: "Stack" });
 const key = eden.hello.get.queryKey({ name: "Stack" });
 ```
 
-The options work with native `useQuery`, `useMutation`, `useInfiniteQuery`, and QueryClient methods. `ApiProvider` supplies Query and Eden together. The factory returns typed hooks and scoped clients, while requests and keys retain the configured prefix. The original low-level factories remain available. The [connector guide](docs/eden-query.md) covers provider setup, Router loaders, keys, filters, and pagination. The fullstack example demonstrates these against real Elysia endpoints.
+The options work with native `useQuery`, `useMutation`, `useInfiniteQuery`, and QueryClient methods. `ApiProvider` supplies the factory's cache through QueryClientProvider. Components and loaders import the same scoped clients, while requests and keys retain the configured prefix. The original low-level factories remain available. The [connector guide](docs/eden-query.md) covers provider setup, Router loaders, keys, filters, and pagination. The fullstack example demonstrates these against real Elysia endpoints.
 
 This connector is adapted from **eden-tanstack-react-query by Ilya Zhidkov and contributors**. Stack maintains its source and pins Query to 5.102.8 alongside Elysia and Eden. All original functions and types are retained for review. See [upstream credit, baseline, and modifications](src/eden-query/README.md) and [third-party notices](src/THIRD_PARTY_NOTICES.md). The upstream material remains Apache-2.0 licensed.
 

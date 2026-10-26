@@ -23,7 +23,7 @@ Upstream's changelog additionally credits [David Hermann (@RedEagle-dh)](https:/
 
 The adaptation preserves runtime algorithms, type overloads, query/filter/key semantics, deprecated arguments, and upstream names. Further behavioral changes should be recorded here so comparison with upstream remains practical. The original package is not a runtime dependency.
 
-Stack's separately authored `src/api-client.tsx` composes the retained factories into `createApiClient`, returning the Treaty client, QueryClient, options proxy, hooks, and a combined ApiProvider. Its optional prefix selects matching branches of the existing clients, preserving full request paths and upstream key identities. This helper does not change the adapted modules or their original public functions.
+Stack's separately authored `src/api-client.tsx` composes the retained factories into `createApiClient`, returning only the Treaty client, QueryClient, options proxy, and an ApiProvider wrapping QueryClientProvider. Components and loaders share the exported client instances; this factory does not create Eden context or hooks. The original upstream context factories remain separately available. Its optional prefix selects matching branches of the existing clients, preserving full request paths and upstream key identities. This helper does not change the adapted modules or their original public functions.
 
 ## Source mapping
 

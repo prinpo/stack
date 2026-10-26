@@ -1,8 +1,8 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@prinpo/stack/query";
+import { useInfiniteQuery, useMutation, useQuery } from "@prinpo/stack/query";
 import { createFileRoute } from "@prinpo/stack/react";
 import { type FormEvent } from "react";
 
-import { eden, queryClient, useEden } from "../client";
+import { eden, queryClient } from "../client";
 
 const greetingInput = { name: "Stack" };
 
@@ -16,8 +16,6 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const eden = useEden();
-  const queryClient = useQueryClient();
   const greeting = useQuery(eden.hello.get.queryOptions(greetingInput));
   const echo = useMutation(eden.echo.post.mutationOptions());
   const messages = useInfiniteQuery(

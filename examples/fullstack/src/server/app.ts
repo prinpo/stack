@@ -7,6 +7,9 @@ export const app = new Elysia()
   .post("/api/echo", ({ body }) => ({ message: body.message }), {
     body: t.Object({ message: t.String({ minLength: 1 }) }),
   })
+  .post("/api/error", ({ status }) => {
+    return status(400);
+  })
   .get(
     "/api/messages",
     ({ query }) => {

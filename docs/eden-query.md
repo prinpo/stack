@@ -11,15 +11,15 @@ import { createApiClient } from "@prinpo/stack/query";
 
 import type { App } from "./server/app";
 
-export const { api, eden, queryClient, ApiProvider, useEden, useEdenClient } = createApiClient<App>(
+export const { api, eden, queryClient, ApiProvider } = createApiClient<App>(
   window.location.origin,
   { prefix: "/api" },
 );
 ```
 
-The factory creates a native Treaty client, QueryClient, standalone options proxy, and typed hooks. Create it once per browser application. Wrap the root route's content in `<ApiProvider>…</ApiProvider>`; it supplies both Query and Eden, with no client props. The [fullstack root route](../examples/fullstack/src/routes/__root.tsx) shows this with Stack's existing Router renderer.
+The factory creates a native Treaty client, QueryClient, standalone options proxy, and Query provider. Create it once per browser application and export the result from your client module. Components and loaders import the same `eden`, `api`, and `queryClient` instances. Wrap the root route's content in `<ApiProvider>…</ApiProvider>`; it supplies QueryClientProvider with the factory's cache, with no client props or Eden context. The [fullstack root route](../examples/fullstack/src/routes/__root.tsx) shows this with Stack's existing Router renderer.
 
-With `prefix: "/api"`, write `eden.hello.get` and `api.hello.get` for `/api/hello`. The prefix selects a branch of the full clients: requests still use `/api/hello`, and generated keys retain `api`. The standalone proxy and `useEden()` use the same scope; `useEdenClient()` returns the scoped raw Treaty client. Omitting `prefix` preserves the complete native route tree.
+With `prefix: "/api"`, write `eden.hello.get` and `api.hello.get` for `/api/hello`. The prefix selects a branch of the full clients: requests still use `/api/hello`, and generated keys retain `api`. Both the `eden` proxy and raw `api` client use this scope. Omitting `prefix` preserves the complete native route tree.
 
 Pass native options through `treaty` and `query`:
 
@@ -40,7 +40,7 @@ const client = createApiClient<RpcApp, "/rpc/v1">(window.location.origin, {
 });
 ```
 
-The `/api` overload needs only the app generic. Prefixes are checked against the app's route tree. Each factory owns its QueryClient; separate factory calls have separate caches. The existing low-level `createEdenOptionsProxy`, `createEdenTanStackQuery`, `QueryClientProvider`, and `EdenProvider` APIs remain available for explicit composition.
+The `/api` overload needs only the app generic. Prefixes are checked against the app's route tree. Each factory owns its QueryClient; separate factory calls have separate caches. The existing low-level `createEdenOptionsProxy`, `createEdenContext`, `createEdenTanStackQuery`, and QueryClientProvider APIs remain available for explicit composition. The upstream context factories still return EdenProvider, useEden, and useEdenClient separately; `createApiClient` does not create or return an Eden context or hooks.
 
 ## Queries, loaders, and keys
 
@@ -49,8 +49,9 @@ For the example's `GET /api/hello?name=Stack` endpoint:
 ```tsx
 import { useQuery } from "@prinpo/stack/query";
 
+import { eden, queryClient } from "./client";
+
 function Greeting() {
-  const eden = useEden();
   const greeting = useQuery(eden.hello.get.queryOptions({ name: "Stack" }));
   return <p>{greeting.data?.message}</p>;
 }
@@ -119,6 +120,18 @@ Preserved upstream behaviors to consider during review:
 
 SSR, new pagination conventions, and changes to these contracts are deferred for further connector work.
 
+## Deferred backend errors and mutation feedback
+
+Integrate **Elysia with evlog first**, then verify how its returned and thrown errors reach the browser through Eden. Establish that contract before choosing a client-side error shape or helper interface.
+
+Follow-up work, in order:
+
+1. Configure Elysia with evlog and verify the resulting error responses, HTTP statuses, and Eden behavior.
+2. Give applications an easy, typed way to identify backend errors, distinguish them from transport or unexpected failures, and associate an application-defined action with an error. The error and action interfaces remain deferred until the integration establishes the contract.
+3. Revisit a mutation feedback example using native MutationCache callbacks and reusable `.mutationOptions({ meta: … })` definitions. Applications can interpret their own metadata to show notifications, translate messages, log outcomes, or perform other actions.
+
+Stack supplies headless integration logic; applications own presentation, translation, and action behavior. No toaster, i18n dependency, required feedback policy, or additional mutation lifecycle abstraction is planned for this example. Start with mutations; query feedback can be considered later. This work is deferred, with no implementation or error schema selected yet.
+
 ## Validation
 
 ```sh
@@ -132,4 +145,4 @@ The imported tests cover runtime routing, real Treaty requests, errors, cache id
 
 The initial import passes 551 connector tests and the existing 18 Stack tests, plus repository and example format/lint/type checks. Browser verification exercised the greeting query, key invalidation/refetch, echo mutation, and all three cursor pages through the development proxy without console errors. The 12 connector module bodies and exported declarations were compared against the baseline after normalizing import paths, comments, and formatting; no algorithm or type-contract changes were introduced. Production qualification remains deferred.
 
-The API client factory has additional coverage for prefix routing/key identity, scoped raw calls and hooks, the combined provider, independent caches, native options, and the current loader query method.
+The API client factory has additional coverage for prefix routing/key identity, scoped raw calls, native Query hooks using the standalone proxy, the Query provider, independent caches, native options, and the current loader query method.
