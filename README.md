@@ -2,7 +2,7 @@
 
 A thin application framework for Bun, Elysia, Eden, TanStack Router, and TanStack Query. Stack owns a tested set of library versions and connects their native APIs through a few utilities.
 
-The foundation includes file-based routing, router devtools, a Vite preset, a development API proxy, and an Elysia serving plugin. The initial Eden Query connector adds typed query options, keys, filters, mutations, and infinite queries. Database, auth, logging, and environment integrations follow separately. See the [original milestone boundary](docs/milestones/0001-fullstack-foundation.md) and [architectural decisions](docs/adr/).
+The foundation includes file-based routing, router devtools, a Vite preset, a development API proxy, and an Elysia serving plugin. The Eden Query connector adds typed queries and mutations. The optional logger Block integrates evlog, typed API failures, and local diagnosis. Database, auth, and environment integrations follow separately. See the [original milestone boundary](docs/milestones/0001-fullstack-foundation.md) and [architectural decisions](docs/adr/).
 
 ## Try the full-stack example
 
@@ -19,14 +19,17 @@ The [full-stack example](examples/fullstack/README.md) documents its files and d
 
 ## Public imports
 
-| Import                   | Provides                                                            |
-| ------------------------ | ------------------------------------------------------------------- |
-| `@prinpo/stack/server`   | Native Elysia exports, including its default export, and `serveApp` |
-| `@prinpo/stack/client`   | Native Eden exports, including `treaty`                             |
-| `@prinpo/stack/query`    | Native TanStack React Query exports and the Eden Query connector    |
-| `@prinpo/stack/react`    | Native TanStack Router exports                                      |
-| `@prinpo/stack/devtools` | Native router devtools exports                                      |
-| `@prinpo/stack/vite`     | The `stack` Vite preset                                             |
+| Import                        | Provides                                                            |
+| ----------------------------- | ------------------------------------------------------------------- |
+| `@prinpo/stack/server`        | Native Elysia exports, including its default export, and `serveApp` |
+| `@prinpo/stack/client`        | Native Eden exports, including `treaty`                             |
+| `@prinpo/stack/logger`        | Native evlog utilities                                              |
+| `@prinpo/stack/logger/elysia` | Opt-in `logger` plugin and request-context `apiError`               |
+| `@prinpo/stack/logger/client` | Browser-safe `isStructuredApiError` guard                           |
+| `@prinpo/stack/query`         | Native TanStack React Query exports and the Eden Query connector    |
+| `@prinpo/stack/react`         | Native TanStack Router exports                                      |
+| `@prinpo/stack/devtools`      | Native router devtools exports                                      |
+| `@prinpo/stack/vite`          | The `stack` Vite preset                                             |
 
 Import React and React DOM from their upstream packages. They are optional peers; UI applications install compatible versions themselves. Other integrated libraries are pinned regular dependencies. Backend entry points can run without React installed. Frontend-only applications still install the shared dependency set and omit the backend configuration.
 
@@ -98,20 +101,25 @@ The options work with native `useQuery`, `useMutation`, `useInfiniteQuery`, and 
 
 This connector is adapted from **eden-tanstack-react-query by Ilya Zhidkov and contributors**. Stack maintains its source and pins Query to 5.102.8 alongside Elysia and Eden. All original functions and types are retained for review. See [upstream credit, baseline, and modifications](src/eden-query/README.md) and [third-party notices](src/THIRD_PARTY_NOTICES.md). The upstream material remains Apache-2.0 licensed.
 
+## Optional logging
+
+The [logging guide](docs/logger.md) covers one-call evlog setup, shared plugin registration, typed errors, native Query callbacks, and local CLI commands. Logging is optional even for Elysia applications. Native validation responses remain intact; streaming integration and external services are deferred.
+
 ## Serving the browser build
 
-Attach the opt-in plugin to an ordinary Elysia instance:
+Start an ordinary Elysia instance with optional production browser serving:
 
 ```ts
 import { serveApp } from "@prinpo/stack/server";
 
 import { app } from "./app";
 
-if (process.env.NODE_ENV === "production") {
-  app.use(serveApp({ assets: "dist", apiPrefix: "/api" }));
-}
-
-app.listen(3000);
+serveApp(app, {
+  isProduction: process.env.NODE_ENV === "production",
+  port: 3000,
+  assets: "dist",
+  apiPrefix: "/api",
+});
 ```
 
 `assets` defaults to `dist`, relative to the working directory; `apiPrefix` defaults to `/api`. The directory must contain `index.html`. Keep its contents limited to public browser build output. The plugin serves assets and returns the app shell for GET/HEAD browser navigations accepting HTML. Unknown API paths, missing asset paths with file extensions, and non-navigation requests keep their 404 responses.

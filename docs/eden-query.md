@@ -122,15 +122,14 @@ SSR, new pagination conventions, and changes to these contracts are deferred for
 
 ## Deferred backend errors and mutation feedback
 
-Integrate **Elysia with evlog first**, then verify how its returned and thrown errors reach the browser through Eden. Establish that contract before choosing a client-side error shape or helper interface.
+The optional [logger Block](logger.md) now integrates Elysia with evlog and provides a structured-error guard inside native client-wide and endpoint-specific callbacks. HTTP and type checks verify its error contract through Eden and this connector. Structural recognition does not prove provenance, and status 503 alone cannot distinguish backend and transport failures.
 
 Follow-up work, in order:
 
-1. Configure Elysia with evlog and verify the resulting error responses, HTTP statuses, and Eden behavior.
-2. Give applications an easy, typed way to identify backend errors, distinguish them from transport or unexpected failures, and associate an application-defined action with an error. The error and action interfaces remain deferred until the integration establishes the contract.
-3. Revisit a mutation feedback example using native MutationCache callbacks and reusable `.mutationOptions({ meta: … })` definitions. Applications can interpret their own metadata to show notifications, translate messages, log outcomes, or perform other actions.
+1. Associate an application-defined action with an error. The action interface remains deferred; basic structured-error identification is already available.
+2. Revisit a mutation feedback example using native MutationCache callbacks and reusable `.mutationOptions({ meta: … })` definitions. Applications can interpret their own metadata to show notifications, translate messages, log outcomes, or perform other actions.
 
-Stack supplies headless integration logic; applications own presentation, translation, and action behavior. No toaster, i18n dependency, required feedback policy, or additional mutation lifecycle abstraction is planned for this example. Start with mutations; query feedback can be considered later. This work is deferred, with no implementation or error schema selected yet.
+Stack supplies headless integration logic; applications own presentation, translation, and action behavior. No toaster, i18n dependency, required feedback policy, or additional mutation lifecycle abstraction is planned for this example. Start with mutations; query feedback can be considered later. The [logging guide](logger.md) documents the implemented structured-error guard; application actions and the feedback example remain deferred.
 
 ## Validation
 

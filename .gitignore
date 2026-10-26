@@ -4,6 +4,7 @@ dist
 .stack-test-*
 *.tgz
 *.log
+.evlog
 .DS_Store
 
 # dotenv environment variable files

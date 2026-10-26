@@ -1,14 +1,16 @@
 import { Elysia, t } from "@prinpo/stack/server";
 
+import { errors } from "./errors";
+import { logging } from "./logging";
+
 export const app = new Elysia()
+  .use(logging)
+  .use(errors)
   .get("/api/hello", ({ query }) => ({ message: `Hello, ${query.name}!` }), {
     query: t.Object({ name: t.String({ minLength: 1 }) }),
   })
   .post("/api/echo", ({ body }) => ({ message: body.message }), {
     body: t.Object({ message: t.String({ minLength: 1 }) }),
-  })
-  .post("/api/error", ({ status }) => {
-    return status(400);
   })
   .get(
     "/api/messages",

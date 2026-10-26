@@ -1,5 +1,5 @@
 import { staticPlugin } from "@elysiajs/static";
-import { type AnyElysia, Elysia } from "elysia";
+import { type AnyElysia, Elysia, NotFoundError } from "elysia";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -38,17 +38,15 @@ async function serveAppPlugin({
         directive: "no-cache",
       }),
     )
-    .onError({ as: "global" }, ({ code, request, path, set }) => {
+    .all("/*", ({ request, path }) => {
       if (
-        code !== "NOT_FOUND" ||
         (request.method !== "GET" && request.method !== "HEAD") ||
         path === prefix ||
         path.startsWith(`${prefix}/`) ||
         !request.headers.get("accept")?.includes("text/html") ||
         /\.[^/]+$/.test(path)
       )
-        return;
-      set.status = 200;
+        throw new NotFoundError();
       return new Response(request.method === "HEAD" ? null : shell, {
         headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" },
       });

@@ -18,6 +18,15 @@ export const Route = createFileRoute("/")({
 function Home() {
   const greeting = useQuery(eden.hello.get.queryOptions(greetingInput));
   const echo = useMutation(eden.echo.post.mutationOptions());
+  const failure = useMutation(
+    eden.error.post.mutationOptions({
+      onError(error) {
+        if (isStructuredApiError(error) && error.status === 409) {
+          console.info("Endpoint-specific order", error.value.data.orderId);
+        }
+      },
+    }),
+  );
   const messages = useInfiniteQuery(
     eden.messages.get.infiniteQueryOptions(
       {},
@@ -63,6 +72,14 @@ function Home() {
         {echo.isError ? "The API could not accept the message." : echo.data?.message}
       </p>
       <h3>Load the connection in pages</h3>
+      <button type="button" disabled={failure.isPending} onClick={() => failure.mutate()}>
+        Try a structured API error
+      </button>
+      {isStructuredApiError(failure.error) && (
+        <p role="status">
+          {failure.error.value.message} — {failure.error.value.data?.fix}
+        </p>
+      )}
       <ul>
         {messages.data?.pages.flatMap((page) =>
           page.items.map((item) => <li key={item.id}>{item.message}</li>),
@@ -85,3 +102,4 @@ function Home() {
     </section>
   );
 }
+import { isStructuredApiError } from "@prinpo/stack/logger/client";

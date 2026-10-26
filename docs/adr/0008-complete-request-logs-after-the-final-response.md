@@ -1,0 +1,3 @@
+# Complete request logs after the final response
+
+Stack owns the ordinary Elysia request-logging lifecycle through evlog's toolkit so an event records the final HTTP response status while preserving the original error diagnostics. The tested native evlog Elysia plugin emits early on errors and can disagree with later error handling, SPA fallback, or raw `Response` statuses; wrapping it without controlling completion cannot reliably correct those events. This accepts maintaining an Elysia adapter over evlog's native machinery in exchange for accurate logs and simple application setup. Stream completion, cancellation diagnostics, and streaming client handling remain deferred in the [evlog milestone](../milestones/0003-evlog.md).

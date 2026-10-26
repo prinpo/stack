@@ -12,6 +12,9 @@ export default defineConfig({
       "src/query.ts",
       "src/devtools.ts",
       "src/vite.ts",
+      "src/logger.ts",
+      "src/logger/elysia.ts",
+      "src/logger/client.ts",
     ],
     deps: { neverBundle: true, onlyBundle: [], resolveDepSubpath: false },
     dts: {

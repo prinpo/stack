@@ -39,6 +39,12 @@ To use another layout, set `router.routesDirectory` and `router.generatedRouteTr
 
 For a frontend-only application, omit the server files, API client, and `api` preset option. A backend-only application can use the server and Eden entry points with Bun alone.
 
+## Optional logging and structured errors
+
+The example opts into evlog through shared `src/server/logging.ts`, registered on the main app and `src/server/errors.ts` route module. **Try a structured API error** calls a typed 409 endpoint. The same guard runs in a native `MutationCache` callback and the endpoint's mutation `onError`, retaining `orderId` inference. Native validation and ordinary statuses remain available.
+
+From the repository root, use `bunx --bun vp run example:logs`, `example:logs:errors`, or `example:logs:json`. Files default to this example's `.evlog/logs`; set `PRINPO_LOG_DIR` to share another directory between server and commands. Runtime logging needs no external account. Scripts use the root's pinned CLI and disable CLI usage telemetry. See [the logging guide](../../docs/logger.md) for options and type boundaries.
+
 ## Production wiring
 
 `bun run build` invokes Vite+ to create `dist/`. `bun run start` attaches `serveApp()` and runs Elysia on port 3000, serving that directory and the API on one origin. Stack builds, package distribution, production application builds, and end-to-end testing are deferred for this stage; these retained commands document the intended wiring.
