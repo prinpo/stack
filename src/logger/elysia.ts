@@ -16,6 +16,7 @@ import {
   createMiddlewareLogger,
   extractSafeHeaders,
 } from "evlog/toolkit";
+import { format } from "node:util";
 
 import { apiError, publicError } from "./errors";
 import { developmentDrain } from "./persistence";
@@ -80,7 +81,7 @@ export function logger({ persistence, errors, ...input }: LoggerOptions = {}) {
         return { log: state.logger, apiError };
       })
       // Low-level registration keeps response-producing hooks out of success inference.
-      .on("error", ({ request, error, code, set }) => {
+      .onError(({ request, error, code, set }) => {
         const state = requests.get(request);
         if (error instanceof ElysiaCustomStatusResponse) return error;
         if (EvlogError.isEvlogError(error)) {
@@ -97,20 +98,20 @@ export function logger({ persistence, errors, ...input }: LoggerOptions = {}) {
         const mapped = createError({
           ...defaults[category],
           ...errors?.[category],
-          cause: error instanceof Error ? error : new Error(String(error)),
+          cause: error instanceof Error ? error : new Error(format(error)),
         });
         state?.logger.error(mapped);
         set.status = mapped.status;
         return Response.json(publicError(mapped), { status: mapped.status });
       })
       .as("global")
-      .onAfterResponse({ as: "global" }, async ({ request, response, set }) => {
+      .onAfterResponse({ as: "global" }, async ({ request, responseValue, set }) => {
         const state = requests.get(request);
         requests.delete(request);
         // Elysia applies set.status to a 200 Response; an explicit non-200 Response wins.
         const status =
-          response instanceof Response && response.status !== 200
-            ? response.status
+          responseValue instanceof Response && responseValue.status !== 200
+            ? responseValue.status
             : elysiaStatus(set.status ?? 200).code;
         await state?.finish({ status });
       })

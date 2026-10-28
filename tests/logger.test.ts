@@ -260,6 +260,35 @@ test("native enrich and drain callbacks receive request headers", async () => {
   expect(events[0]?.headers).not.toHaveProperty("x-api-key");
 });
 
+test.each(["string", "object", "circular"])(
+  "non-Error rejections retain private diagnostics (%s)",
+  async (kind) => {
+    const events: DrainContext[] = [];
+    const detail = "private diagnostic";
+    const failure: { detail: string; self?: unknown } = { detail };
+    if (kind === "circular") failure.self = failure;
+    const app = new Elysia()
+      .use(
+        logger({
+          silent: true,
+          persistence: false,
+          drain: (ctx) => {
+            events.push(ctx);
+          },
+        }),
+      )
+      .get("/broken", () => Promise.reject(kind === "string" ? detail : failure));
+
+    const response = await app.handle(new Request("http://localhost/broken"));
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ status: 500, message: "Internal server error" });
+    await vi.waitFor(() => expect(events).toHaveLength(1));
+    expect(events[0]?.event).toMatchObject({
+      error: { cause: { message: expect.stringContaining(detail) } },
+    });
+  },
+);
+
 test("framework overrides preserve statuses, private causes, and native validation responses", async () => {
   const events: DrainContext[] = [];
   const app = new Elysia()
