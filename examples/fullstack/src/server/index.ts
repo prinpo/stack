@@ -1,7 +1,10 @@
 import { serveApp } from "@prinpo/stack/server";
+import "@prinpo/stack/env/auto-load";
 
+import { ENV } from "../env/server";
 import { app } from "./app";
 
 serveApp(app, {
-  isProduction: process.env.NODE_ENV === "production",
+  isProduction: ENV.NODE_ENV === "production",
+  port: ENV.PORT,
 });

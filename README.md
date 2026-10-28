@@ -2,7 +2,7 @@
 
 A thin application framework for Bun, Elysia, Eden, TanStack Router, and TanStack Query. Stack owns a tested set of library versions and connects their native APIs through a few utilities.
 
-The foundation includes file-based routing, router devtools, a Vite preset, a development API proxy, and an Elysia serving plugin. The Eden Query connector adds typed queries and mutations. The optional logger Block integrates evlog, typed API failures, and local diagnosis. Database, auth, and environment integrations follow separately. See the [original milestone boundary](docs/milestones/0001-fullstack-foundation.md) and [architectural decisions](docs/adr/).
+The foundation includes file-based routing, router devtools, a Vite preset, a development API proxy, and an Elysia serving plugin. The Eden Query connector adds typed queries and mutations. Optional Blocks integrate evlog logging and [Varlock configuration](docs/env.md), including typed schemas and public runtime values. Database and auth integrations follow separately. See the [original milestone boundary](docs/milestones/0001-fullstack-foundation.md) and [architectural decisions](docs/adr/).
 
 ## Try the full-stack example
 
@@ -29,6 +29,10 @@ The [full-stack example](examples/fullstack/README.md) documents its files and d
 | `@prinpo/stack/query`         | Native TanStack React Query exports and the Eden Query connector    |
 | `@prinpo/stack/react`         | Native TanStack Router exports                                      |
 | `@prinpo/stack/devtools`      | Native router devtools exports                                      |
+| `@prinpo/stack/env`           | Browser-safe Varlock access and public hydration helpers            |
+| `@prinpo/stack/env/vite`      | Opt-in native Vite plugins with static-only, public-only loading    |
+| `@prinpo/stack/env/elysia`    | Opt-in public runtime configuration endpoint                        |
+| `@prinpo/stack/env/auto-load` | Explicit initialization of the CLI-validated server graph           |
 | `@prinpo/stack/vite`          | The `stack` Vite preset                                             |
 
 Import React and React DOM from their upstream packages. They are optional peers; UI applications install compatible versions themselves. Other integrated libraries are pinned regular dependencies. Backend entry points can run without React installed. Frontend-only applications still install the shared dependency set and omit the backend configuration.
@@ -54,7 +58,7 @@ The preset configures React, file-route generation, automatic route splitting, s
 
 For a frontend-only application, use `stack()`. Configure `router.routesDirectory` and `router.generatedRouteTree` for a different layout, or pass other native Router plugin options through `router`. React plugin options go through `react`. A custom proxy namespace uses `api.prefix`, for example `/rpc`.
 
-Router's `Register` and generated `FileRoutesByPath` declarations augment the native `@tanstack/react-router` module. Keep that native type-registration target even though application imports use Stack; the [example entry point](examples/fullstack/src/main.tsx) demonstrates it. Exclude the generated route tree from formatting and linting, as the [example config](examples/fullstack/vite.config.ts) does.
+Router's `Register` and generated `FileRoutesByPath` declarations augment the native `@tanstack/react-router` module. Keep that native type-registration target even though application imports use Stack; the [example application](examples/fullstack/src/application.tsx) demonstrates it. Exclude generated files from formatting and linting, as the [example config](examples/fullstack/vite.config.ts) does.
 
 ## Server and Eden
 

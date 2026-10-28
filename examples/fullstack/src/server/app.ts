@@ -1,9 +1,11 @@
+import { publicEnv } from "@prinpo/stack/env/elysia";
 import { Elysia, t } from "@prinpo/stack/server";
 
 import { errors } from "./errors";
 import { logging } from "./logging";
 
 export const app = new Elysia()
+  .use(publicEnv({ keys: ["PUBLIC_DEPLOYMENT_NAME"] }))
   .use(logging)
   .use(errors)
   .get("/api/hello", ({ query }) => ({ message: `Hello, ${query.name}!` }), {

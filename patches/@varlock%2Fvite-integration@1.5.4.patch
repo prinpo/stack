@@ -1,0 +1,35 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 5c4c69568d021198dc68821328b77f37db405514..ac7e48e59c752bf433a362ad74b9abeffff48b11 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1476,6 +1476,7 @@ const originalProcessEnv = { ...process.env };
+ const debug = createDebug("varlock:vite-integration");
+ debug("varlock vite plugin loaded");
+ let isDevCommand;
++let isSsrBuild = false;
+ let configIsValid = true;
+ let varlockLoadedEnv;
+ /** Stderr output from the last failed varlock load (ANSI-colored) */
+@@ -1787,6 +1788,7 @@ See https://varlock.dev/guides/encrypted-deployments/[0m`);
+ 			}
+ 			if (await hasSvelteKitPlugin(config.plugins)) delete mainPlugin.transformIndexHtml;
+ 			isDevCommand = env.command === "serve";
++			isSsrBuild = !!config.build?.ssr;
+ 			if (env.command === "build") process.env.__VARLOCK_EXECUTION_PHASE = "build";
+ 			else delete process.env.__VARLOCK_EXECUTION_PHASE;
+ 			const rootDirSource = vitePluginOptions?.rootDir ?? config.root;
+@@ -1868,7 +1870,13 @@ See https://varlock.dev/guides/encrypted-deployments/[0m`);
+ 			};
+ 		},
+ 		renderChunk(code, chunk) {
+-			const magicString = replacerFn(this, code, chunk.fileName);
++            let magicString = replacerFn(this, code, chunk.fileName);
++            // HTML entries are not reliably marked isEntry during Rolldown transforms.
++            // The emitted entry chunk is authoritative and precedes app bootstrap.
++            if (chunk.isEntry && !(this.environment?.config?.build?.ssr ?? isSsrBuild)) {
++                magicString ||= new MagicString(code);
++                magicString.prepend(`globalThis.__varlockThrowOnMissingKeys = true;\nglobalThis.__varlockPublicDynamicKeys = ${JSON.stringify(publicDynamicKeys)};\n`);
++            }
+ 			if (!magicString) return null;
+ 			return {
+ 				code: magicString.toString(),

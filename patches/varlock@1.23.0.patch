@@ -1,0 +1,73 @@
+diff --git a/dist/env-graph-DNIsCTGC.mjs b/dist/env-graph-DNIsCTGC.mjs
+index ab4fcf56b2d005a17da424f5f38c9b365cecc2ad..a6feab05d0d382225c74ff642373c8bc7e299d28 100644
+--- a/dist/env-graph-DNIsCTGC.mjs
++++ b/dist/env-graph-DNIsCTGC.mjs
+@@ -6218,13 +6218,15 @@ var ConfigItem = class {
+ 	* exactly, then only resolve values for items the filter selects — so an excluded
+ 	* item's value resolver (exec calls, secrets managers, etc.) never runs.
+ 	*/
+-	async resolveMetadata() {
++	async resolveMetadata(classificationOnly = false) {
+ 		if (this.isMetadataResolved) return;
+ 		if (this._schemaErrors.some((e) => !e.isWarning)) return;
+ 		if (this.resolverSchemaErrors.some((e) => !e.isWarning)) return;
+-		this.isMetadataResolved = true;
+-		await this.resolveDecorators();
+-		await this.processRequired();
++        if (!classificationOnly) {
++            this.isMetadataResolved = true;
++            await this.resolveDecorators();
++            await this.processRequired();
++        }
+ 		await this.processSensitive();
+ 		if (!this.envGraph.proxyResolutionView?.[this.key]) {
+ 			if (this.valueResolver?.def?.impliesSensitive && !this._sensitiveExplicitlySet) {
+diff --git a/dist/load.command-DNCIpZGQ.mjs b/dist/load.command-DNCIpZGQ.mjs
+index b733f54223c3aa0b304f6c5e02482fa2b115134b..6337fc0ad10b2c1e19b9ff9fdcbf45bdeb19a874 100644
+--- a/dist/load.command-DNCIpZGQ.mjs
++++ b/dist/load.command-DNCIpZGQ.mjs
+@@ -82,6 +82,7 @@ const commandFn = async (ctx) => {
+ 	if (agent && (outputFormat === "env" || outputFormat === "shell")) throw new Error(`--agent is not compatible with --format ${outputFormat}`);
+ 	applyFrozenArg(ctx.values.frozen);
+ 	const frozenEnv = getFrozenEnv();
++    if (frozenEnv && process.env._VARLOCK_STATIC_ONLY === "1") throw new CliExitError("Static-only loading cannot reuse frozen configuration");
+ 	if (frozenEnv) {
+ 		const resolutionFlags = [
+ 			ctx.values.path?.length ? "--path" : void 0,
+@@ -125,7 +126,35 @@ const commandFn = async (ctx) => {
+ 	if (!envGraph.rootDataSource) throw new Error("expected root data source to be set");
+ 	if (!hasSchemaErrors) {
+ 		await envGraph.runCodeGeneratorsIfNeeded();
+-		if (itemFilter) await itemFilter.resolveScoped(envGraph);
++		if (process.env._VARLOCK_STATIC_ONLY === "1") {
++            if (itemFilter) throw new CliExitError("Static-only loading cannot be combined with an item filter");
++            const items = Object.values(envGraph.configSchema);
++            for (const item of items) {
++                const decorators = [...Object.values(item.effectiveDecorators), ...Object.values(item.effectiveDecoratorFns).flat()];
++                for (const dec of decorators) {
++                    if (["public", "sensitive", "static", "dynamic"].includes(dec.name) && dec.decValueResolver && !dec.decValueResolver.isStatic) {
++                        throw new CliExitError(`Value-dependent metadata on ${item.key}: classification must be literal during static-only loading`);
++                    }
++                }
++                await item.resolveMetadata(true);
++            }
++            checkForSchemaErrors(envGraph);
++            if (process.env._VARLOCK_PUBLIC_ONLY === "1") {
++                for (const item of items) {
++                    if (item.isBuiltin) continue;
++                    if (item.isSensitive) throw new CliExitError(`Client configuration contains sensitive item ${item.key}`);
++                    if (!item._sensitiveExplicitlySet) throw new CliExitError(`Client item ${item.key} must explicitly declare @public (or @sensitive=false)`);
++                }
++            }
++            const staticKeys = items.filter((item) => !item.isDynamic).map((item) => item.key);
++            for (const key of staticKeys) {
++                for (const dep of envGraph.expandKeysWithTransitiveDeps([key])) {
++                    if (envGraph.configSchema[dep]?.isDynamic) throw new CliExitError(`Static item ${key} depends on dynamic item ${dep}; mark ${key} @dynamic`);
++                }
++            }
++            await envGraph.resolveEnvValues(staticKeys);
++        }
++        else if (itemFilter) await itemFilter.resolveScoped(envGraph);
+ 		else await envGraph.resolveEnvValues();
+ 		if (outputFormat === "json-full") checkForConfigErrors(envGraph, {
+ 			showAll,

@@ -27,7 +27,9 @@ Vite updates browser-used Stack modules through HMR or a page reload. The client
 | `src/server/app.ts`    | Defines native Elysia routes and exports the inferred application type.                         |
 | `src/server/index.ts`  | Starts Bun's backend listener and attaches the serving plugin in production.                    |
 | `src/client.ts`        | Creates the scoped API clients, Query cache, and Query provider.                                |
-| `src/main.tsx`         | Creates the native router, registers its type, and mounts React.                                |
+| `src/main.tsx`         | Loads public runtime configuration before importing the application; offers retry on failure.   |
+| `src/application.tsx`  | Creates the native router, registers its type, and mounts React.                                |
+| `env/`                 | Separate client/server schemas with selected shared public definitions.                         |
 | `src/routes/`          | Defines routes, the Query provider, query prefetching, mutation form, pagination, and devtools. |
 | `src/routeTree.gen.ts` | Managed by the Router generator.                                                                |
 
@@ -47,4 +49,10 @@ From the repository root, use `bunx --bun vp run example:logs`, `example:logs:er
 
 ## Production wiring
 
-`bun run build` invokes Vite+ to create `dist/`. `bun run start` attaches `serveApp()` and runs Elysia on port 3000, serving that directory and the API on one origin. Stack builds, package distribution, production application builds, and end-to-end testing are deferred for this stage; these retained commands document the intended wiring.
+`bun run build` validates static inputs and builds the browser in `dist/` and Bun server in `dist/server/`, without requiring `PUBLIC_DEPLOYMENT_NAME` or deployment credentials. Start the same artifacts with `PUBLIC_DEPLOYMENT_NAME=staging bun run start` or `PUBLIC_DEPLOYMENT_NAME=production bun run start`. Production Elysia serves the browser build and API from one origin. Configure `PORT` when needed; it defaults to 3000.
+
+The default schema path belongs to the browser. The server script explicitly selects `env/server` through native `varlock run`; Stack's auto-load import retains that validated graph. `env/client` includes fixed `APP_TITLE` metadata, while shared `PUBLIC_DEPLOYMENT_NAME` is resolved at startup and delivered through `/api/public-env`. The development server script supplies `local`. Both Bun configurations disable native dotenv loading. `bun run env:types` regenerates the committed local types; generated files are excluded from formatting and linting.
+
+Restart the whole `varlock run` command after changing runtime values. Bun's inner code watcher does not resolve a new configuration snapshot. Native redaction and response scanning are disabled; applications own secret-handling discipline. See [the environment guide](../../docs/env.md) for schema rules, the two required pinned Bun patches, optional provider setup, and separate-origin bootstrap considerations.
+
+This milestone verifies browser and backend builds to establish reusable artifacts. Stack package builds/distribution and automated browser E2E remain deferred. The backend artifact keeps package imports external, so deployment still needs the source-linked Stack package, its pinned dependencies, schemas, and installed root patches; it is not a standalone binary or a qualified published-package deployment.
