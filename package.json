@@ -15,13 +15,18 @@
     "examples/*"
   ],
   "files": [
-    "src"
+    "src",
+    "patches"
   ],
   "type": "module",
   "sideEffects": false,
   "exports": {
     "./client": "./src/client.ts",
     "./devtools": "./src/devtools.ts",
+    "./env": "./src/env.ts",
+    "./env/server": "./src/env/server.ts",
+    "./env/defaults": "./src/env/.env.schema",
+    "./env/vite": "./src/env/vite.ts",
     "./logger": "./src/logger.ts",
     "./logger/elysia": "./src/logger/elysia.ts",
     "./logger/client": "./src/logger/client.ts",
@@ -42,6 +47,7 @@
     "prepare": "vp config",
     "example:dev": "cd examples/fullstack && bun run dev",
     "example:check": "cd examples/fullstack && bunx --bun vp check",
+    "research:varlock": "bun --no-env-file scripts/probe-varlock.ts",
     "example:logs": "cd examples/fullstack && bun run logs",
     "example:logs:errors": "cd examples/fullstack && bun run logs:errors",
     "example:logs:json": "cd examples/fullstack && bun run logs:json"
@@ -56,12 +62,14 @@
     "@tanstack/react-router-devtools": "1.167.2",
     "@tanstack/router-generator": "1.167.44",
     "@tanstack/router-plugin": "1.168.46",
+    "@varlock/vite-integration": "1.5.4",
     "@vitejs/plugin-react": "6.1.2",
     "elysia": "1.4.30",
     "evlog": "2.34.0",
     "exact-mirror": "0.2.7",
     "file-type": "22.2.0",
     "openapi-types": "12.1.3",
+    "varlock": "1.23.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
@@ -102,5 +110,8 @@
       "version": "1.4.3",
       "onFail": "download"
     }
+  },
+  "patchedDependencies": {
+    "varlock@1.23.0": "patches/varlock@1.23.0.patch"
   }
 }

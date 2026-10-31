@@ -11,12 +11,13 @@ function Layout() {
       <main>
         <header>
           <p className="eyebrow">PRINPO / STACK</p>
-          <h1>One connected application.</h1>
+          <h1>Prinpo Stack</h1>
           <p>Bun + Elysia + Eden + TanStack Router + Query</p>
           <nav>
             <Link to="/" activeOptions={{ exact: true }}>
-              Home
+              Environment sandbox
             </Link>
+            <Link to="/queries">Queries and mutations</Link>
             <Link to="/about">How it connects</Link>
           </nav>
         </header>

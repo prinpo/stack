@@ -3,11 +3,11 @@ import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   cacheDir: "../../node_modules/.vite/fullstack",
-  plugins: [stack({ api: { target: "http://localhost:3000" } })],
+  plugins: [stack({ api: true })],
   server: { port: 5173, strictPort: true },
   lint: {
-    ignorePatterns: ["src/routeTree.gen.ts"],
+    ignorePatterns: ["src/routeTree.gen.ts", "src/env/**"],
     options: { typeAware: true, typeCheck: true },
   },
-  fmt: { ignorePatterns: ["src/routeTree.gen.ts"] },
+  fmt: { ignorePatterns: ["src/routeTree.gen.ts", "src/env/**"] },
 });

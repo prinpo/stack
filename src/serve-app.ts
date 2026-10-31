@@ -10,16 +10,20 @@ export interface ServeAppPluginsOptions {
   assets?: string;
   /** Reserved API namespace. Unknown API paths never return the app shell. */
   apiPrefix?: string;
+  /** Prepare the HTML shell once at startup; assets on disk remain unchanged. */
+  transformIndexHtml?: (html: string) => string | Promise<string>;
 }
 
 /** Serve a built SPA on the same origin as an ordinary Elysia application. */
 async function serveAppPlugin({
   assets = "dist",
   apiPrefix = "/api",
+  transformIndexHtml,
 }: ServeAppPluginsOptions = {}) {
   const prefix = normalizeApiPrefix(apiPrefix);
   const directory = resolve(assets);
-  const shell = await readFile(resolve(directory, "index.html"), "utf8");
+  const original = await readFile(resolve(directory, "index.html"), "utf8");
+  const shell = transformIndexHtml ? await transformIndexHtml(original) : original;
   return new Elysia({ name: "prinpo:serve-app", seed: [directory, prefix] })
     .use(
       await staticPlugin({
@@ -32,6 +36,7 @@ async function serveAppPlugin({
           ".DS_Store",
           ".git",
           ".env",
+          new RegExp(`^${escapeRegExp(resolve(directory, "index.html"))}$`),
           new RegExp(`^${escapeRegExp(resolve(directory, `.${prefix}`))}(?:[/\\\\]|$)`),
         ],
         maxAge: 0,
@@ -43,15 +48,21 @@ async function serveAppPlugin({
         (request.method !== "GET" && request.method !== "HEAD") ||
         path === prefix ||
         path.startsWith(`${prefix}/`) ||
-        !request.headers.get("accept")?.includes("text/html") ||
-        /\.[^/]+$/.test(path)
+        (path !== "/" &&
+          path !== "/index.html" &&
+          (!request.headers.get("accept")?.includes("text/html") || /\.[^/]+$/.test(path)))
       )
         throw new NotFoundError();
       return new Response(request.method === "HEAD" ? null : shell, {
-        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" },
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": transformIndexHtml ? "no-store" : "no-cache",
+        },
       });
     });
 }
+
+export { serveAppPlugin };
 
 type ServeAppOptions = {
   port?: number;

@@ -11,6 +11,9 @@ export default defineConfig({
       "src/react.tsx",
       "src/query.ts",
       "src/devtools.ts",
+      "src/env.ts",
+      "src/env/server.ts",
+      "src/env/vite.ts",
       "src/vite.ts",
       "src/logger.ts",
       "src/logger/elysia.ts",
@@ -42,7 +45,7 @@ export default defineConfig({
     ],
   },
   lint: {
-    ignorePatterns: [".agents/**", "**/routeTree.gen.ts"],
+    ignorePatterns: [".agents/**", "**/routeTree.gen.ts", "examples/fullstack/src/env/**"],
     options: {
       typeAware: true,
       typeCheck: true,
@@ -52,7 +55,7 @@ export default defineConfig({
     },
   },
   fmt: {
-    ignorePatterns: [".agents/**", "**/routeTree.gen.ts"],
+    ignorePatterns: [".agents/**", "**/routeTree.gen.ts", "examples/fullstack/src/env/**"],
     sortImports: {
       groups: [
         "type-import",

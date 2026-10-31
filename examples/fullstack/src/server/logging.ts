@@ -1,6 +1,8 @@
 import { logger } from "@prinpo/stack/logger/elysia";
 
+import { ENV } from "../env/server";
+
 export const logging = logger({
   service: "stack-example",
-  persistence: { dir: process.env.PRINPO_LOG_DIR ?? ".evlog/logs" },
+  persistence: { dir: ENV.PRINPO_LOG_DIR },
 });

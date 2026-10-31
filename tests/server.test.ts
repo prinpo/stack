@@ -21,11 +21,13 @@ async function application({
   files = {},
   isProduction = true,
   port,
+  transformIndexHtml,
 }: {
   apiPrefix?: string;
   files?: Record<string, string>;
   isProduction?: boolean;
   port?: number;
+  transformIndexHtml?: (html: string) => string | Promise<string>;
 } = {}) {
   const assets = await mkdtemp(join(tmpdir(), "prinpo-assets-"));
   directories.push(assets);
@@ -40,10 +42,34 @@ async function application({
   const app = new Elysia().get(`${apiPrefix}/health`, () => ({ ok: true }));
   // Vitest uses Elysia's Web Standard adapter, which cannot open a listener.
   vi.spyOn(app, "listen").mockReturnValue(app);
-  serveApp(app, { assets, apiPrefix, isProduction, port });
+  serveApp(app, { assets, apiPrefix, isProduction, port, transformIndexHtml });
   await app.modules;
   return app;
 }
+
+test("all application documents use the prepared shell while assets bypass the transform", async () => {
+  const transformIndexHtml = vi.fn(async (html: string) =>
+    html.replace("Stack application", "Prepared application"),
+  );
+  const app = await application({ transformIndexHtml });
+  for (const path of ["/", "/index.html", "/projects/123"]) {
+    const response = await app.handle(
+      new Request(`http://localhost${path}`, { headers: { Accept: "text/html" } }),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.has("etag")).toBe(false);
+    expect(await response.text()).toBe("<!doctype html><h1>Prepared application</h1>");
+    const head = await app.handle(
+      new Request(`http://localhost${path}`, { method: "HEAD", headers: { Accept: "text/html" } }),
+    );
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe("");
+  }
+  const asset = await app.handle(new Request("http://localhost/app.js"));
+  expect(await asset.text()).toBe("console.log('Stack');");
+  expect(transformIndexHtml).toHaveBeenCalledTimes(1);
+});
 
 test("serveApp returns the app shell for browser deep links in production", async () => {
   const app = await application();
