@@ -18,10 +18,9 @@ export function areaPresentation(area: Area, stderr = false) {
   return { title, style: (stderr ? stderrColor : color)[tone] };
 }
 
-export function intro(command: string, profile?: string) {
-  process.stderr.write(
-    `${stderrColor.dim(`Prinpo Stack v${version} · ${command}${profile ? ` · ${profile}` : ""}`)}\n`,
-  );
+export function intro(command?: string, profile?: string) {
+  const title = [`Prinpo Stack v${version}`, command, profile].filter(Boolean).join(" · ");
+  process.stderr.write(`${stderrColor.dim(title)}\n`);
 }
 
 export function heading(area: Area, message: string) {
