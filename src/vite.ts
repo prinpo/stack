@@ -6,6 +6,7 @@ import {
   tanStackRouterCodeSplitter,
 } from "@tanstack/router-plugin/vite";
 import react, { type Options as ReactOptions } from "@vitejs/plugin-react";
+import { existsSync } from "node:fs";
 
 import { apiPrefix, escapeRegExp } from "./api-prefix";
 import { readServerConnection } from "./env/server";
@@ -33,7 +34,7 @@ export function stack(options: StackOptions = {}): PluginOption[] {
   };
   const context = createRouterPluginContext();
   return [
-    ...(managed ? [varlockVitePlugin({ profile: () => profile })] : []),
+    ...(existsSync("env/client") ? [varlockVitePlugin({ profile: () => profile })] : []),
     routerGenerator(router, context),
     tanStackRouterCodeSplitter(router, context),
     react(options.react),
@@ -45,7 +46,7 @@ export function stack(options: StackOptions = {}): PluginOption[] {
             root: config.root,
             server: api?.serverEnv,
           });
-          profile = connection.mode;
+          profile = connection.profile;
           const host = ["0.0.0.0", "::"].includes(connection.host) ? "127.0.0.1" : connection.host;
           const url = new URL("http://127.0.0.1");
           url.hostname = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;

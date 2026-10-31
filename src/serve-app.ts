@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { escapeRegExp, apiPrefix as normalizeApiPrefix } from "./api-prefix";
+import { createSpaHandler } from "./spa";
 
 export interface ServeAppPluginsOptions {
   /** Browser build directory, relative to the server's working directory. */
@@ -16,7 +17,7 @@ export interface ServeAppPluginsOptions {
 
 /** Serve a built SPA on the same origin as an ordinary Elysia application. */
 async function serveAppPlugin({
-  assets = "dist",
+  assets = "dist/client",
   apiPrefix = "/api",
   transformIndexHtml,
 }: ServeAppPluginsOptions = {}) {
@@ -24,6 +25,10 @@ async function serveAppPlugin({
   const directory = resolve(assets);
   const original = await readFile(resolve(directory, "index.html"), "utf8");
   const shell = transformIndexHtml ? await transformIndexHtml(original) : original;
+  const serveShell = createSpaHandler(shell, {
+    apiPrefix: prefix,
+    cacheControl: transformIndexHtml ? "no-store" : "no-cache",
+  });
   return new Elysia({ name: "prinpo:serve-app", seed: [directory, prefix] })
     .use(
       await staticPlugin({
@@ -44,21 +49,9 @@ async function serveAppPlugin({
       }),
     )
     .all("/*", ({ request, path }) => {
-      if (
-        (request.method !== "GET" && request.method !== "HEAD") ||
-        path === prefix ||
-        path.startsWith(`${prefix}/`) ||
-        (path !== "/" &&
-          path !== "/index.html" &&
-          (!request.headers.get("accept")?.includes("text/html") || /\.[^/]+$/.test(path)))
-      )
-        throw new NotFoundError();
-      return new Response(request.method === "HEAD" ? null : shell, {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          "Cache-Control": transformIndexHtml ? "no-store" : "no-cache",
-        },
-      });
+      const response = serveShell(request, path);
+      if (!response) throw new NotFoundError();
+      return response;
     });
 }
 

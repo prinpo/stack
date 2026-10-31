@@ -6,8 +6,20 @@
 import { ENV as _ENV } from 'varlock/env';
 
 export type CoercedEnvSchema = {
-  /** **PRINPO_LOG_DIR** */
-  PRINPO_LOG_DIR: string;
+  /** **HOST** */
+  HOST: string;
+  
+  /** **PORT** */
+  PORT: number;
+  
+  /** **NODE_ENV** */
+  NODE_ENV: "development" | "test" | "production";
+  
+  /** **APP_ENV** */
+  APP_ENV: string;
+  
+  /** **LOG_DIR** */
+  LOG_DIR: string;
   
   /**
    * **SERVER_PUBLIC_STATIC**  
@@ -35,7 +47,7 @@ export type CoercedEnvSchema = {
   
 };
 
-type _CoercedEnvSchema_8eb8401c = CoercedEnvSchema;
+type _CoercedEnvSchema_2f13d289 = CoercedEnvSchema;
 
 export type EnvSchemaAsStrings = {
   [Property in keyof CoercedEnvSchema]:
@@ -43,9 +55,9 @@ export type EnvSchemaAsStrings = {
       : (NonNullable<CoercedEnvSchema[Property]> extends boolean ? ('true' | 'false') : string)
 };
 
-type _EnvSchemaAsStrings_8eb8401c = EnvSchemaAsStrings;
+type _EnvSchemaAsStrings_2f13d289 = EnvSchemaAsStrings;
 
-export type PublicCoercedEnvSchema = Readonly<Pick<CoercedEnvSchema, 'PRINPO_LOG_DIR' | 'SERVER_PUBLIC_STATIC' | 'SERVER_PUBLIC_DYNAMIC'>>;
+export type PublicCoercedEnvSchema = Readonly<Pick<CoercedEnvSchema, 'HOST' | 'PORT' | 'NODE_ENV' | 'APP_ENV' | 'LOG_DIR' | 'SERVER_PUBLIC_STATIC' | 'SERVER_PUBLIC_DYNAMIC'>>;
 
 // re-export of the runtime ENV proxy, typed to this package's schema
 export const ENV = _ENV as unknown as Readonly<CoercedEnvSchema>;

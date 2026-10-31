@@ -1,7 +1,9 @@
 import { existsSync, statSync } from "node:fs";
-import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { type SerializedEnvGraph, internal } from "varlock";
+
+import { injectedEnvironment, matchesEnvironment, originalEnvironment } from "./environment";
+import { serverEnvPaths } from "./paths";
 
 export interface ServerEnvOptions {
   /** Server schema directory; defaults to env/server. */
@@ -11,66 +13,37 @@ export interface ServerEnvOptions {
 }
 
 type Graph = Awaited<ReturnType<typeof internal.loadEnvGraph>>;
-const defaults = createRequire(import.meta.url).resolve("@prinpo/stack/env/defaults");
-const connectionKeys = ["HOST", "PORT", "NODE_ENV"];
+const connectionKeys = ["HOST", "PORT", "NODE_ENV", "APP_ENV"];
 
-function originalEnvironment(
-  injected: SerializedEnvGraph | undefined = process.env.__VARLOCK_ENV
-    ? JSON.parse(process.env.__VARLOCK_ENV)
-    : undefined,
-) {
-  const values = { ...process.env };
-  // A CLI startup snapshot must not turn backend-only values into overrides of
-  // the independent client schema. Retain genuine process overrides.
-  if (injected) {
-    const overrides = new Set(injected.overrideKeys);
-    for (const [key, item] of Object.entries(injected.config)) {
-      if (!overrides.has(key) && values[key] === (item.envStr ?? String(item.value)))
-        delete values[key];
-    }
-  }
-  delete values.__VARLOCK_ENV;
-  return values;
-}
-
-async function graphAt(paths: string[], values: NodeJS.ProcessEnv, mode?: string) {
+async function graphAt(paths: string[], values: NodeJS.ProcessEnv, profile?: string) {
+  const selected = profile ?? values.APP_ENV ?? values.NODE_ENV ?? "development";
   const entry = paths[paths.length - 1];
   const graph = await internal.loadEnvGraph({
     basePath: statSync(entry).isDirectory() ? entry : dirname(entry),
     entryFilePaths: paths,
-    overrideValues: mode ? { ...values, NODE_ENV: mode } : values,
+    overrideValues: profile ? { ...values, APP_ENV: profile } : values,
     processEnvOverride: values,
-    currentEnvFallback: mode ?? values.NODE_ENV ?? "development",
+    currentEnvFallback: selected,
   });
   internal.checkForSchemaErrors(graph);
   return graph;
 }
 
-function serverPaths(path: string, required = false) {
-  if (required && !existsSync(path))
-    throw new Error(`Server environment path does not exist: ${path}`);
-  return existsSync(path) ? [defaults, path] : [defaults];
-}
-
 function connection(graph: SerializedEnvGraph) {
-  const { HOST, PORT, NODE_ENV } = graph.config;
+  const { HOST, PORT, NODE_ENV, APP_ENV } = graph.config;
   return {
     host: String(HOST.value),
     port: Number(PORT.value),
     mode: String(NODE_ENV.value),
+    profile: String(APP_ENV.value),
   };
 }
 
 /** Resolve only connection settings, never unrelated backend credentials. */
 export async function readServerConnection(
-  options: { server?: string; root?: string; mode?: string } = {},
+  options: { server?: string; root?: string; profile?: string } = {},
 ) {
-  const path = resolve(options.root ?? process.cwd(), options.server ?? "env/server");
-  const graph = await graphAt(
-    serverPaths(path, options.server !== undefined),
-    originalEnvironment(),
-    options.mode,
-  );
+  const graph = await graphAt(serverEnvPaths(options), originalEnvironment(), options.profile);
   await graph.resolveEnvValues(connectionKeys);
   internal.checkForConfigErrors(graph);
   return connection(graph.getSerializedGraph());
@@ -107,12 +80,12 @@ async function requirePublicClient(graph: Graph) {
 async function clientSnapshot(
   clientPath: string | undefined,
   values: NodeJS.ProcessEnv,
-  mode?: string,
+  profile?: string,
 ) {
   let clientValues: Record<string, unknown> = {};
   let clientKeys: string[] = [];
   if (clientPath && existsSync(clientPath)) {
-    const client = await graphAt([clientPath], values, mode);
+    const client = await graphAt([clientPath], values, profile);
     await requirePublicClient(client);
     clientKeys = Object.values(client.configSchema)
       .filter((item) => !item.isBuiltin && item.isDynamic)
@@ -130,28 +103,36 @@ async function clientSnapshot(
 }
 
 /** Resolve public client dynamics without initializing or replacing server ENV. */
-export function readClientEnv(options: { client?: string; root?: string; mode?: string } = {}) {
+export function readClientEnv(options: { client?: string; root?: string; profile?: string } = {}) {
   const path = resolve(options.root ?? process.cwd(), options.client ?? "env/client");
   if (options.client !== undefined && !existsSync(path))
     throw new Error(`Client environment path does not exist: ${path}`);
-  return clientSnapshot(path, originalEnvironment(), options.mode);
+  return clientSnapshot(path, originalEnvironment(), options.profile);
 }
 
 /** Initialize server ENV once; production also captures client values for HTML. */
 async function initializeServerEnv(options: ServerEnvOptions) {
-  const injected: SerializedEnvGraph | undefined = process.env.__VARLOCK_ENV
-    ? JSON.parse(process.env.__VARLOCK_ENV)
-    : undefined;
+  const injected = injectedEnvironment();
   const values = originalEnvironment(injected);
-  const path = resolve(options.server ?? "env/server");
-  const mode = injected?.config.NODE_ENV?.value ?? values.NODE_ENV;
-  const graph = await graphAt(serverPaths(path, options.server !== undefined), values, mode);
+  const runtimeValues = injected
+    ? {
+        ...values,
+        NODE_ENV: values.NODE_ENV ?? String(injected.config.NODE_ENV?.value ?? "development"),
+      }
+    : values;
+  const profile =
+    runtimeValues.APP_ENV ?? injected?.config.APP_ENV?.value ?? runtimeValues.NODE_ENV;
+  const graph = await graphAt(serverEnvPaths(options), runtimeValues, profile);
   // Native varlock run already resolved providers. Reuse its application values;
   // resolve Stack's connection settings separately with their owned validation.
-  await graph.resolveEnvValues(injected ? connectionKeys : undefined);
+  await graph.resolveEnvValues(connectionKeys);
+  internal.checkForConfigErrors(graph);
+  const selected = connection(graph.getSerializedGraph());
+  const reuse = injected && matchesEnvironment(injected, selected.mode, selected.profile);
+  if (!reuse) await graph.resolveEnvValues();
   internal.checkForConfigErrors(graph);
   const server = graph.getSerializedGraph();
-  if (injected)
+  if (reuse)
     server.config = {
       ...injected.config,
       ...Object.fromEntries(connectionKeys.map((key) => [key, server.config[key]])),
@@ -163,16 +144,16 @@ async function initializeServerEnv(options: ServerEnvOptions) {
       : resolve(options.client ?? "env/client");
   if (clientPath && typeof options.client === "string" && !existsSync(clientPath))
     throw new Error(`Client environment path does not exist: ${clientPath}`);
-  const client = await clientSnapshot(clientPath, values, settings.mode);
+  const client = await clientSnapshot(clientPath, values, settings.profile);
   process.env.__VARLOCK_ENV = JSON.stringify(server);
   // Reuse this validated graph instead of loading the package's client schema.
-  const reuse = process.env._VARLOCK_USE_INJECTED_ENV;
+  const previousReuse = process.env._VARLOCK_USE_INJECTED_ENV;
   process.env._VARLOCK_USE_INJECTED_ENV = "1";
   try {
     await import("varlock/auto-load");
   } finally {
-    if (reuse === undefined) delete process.env._VARLOCK_USE_INJECTED_ENV;
-    else process.env._VARLOCK_USE_INJECTED_ENV = reuse;
+    if (previousReuse === undefined) delete process.env._VARLOCK_USE_INJECTED_ENV;
+    else process.env._VARLOCK_USE_INJECTED_ENV = previousReuse;
   }
   return { ...settings, ...client };
 }
@@ -183,4 +164,22 @@ let startup: ReturnType<typeof initializeServerEnv> | undefined;
 export function loadServerEnv(options: ServerEnvOptions = {}) {
   startup ??= initializeServerEnv(options);
   return startup;
+}
+
+/** Locate local logs without resolving or validating unrelated credentials. */
+export async function readLogDirectory(profile?: string) {
+  const values = originalEnvironment();
+  const graph = await graphAt(serverEnvPaths(), values, profile);
+  if (!graph.configSchema.LOG_DIR) return values.LOG_DIR ?? ".evlog/logs";
+  await graph.resolveEnvValues(["LOG_DIR"]);
+  internal.checkForConfigErrors(graph);
+  const value = graph.getSerializedGraph().config.LOG_DIR.value;
+  if (typeof value !== "string" || !value)
+    throw new Error("LOG_DIR must be a nonempty directory path");
+  return value;
+}
+
+/** Check client exposure metadata without resolving values (including during codegen). */
+export async function validateClientEnv(paths: string[], profile?: string) {
+  await requirePublicClient(await graphAt(paths, originalEnvironment(), profile));
 }

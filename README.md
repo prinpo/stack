@@ -10,12 +10,18 @@ From the repository root:
 
 ```sh
 bunx --bun vp install
-bunx --bun vp run example:dev
+bun run stack dev
 ```
 
 Open <http://localhost:5173>. Elysia runs on port 3000. The example is a Bun workspace that imports Stack's TypeScript source directly through `@prinpo/stack/...`. Changes to the source feed into the running application without building, packing, or reinstalling Stack. `bunx --bun vp run dev` from the root starts the same example.
 
 The [full-stack example](examples/fullstack/README.md) documents its files and development workflow. `examples/` is a place to try real scenarios and evaluate the DX.
+
+## Application CLI
+
+Stack includes a Bun-first `stack` executable for `dev`, `build`, `start`, `doctor`, local logs, and environment utilities. It detects frontend/backend entry files, owns conventional paths, and supports frontend-only production serving. APP_ENV selects deployment profiles independently of NODE_ENV and Vite mode; `stack start --env staging` runs a production build with staging configuration.
+
+See the [CLI guide](docs/cli.md) for commands, defaults, machine output, and installation requirements. In this source-linked repository, `bun run stack <command>` targets the example; installed applications use the package's local `stack` executable.
 
 ## Public imports
 
@@ -118,9 +124,9 @@ import { startServer } from "@prinpo/stack/server";
 await startServer(() => import("./app"));
 ```
 
-Stack owns `HOST=127.0.0.1`, `PORT=3000`, and `NODE_ENV=development`. App values live in independent `env/server` and `env/client` schemas; Stack derives public dynamic delivery automatically. Use `stack({ api: true })` in Vite to read backend connection settings for proxying and resolve client envs locally. See the [environment guide](docs/env.md) for overrides, startup profiles, and advanced standalone helpers. The lower-level `serveApp` helper remains available for applications managing startup themselves.
+Stack owns `HOST=127.0.0.1`, `PORT=3000`, `NODE_ENV=development`, and APP_ENV defaulting to NODE_ENV. App values live in independent `env/server` and `env/client` schemas; Stack derives public dynamic delivery automatically. Use `stack({ api: true })` in Vite to read backend connection settings for proxying and resolve client envs locally. See the [environment guide](docs/env.md) for overrides, startup profiles, and advanced standalone helpers. The lower-level `serveApp` helper remains available for applications managing startup themselves.
 
-`assets` defaults to `dist`, relative to the working directory; `apiPrefix` defaults to `/api`. The directory must contain `index.html`. Keep its contents limited to public browser build output. The plugin serves assets and returns the app shell for GET/HEAD browser navigations accepting HTML. Unknown API paths, missing asset paths with file extensions, and non-navigation requests keep their 404 responses.
+`assets` defaults to `dist/client`, relative to the working directory; `apiPrefix` defaults to `/api`. The directory must contain `index.html`. Keep its contents limited to public browser build output. The plugin serves assets and returns the app shell for GET/HEAD browser navigations accepting HTML. Unknown API paths, missing asset paths with file extensions, and non-navigation requests keep their 404 responses.
 
 Stack package distribution checks and browser E2E remain deferred under the [source development milestone](docs/milestones/0002-source-linked-development.md). The example browser/server builds and HTTP startup behavior are validated against source.
 
@@ -132,7 +138,7 @@ bunx --bun vp test
 bunx --bun vp run example:check
 ```
 
-Checks and tests run against source without `dist` or package artifacts. Compile-only checks exercise Eden's inferred contract through the public exports. Existing tests cover the Vite connection, route generation and watching, and the serving plugin's HTTP behavior. Refresh behavior is verified manually at this stage.
+Library checks run against source. CLI integration tests build disposable applications and exercise production HTTP behavior; installed-package smoke checks verify executable resolution. Compile-only checks exercise Eden's inferred contract through the public exports. Existing tests cover the Vite connection, route generation and watching, and the serving plugin's HTTP behavior. Refresh behavior is verified manually at this stage.
 
 The example uses Vite's native config runner (`--configLoader runner`) to track the Stack preset and its source dependencies. Browser-used Stack modules use Vite's HMR, falling back to a page reload where necessary. Bun's watch mode restarts the backend when its imported source changes; reload the browser manually to fetch updated backend data. Tooling changes restart Vite automatically. Watching follows native dependency tracking with minimal configuration; broader reloads or restarts are a last resort.
 

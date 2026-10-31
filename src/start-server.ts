@@ -13,10 +13,11 @@ export async function startServer<App extends AnyElysia>(
   loadApplication: () => Promise<{ app: App }>,
   { env, ...options }: StartServerOptions = {},
 ): Promise<App> {
-  const config = await loadServerEnv(env);
+  const selected = process.env._SERVE_CLIENT === "0" ? { ...env, client: false as const } : env;
+  const config = await loadServerEnv(selected);
   const { app } = await loadApplication();
 
-  if (config.mode === "production" && env?.client !== false) {
+  if (config.mode === "production" && selected?.client !== false) {
     const custom = options.transformIndexHtml;
     app.use(
       await serveAppPlugin({

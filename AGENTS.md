@@ -26,6 +26,10 @@ release. Add a tool name to select part of the graph. For example, run
 
 <!--VITE PLUS END-->
 
+## Coding standards
+
+Before changing code, committing, or writing pull-request metadata, read [CODING_STANDARDS.md](CODING_STANDARDS.md).
+
 ## Agent skills
 
 ### Issue tracker

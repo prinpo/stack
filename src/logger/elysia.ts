@@ -44,7 +44,10 @@ export function logger({ persistence, errors, ...input }: LoggerOptions = {}) {
   const environment = options.environment ?? options.env?.environment ?? process.env.NODE_ENV;
   const fileDrain =
     persistence !== false && environment !== "production"
-      ? developmentDrain(persistence)
+      ? developmentDrain({
+          ...(process.env.LOG_DIR ? { dir: process.env.LOG_DIR } : {}),
+          ...persistence,
+        })
       : undefined;
   const drain = options.drain;
   const config = {
