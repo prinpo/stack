@@ -54,19 +54,19 @@ Browser build verification is necessary for this milestone's explicit artifact-r
 
 ## Implemented interface and qualification
 
-- `@prinpo/stack/env` preserves native browser-safe ENV/hydration helpers; generated local modules retain native imports and isolated types.
-- `@prinpo/stack/env/vite` enables the patched native static-only/public-only loader through an async plugin factory. Register it once before Stack's browser preset.
-- `@prinpo/stack/env/auto-load` requires and retains the CLI-validated server graph, even when the default package load path selects the client schema.
-- `@prinpo/stack/env/elysia` provides `publicEnv({ keys, path? })`, with an explicit selection, safe empty selection, startup metadata checks, no-store response, and native route typing.
-- The example has committed schemas and generated types, runtime-first browser bootstrap with retry, native CLI startup, and separate browser/Bun build commands. Both build commands succeed without deployment values.
+The interface has evolved from the original endpoint-based bootstrap described in the plan above:
 
-The revised probe builds one browser artifact through Stack exports and evaluates the exact emitted modules in isolated runtimes under two payloads. It verifies module-import ordering, failed-load retry, unknown-key rejection, native development schema reloads, and imported-schema checks. Focused CLI tests cover skipped dynamic resolvers, required metadata preservation, invalid static inputs, dynamic dependencies, effectful/referenced classification rejection, backend conditional requirements, and frozen-graph rejection. Endpoint/startup tests cover selected keys, empty selection, invalid keys, missing credentials, and explicit server graph retention. Compile-only checks cover local schema types and endpoint route inference.
+- `@prinpo/stack/env` exposes native browser-safe ENV access and schema types; generated local modules retain native imports and isolated types.
+- `startServer` initializes the server graph before app imports and derives production client HTML from its independent schema. There are no application key lists or automatic env endpoints.
+- `stack({ api: true })` includes native static-only/public-only browser compilation, file-derived API proxy settings, and local client dynamic resolution during development.
+- `src/env/html.ts` shares serialization between Vite and production injection. The retired Elysia env helpers, separate auto-load entry, and manual hydration exports were removed.
+- The core Varlock patch remains. The Vite metadata patch was retired after the emitted-module probe passed with metadata provided entirely through HTML.
 
-The built full-stack server was started twice on separate runtime-selected ports with two deployment names. The same artifact served the corresponding public endpoint values with no-store headers, returned the SPA shell for navigation, and kept API misses as 404. Browser assets excluded server-only configuration. Automated real-browser E2E and package distribution remain deferred.
+The probe builds one browser artifact through Stack exports and serves it through standard startup under different runtime values. It verifies import ordering, lazy modules, unknown-key rejection, safe script values, local development resolution, native schema reloads, and imported-schema checks. Runtime tests cover independent client/server values, CLI provider reuse, missing credentials, empty client snapshots, and failure before listening when the HTML head is missing. Build tests cover static-only validation and public-only classification.
 
-See [the environment guide](../env.md#pinned-upstream-patches) for the two root Bun patches and the limitation that dependency manifests do not apply patches transitively in consuming repositories. This source-linked milestone does not claim independently installed package qualification.
+See [the environment guide](../env.md#pinned-upstream-patches) for the remaining root patch and the limitation that dependency manifests do not apply it transitively. Automated real-browser E2E and package distribution remain deferred.
 
-## Verification result
+## Original milestone verification result
 
 - Full suite: 609 tests passed across 40 files. The environment subset has 19 tests, including real CLI processes and the emitted-module/reload probe.
 - Root `vp check` and `vp run example:check` passed without warnings or type errors. Compile-only checks retain separate client/server types and precise endpoint route keys.

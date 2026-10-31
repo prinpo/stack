@@ -6,24 +6,36 @@
 import { ENV as _ENV } from 'varlock/env';
 
 export type CoercedEnvSchema = {
-  /** **PORT** */
-  PORT: number;
-  
-  /** **NODE_ENV** */
-  NODE_ENV: "development" | "test" | "production";
-  
-  /** **PRINPO_LOG_DIR** 🔐 _sensitive_ */
+  /** **PRINPO_LOG_DIR** */
   PRINPO_LOG_DIR: string;
   
   /**
-   * **PUBLIC_DEPLOYMENT_NAME**  
-   * Displayed by the browser, resolved when this deployment starts.  
+   * **SERVER_PUBLIC_STATIC**  
+   * Validated during builds and read by the server at startup.  
    */
-  PUBLIC_DEPLOYMENT_NAME: string;
+  SERVER_PUBLIC_STATIC: string;
+  
+  /**
+   * **SERVER_PUBLIC_DYNAMIC**  
+   * Resolved and validated at server startup.  
+   */
+  SERVER_PUBLIC_DYNAMIC: string;
+  
+  /**
+   * **SERVER_SECRET_STATIC** 🔐 _sensitive_  
+   * Dummy sandbox value, intentionally returned by /api/env. Never use real credentials here.  
+   */
+  SERVER_SECRET_STATIC: string;
+  
+  /**
+   * **SERVER_SECRET_DYNAMIC** 🔐 _sensitive_  
+   * Dummy sandbox value, intentionally returned by /api/env. Never use real credentials here.  
+   */
+  SERVER_SECRET_DYNAMIC: string;
   
 };
 
-type _CoercedEnvSchema_c2cfe5cf = CoercedEnvSchema;
+type _CoercedEnvSchema_8eb8401c = CoercedEnvSchema;
 
 export type EnvSchemaAsStrings = {
   [Property in keyof CoercedEnvSchema]:
@@ -31,9 +43,9 @@ export type EnvSchemaAsStrings = {
       : (NonNullable<CoercedEnvSchema[Property]> extends boolean ? ('true' | 'false') : string)
 };
 
-type _EnvSchemaAsStrings_c2cfe5cf = EnvSchemaAsStrings;
+type _EnvSchemaAsStrings_8eb8401c = EnvSchemaAsStrings;
 
-export type PublicCoercedEnvSchema = Readonly<Pick<CoercedEnvSchema, 'PORT' | 'NODE_ENV' | 'PUBLIC_DEPLOYMENT_NAME'>>;
+export type PublicCoercedEnvSchema = Readonly<Pick<CoercedEnvSchema, 'PRINPO_LOG_DIR' | 'SERVER_PUBLIC_STATIC' | 'SERVER_PUBLIC_DYNAMIC'>>;
 
 // re-export of the runtime ENV proxy, typed to this package's schema
 export const ENV = _ENV as unknown as Readonly<CoercedEnvSchema>;

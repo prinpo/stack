@@ -7,20 +7,20 @@ import { ENV as _ENV } from 'varlock/env';
 
 export type CoercedEnvSchema = {
   /**
-   * **APP_TITLE**  
-   * Fixed metadata shared by every deployment of this browser artifact.  
+   * **CLIENT_PUBLIC_STATIC**  
+   * Replaced in the browser bundle at build time.  
    */
-  APP_TITLE: string;
+  CLIENT_PUBLIC_STATIC: string;
   
   /**
-   * **PUBLIC_DEPLOYMENT_NAME**  
+   * **CLIENT_PUBLIC_DYNAMIC**  
    * Displayed by the browser, resolved when this deployment starts.  
    */
-  PUBLIC_DEPLOYMENT_NAME: string;
+  CLIENT_PUBLIC_DYNAMIC: string;
   
 };
 
-type _CoercedEnvSchema_1ba7d12e = CoercedEnvSchema;
+type _CoercedEnvSchema_c180b355 = CoercedEnvSchema;
 
 export type EnvSchemaAsStrings = {
   [Property in keyof CoercedEnvSchema]:
@@ -28,9 +28,9 @@ export type EnvSchemaAsStrings = {
       : (NonNullable<CoercedEnvSchema[Property]> extends boolean ? ('true' | 'false') : string)
 };
 
-type _EnvSchemaAsStrings_1ba7d12e = EnvSchemaAsStrings;
+type _EnvSchemaAsStrings_c180b355 = EnvSchemaAsStrings;
 
-export type PublicCoercedEnvSchema = Readonly<Pick<CoercedEnvSchema, 'APP_TITLE' | 'PUBLIC_DEPLOYMENT_NAME'>>;
+export type PublicCoercedEnvSchema = Readonly<Pick<CoercedEnvSchema, 'CLIENT_PUBLIC_STATIC' | 'CLIENT_PUBLIC_DYNAMIC'>>;
 
 // re-export of the runtime ENV proxy, typed to this package's schema
 export const ENV = _ENV as unknown as Readonly<CoercedEnvSchema>;

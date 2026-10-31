@@ -44,40 +44,31 @@ try {
   );
   await writeFile(
     join(root, "index.html"),
-    '<html><script type="module" src="/main.js"></script></html>',
+    '<html><head></head><body><script type="module" src="/main.js"></script></body></html>',
   );
   await writeFile(
     join(root, "main.js"),
-    `import { loadPublicDynamicEnv } from "@prinpo/stack/env";
-globalThis.__stackVarlockProbe = (async () => {
-  let initializedBeforeRetry = false;
-  try {
-    await loadPublicDynamicEnv({ fetch: async () => new Response(null, { status: 503 }) });
-    await import("./application.js");
-  } catch {
-    initializedBeforeRetry = !!globalThis.__stackApplication;
-  }
-  await loadPublicDynamicEnv({ fetch: async () => Response.json({
-    STACK_PROBE_RUNTIME: globalThis.__stackDeployment,
-    STACK_PROBE_UNDECLARED: "unexpected",
-  }) });
-  await import("./application.js");
-  return { ...globalThis.__stackApplication, initializedBeforeRetry };
-})();
-`,
-  );
-  await writeFile(
-    join(root, "application.js"),
-    `import { ENV, getPublicDynamicConfigKeys } from "@prinpo/stack/env";
+    `import { ENV } from "@prinpo/stack/env";
+import { valueAtImport } from "./early.js";
+globalThis.__stackLazy = import("./lazy.js");
 let undeclared;
 try { undeclared = ENV.STACK_PROBE_UNDECLARED; } catch { undeclared = "rejected"; }
 globalThis.__stackApplication = {
   staticValue: ENV.STACK_PROBE_STATIC,
-  valueAtImport: ENV.STACK_PROBE_RUNTIME,
-  keys: getPublicDynamicConfigKeys(),
+  valueAtImport,
+  keys: globalThis.__varlockPublicDynamicKeys,
   undeclared,
 };
 `,
+  );
+
+  await writeFile(
+    join(root, "early.js"),
+    'import { ENV } from "@prinpo/stack/env"; export const valueAtImport = ENV.STACK_PROBE_RUNTIME;',
+  );
+  await writeFile(
+    join(root, "lazy.js"),
+    'import { ENV } from "@prinpo/stack/env"; export const value = ENV.STACK_PROBE_RUNTIME;',
   );
 
   const build = execute([vp, "build", "--configLoader", "runner"]);
@@ -88,7 +79,44 @@ globalThis.__stackApplication = {
   assert.ok(entryName, "Missing browser entry in emitted HTML");
   const entry = join(root, "dist", entryName);
   const outcomes: unknown[] = [];
-  for (const deployment of ["deployment-A", "deployment-B"]) {
+  for (const deployment of [
+    "deployment-A",
+    "deployment-B",
+    "</script><script>globalThis.pwned=true</script>\u2028&",
+  ]) {
+    const serving = execute(
+      [
+        resolve("node_modules/varlock/bin/cli.js"),
+        "run",
+        "--",
+        "bun",
+        "--no-env-file",
+        "--eval",
+        `import { Elysia, startServer } from "@prinpo/stack/server";
+const reservation = Bun.serve({ port: 0, fetch: () => new Response() });
+process.env.PORT = String(reservation.port);
+await reservation.stop();
+const app = await startServer(async () => ({ app: new Elysia() }), { env: { server: ".", client: "." } });
+try {
+  await app.modules;
+  const documents = [];
+  for (const path of ["/", "/index.html", "/projects/123"]) {
+    const response = await fetch(new URL(path, app.server.url), { headers: { Accept: "text/html" } });
+    if (response.status !== 200 || response.headers.get("cache-control") !== "no-store") throw new Error("Bad document response");
+    documents.push(await response.text());
+    const head = await fetch(new URL(path, app.server.url), { method: "HEAD", headers: { Accept: "text/html" } });
+    if (head.status !== 200 || await head.text() !== "") throw new Error("Bad HEAD response");
+  }
+  if (!documents.every((html) => html === documents[0])) throw new Error("Inconsistent application documents");
+  console.log(JSON.stringify(documents[0]));
+} finally { await app.stop(); }`,
+      ],
+      { ...baseEnv, NODE_ENV: "production", STACK_PROBE_RUNTIME: deployment },
+    );
+    assert.equal(serving.status, 0, serving.stdout + serving.stderr);
+    const document = JSON.parse(serving.stdout.trim().split("\n").at(-1) ?? "null");
+    const bootScript = document.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+    assert.ok(bootScript, "Missing startup configuration");
     const hydration = execute([
       "--eval",
       `const { Window } = await import(${JSON.stringify(happyDom)});
@@ -96,9 +124,12 @@ const window = new Window();
 globalThis.window = window;
 globalThis.document = window.document;
 globalThis.MutationObserver = window.MutationObserver;
-globalThis.__stackDeployment = ${JSON.stringify(deployment)};
+new Function(${JSON.stringify(bootScript)})();
+globalThis.fetch = () => { throw new Error("Browser configuration must not use fetch"); };
 await import(${JSON.stringify(entry)});
-console.log(JSON.stringify(await globalThis.__stackVarlockProbe));
+if ((await globalThis.__stackLazy).value !== ${JSON.stringify(deployment)}) throw new Error("Split module missed configuration");
+if (globalThis.pwned) throw new Error("Configuration executed markup");
+console.log(JSON.stringify(globalThis.__stackApplication));
 await window.happyDOM.close();`,
     ]);
     assert.equal(hydration.status, 0, hydration.stderr);
@@ -108,9 +139,13 @@ await window.happyDOM.close();`,
       valueAtImport: deployment,
       keys: ["STACK_PROBE_RUNTIME"],
       undeclared: "rejected",
-      initializedBeforeRetry: false,
     });
     outcomes.push(result);
+    assert.equal(
+      await readFile(join(root, "dist/index.html"), "utf8"),
+      html,
+      "Serving must not mutate the artifact",
+    );
   }
   const scripts = await Promise.all(
     (await readdir(assets))
@@ -125,18 +160,28 @@ await window.happyDOM.close();`,
     `import { createServer } from "vite";
 import { varlockVitePlugin } from "@prinpo/stack/env/vite";
 import { readFile, writeFile } from "node:fs/promises";
+const value = '</script><script>globalThis.pwned=true</script>\\u2028&';
+await writeFile(".env.development", "STACK_PROBE_RUNTIME=" + JSON.stringify(value));
 const server = await createServer({ configFile: false, plugins: [varlockVitePlugin()], server: { host: "127.0.0.1", port: 0 } });
 try {
   await server.listen();
   const origin = server.resolvedUrls.local[0];
-  await fetch(new URL("/main.js", origin));
-  const initial = await (await fetch(new URL("/application.js", origin))).text();
+  for (const path of ["/", "/projects/123"]) {
+    const response = await fetch(new URL(path, origin));
+    const html = await response.text();
+    const script = html.match(/<script>([\\s\\S]*?)<\\/script>/)?.[1];
+    if (!script || script.includes("</script>")) throw new Error("Missing or unsafe development configuration");
+    new Function(script)();
+    if (globalThis.__varlockPublicDynamicEnv.STACK_PROBE_RUNTIME !== value || globalThis.pwned) throw new Error("Invalid injected value");
+    if (html.indexOf(script) > html.indexOf('src="/main.js"')) throw new Error("Configuration follows app entry");
+  }
+  const initial = await (await fetch(new URL("/main.js", origin))).text();
   if (!initial.includes('"fixed-metadata"')) throw new Error("Missing initial static replacement");
   await writeFile(".env.schema", (await readFile(".env.schema", "utf8")).replace("fixed-metadata", "fixed-reloaded"));
   let updated = false;
   for (let attempt = 0; attempt < 100; attempt++) {
     try {
-      const code = await (await fetch(new URL("/application.js", server.resolvedUrls.local[0]))).text();
+      const code = await (await fetch(new URL("/main.js", server.resolvedUrls.local[0]))).text();
       if (code.includes('"fixed-reloaded"')) { updated = true; break; }
     } catch { /* the native watcher may be restarting the listener */ }
     await new Promise((resolve) => setTimeout(resolve, 50));

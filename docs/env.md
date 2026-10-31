@@ -1,12 +1,12 @@
-# Optional Varlock environment Block
+# Varlock environment integration
 
-Stack integrates Varlock 1.23.0 and its Vite integration 1.5.4 through native schemas, typed access, and small integration helpers. Enable it explicitly; other Blocks do not load application configuration.
+Varlock is standard in Stack's `startServer` lifecycle. It loads and validates configuration before importing application modules or opening a listener. Importing native Elysia exports alone does not load schemas. Browser and low-level helpers remain independently usable.
 
-## Schemas and timing
+## Schemas and files
 
-Keep separate client and server schema directories. Use native selective `@import()` for shared definitions, as in [the full-stack example](../examples/fullstack/env/client/.env.schema). No separate package manifests are needed.
+Use two independent directories: `env/server` and `env/client`. Each setting's values live beside its schema. Client schemas contain explicitly public static and dynamic definitions; server schemas contain backend settings and credentials. Do not import the client schema into the server schema or repeat client keys in TypeScript delivery code. Vite resolves the client snapshot locally during development; production startup resolves it using the active server profile. Both deliver the declared public dynamic settings automatically.
 
-Start each schema with sensitive defaults and disabled runtime interception:
+Keep native schema annotations and locally generated typed access:
 
 ```dotenv
 # @defaultSensitive=true
@@ -14,89 +14,69 @@ Start each schema with sensitive defaults and disabled runtime interception:
 # @generateTsTypes(path=../../src/env/client.ts, exposeEnv=local, icons=false)
 # ---
 
-# @public
-APP_TITLE="My application"
+# @public @static @required @type=string
+CLIENT_PUBLIC_STATIC=
 
-# @public @dynamic @required
-PUBLIC_API_ORIGIN=
+# @public @dynamic @required @type=string
+CLIENT_PUBLIC_DYNAMIC=
 ```
 
-Sensitivity and timing are independent. Sensitive values default to dynamic; explicitly public values default to static unless marked `@dynamic`. Commit public static metadata when it is intentionally identical across deployments of an artifact. Keep credentials dynamic. Set private local values in ignored `.env.local` files under the appropriate schema directory, or inject them into the runtime environment.
+Static public client values belong in committed `env/client/.env` files. Profile-specific values belong in `.env.development` / `.env.production`. Public local overrides stay in the client directory; developer credentials stay in `env/server/.env.development.local`, and host-provided production credentials in `env/server/.env.production.local`. Local files are ignored and may be mounted into containers. Declare credentials in the server schema before setting their values.
 
-Generate local types with `varlock codegen --path ./env/client` and the corresponding server command. Native generated modules import `varlock/env` themselves; do not edit those imports. Application code imports their named `ENV` export. Local generation prevents client/server type declarations from merging; it does not create independent stores inside one process. Browser and server run in separate processes.
+Sensitivity and timing are independent: sensitive values default to dynamic, public values default to static. Static inputs may depend only on static inputs. Every client entry, including imported definitions, must explicitly declare `@public` (or `@sensitive=false`); inferred public prefixes/defaults do not grant exposure. Exposure and timing annotations must be literal. Stack checks this before resolving client values, so a mistaken client secret cannot trigger a credential resolver before rejection.
+
+Varlock applies schema defaults, `.env`, `.env.local`, the selected profile, its `.local` override, then genuine process overrides in increasing precedence. Prefer profile-specific local files to keep development credentials out of production. Disable Bun's automatic dotenv loading with `env = false` in `bunfig.toml`; Varlock owns loading and precedence.
+
+Generate each schema's local types with native `varlock codegen --path ./env/client` and the corresponding server command. Generated files import `varlock/env`; application modules import their local named `ENV` export. Browser and server execute in separate processes; Stack's loader keeps client values separate from the server's process-wide ENV store. Use native `ENV.KEY` expressions for client static replacement, without renamed bindings, destructuring, or computed keys.
+
+## Standard server startup
 
 ```ts
-import { ENV } from "./env/client";
+import { startServer } from "@prinpo/stack/server";
 
-const title: string = ENV.APP_TITLE;
+await startServer(() => import("./app"));
 ```
 
-Use native `ENV.KEY` expressions for compile-time replacements. Renamed bindings, destructuring, and computed property access are not qualified static replacement patterns. Import `ENV` from `@prinpo/stack/env` when using native global type generation instead.
+The deferred import is required: application modules may read configuration during evaluation. `./app` exports a native Elysia instance named `app`. Stack initializes the server snapshot, then imports the app, prepares production HTML, waits for plugins, and opens the listener. It registers no environment-fetch endpoint. Apps need no auto-load import, exposure key lists, manual endpoint registration, or HTML injection wiring.
 
-## Browser tooling
+Stack owns validation and defaults for `HOST=127.0.0.1`, `PORT=3000` (integer 1–65535), and `NODE_ENV=development` (development/test/production). Override these in server `.env` files or process variables without redeclaring their schemas. The startup snapshot returned by `loadServerEnv` from `@prinpo/stack/env/server` exposes typed `host`, `port`, and `mode` settings; app-generated schema types contain application settings. For a container reachable through published ports, set `HOST=0.0.0.0` in its production server file.
 
-Point the application's `package.json` at its client schema:
+The default server/client paths are `env/server` and `env/client`. Configure `startServer(..., { env: { server: "config/server", client: "config/client" } })` for another layout, or `client: false` for a backend-only application without browser serving. Missing conventional directories are supported for apps that need only Stack defaults; explicit missing paths fail. `assets` defaults to `dist`, `apiPrefix` to `/api`, and custom `transformIndexHtml` runs before Stack's injection.
+
+Development runs the server entry directly. The example retains `varlock run --path ./env/server/.env.start` for production profile selection until the planned CLI owns it. Stack reuses the CLI's validated application snapshot rather than resolving credential providers again, and applies its owned connection validation separately. Other launchers can set `NODE_ENV` before startup. Replacing build/profile commands with a Stack CLI is outside this change.
+
+Client static values are validated during browser builds and embedded in the artifact. Production startup resolves only client dynamic values and their dependencies; development startup leaves all client resolution to Vite. It does not require build-only client static values again. Changes to runtime values require restarting the full startup command. Native redaction/scanning settings remain application-owned.
+
+## Development browser tooling
+
+Point `package.json` at the client schema for native Varlock tooling:
 
 ```json
 { "varlock": { "loadPath": "./env/client/" } }
 ```
 
 ```ts
-import { varlockVitePlugin } from "@prinpo/stack/env/vite";
 import { stack } from "@prinpo/stack/vite";
 import { defineConfig } from "vite-plus";
 
-export default defineConfig({
-  plugins: [varlockVitePlugin(), stack({ api: { target: "http://localhost:3000" } })],
-});
+export default defineConfig({ plugins: [stack({ api: true })] });
 ```
 
-The async factory returns native Varlock plugins. Register it once, first, and use this Stack import instead of separately importing the upstream plugin: upstream captures its loading mode when its module first loads. The native options remain available. This client integration is for SPA/browser compilation; do not use it to compile server/SSR schemas.
+The preset includes the native Varlock browser plugins and development HTML delivery. It reads `HOST`, `PORT`, and `NODE_ENV` from the backend files using Stack's defaults and the same profile. Only those settings and their dependencies resolve; unrelated backend credential value resolvers do not run. Application-owned plugins must still avoid fetching credentials during schema initialization. The derived address is used only for API proxy requests; client configuration is loaded directly from its own files. Wildcard bind addresses map to `127.0.0.1` for proxy connections; `PORT=0` is unsupported. Restart the development command after changing connection settings.
 
-The client graph, including imported definitions, must contain only explicitly public items. `@sensitive=false` is the native equivalent of `@public`. Public defaults or prefix inference alone do not grant exposure. Exposure and timing decorators must be literal during static-only loading: references and direct runtime function calls are rejected before classification runs. Other metadata on dynamic backend entries, such as conditional required checks, is left for startup validation. Static items may depend only on static items; mark a parent dynamic if it depends on a dynamic item.
+Use `api: { prefix: "/rpc", serverEnv: "config/server" }` for another namespace/path. An explicit `api: { target: "https://backend.example" }` retains the standalone proxy behavior without implicit local-schema loading; compose the standalone `varlockVitePlugin` from `@prinpo/stack/env/vite` when manually configuring browser env delivery. Omitting `api` keeps frontend-only React/router tooling independent.
 
-Builds validate static values and generate complete schema types while retaining unresolved dynamic metadata. They skip dynamic item value resolvers and required-value checks; the server checks required runtime values at startup. Schema loading and plugin initialization still occur, so application-owned custom plugins must not fetch runtime credentials during schema initialization. Provider-bearing definitions belong in the server graph.
+On HTML requests, Vite uses the shared Node-only `readClientEnv` resolver from `@prinpo/stack/env/server` to validate and resolve public dynamic values directly from the client schema and files. There is no configuration HTTP request, timeout, or backend startup dependency. The managed preset uses the backend's selected profile, while the standalone plugin defaults to Vite's mode. `varlockVitePlugin({ client: "config/client", profile: "development" })` supports explicit standalone overrides. Native schema watching still refreshes static compilation; client dynamic values are re-read when preparing HTML. Build execution does not resolve backend connection settings or contact a running backend. Static-only client compilation validates its required static inputs while preserving unresolved dynamic metadata, so deployment credentials are unnecessary.
 
-## Server startup and the public endpoint
+## HTML delivery
 
-Disable Bun's automatic dotenv loading in the application's `bunfig.toml`:
+Production startup uses Bun HTMLRewriter once to prepare an in-memory document, leaving files unchanged. Both dev and production emit Varlock's native key metadata and boot-time hydration global before application dependencies evaluate. Static imports in one browser `main.tsx` work in both modes. Script serialization escapes closing markup and Unicode line separators.
 
-```toml
-env = false
-```
+Production documents use `Cache-Control: no-store`. Root, explicit index, and SPA deep links share the prepared shell, including HEAD handling. Static assets and API misses retain their normal behavior. Applications using CSP must authorize the inline script, for example with a hash; Stack does not weaken CSP.
 
-Validate before launching the server:
+`src/env/html.ts` owns the shared script serialization and production HTML injection. It has no Elysia dependency. Runtime initialization lives inside the server loader; there is no separate auto-load entry point. The browser-safe `@prinpo/stack/env` entry exposes native `ENV` and schema types. Endpoint helpers, manual key-selection adapters, and manual hydration exports have been removed; Stack owns client delivery. The generic `serveApp.transformIndexHtml` hook remains available for application-owned HTML changes.
 
-```sh
-varlock run --path ./env/server -- bun src/server/index.ts
-```
-
-The server entry imports `@prinpo/stack/env/auto-load`. This requires the graph injected by `varlock run`, retains its explicitly selected server schema even when the package default belongs to the client, and initializes native Varlock runtime behavior. Importing it without CLI-injected configuration fails with startup instructions. Do not give it an unchecked or fabricated graph.
-
-```ts
-import "@prinpo/stack/env/auto-load";
-import { publicEnv } from "@prinpo/stack/env/elysia";
-import { Elysia } from "@prinpo/stack/server";
-
-const app = new Elysia().use(publicEnv({ keys: ["PUBLIC_API_ORIGIN"] }));
-```
-
-The endpoint defaults to `/api/public-env`; configure `path` when needed. Its explicit key list must be a subset of initialized public dynamic keys. Sensitive, static, or undeclared selections fail registration. An empty selection returns `{}`. Backend-only public settings are not exposed automatically. The endpoint returns the process's startup snapshot and sends `Cache-Control: no-store`.
-
-Bootstrap the browser before importing application modules that may read configuration:
-
-```ts
-import { loadPublicDynamicEnv } from "@prinpo/stack/env";
-
-await loadPublicDynamicEnv({ endpoint: "/api/public-env" });
-await import("./application");
-```
-
-The example adds a retryable startup error. Static-only clients omit this fetch. Native hydration rejects request failures but does not validate per-key types or required-key completeness; the initialized server graph is the validation authority. Other servers can use native `getPublicDynamicEnv` and hydration helpers directly, with an explicit browser subset and equivalent cache policy.
-
-For a separate backend origin, configure the endpoint URL before bootstrap through deployment serving configuration or a known same-origin route/proxy. A dynamic API origin cannot also be the only way to discover the configuration endpoint. Keep native CORS/credential policy application-owned.
-
-Changes require restarting the full `varlock run` command. Bun's inner code watcher alone reuses the parent's snapshot; it does not reload environment values. Vite watches its schema sources and regenerates client metadata/types on configuration restart. Rebuild when static values change.
+The earlier deferred check for missing keys in fetched development payloads is obsolete: development now resolves and validates values through Varlock directly. Qualification of absent optional values during native boot-time hydration remains separate; custom integrations using native Varlock hydration remain outside the standard Stack flow.
 
 ## Builds and runtime safeguards
 
@@ -106,13 +86,22 @@ Automatic output redaction and response scanning are disabled by schema settings
 
 ## Pinned upstream patches
 
-The user authorized two narrow patches after the compatibility probe reproduced upstream gaps:
+Only `patches/varlock@1.23.0.patch` remains required. It adds static-only loading that preserves dynamic metadata, rejects dynamic dependencies of static inputs and computed classification, and enforces the public-only client graph. Stack's Vite factory scopes `_VARLOCK_STATIC_ONLY=1` and `_VARLOCK_PUBLIC_ONLY=1` around the first upstream import; the native plugin retains that CLI environment for reloads.
 
-- `patches/varlock@1.23.0.patch`: opt-in static-only loading preserves dynamic metadata, rejects dynamic dependencies of static inputs and computed classification, and optionally enforces a public-only client graph. Stack's Vite factory scopes `_VARLOCK_STATIC_ONLY=1` and `_VARLOCK_PUBLIC_ONLY=1` around the first upstream import; the upstream plugin retains that CLI environment for reloads.
-- `patches/@varlock%2Fvite-integration@1.5.4.patch`: emitted browser entry chunks receive public dynamic metadata even when Rolldown's earlier module transforms do not identify the HTML entry. Server/SSR output is excluded from this additional injection.
+The former Vite/Rolldown entry-metadata patch is no longer needed: both development and production now provide metadata in HTML before the bundle evaluates. The emitted-module probe passes against the unpatched Vite integration, including imported and lazy modules. The patch file, manifest entry, and lockfile registration were removed; the dependency remains pinned at the same version.
 
-The root Bun manifest and lockfile apply the patches in this source-linked repository. **Bun root patches do not automatically propagate through an installed dependency's manifest.** A separate consuming repository must configure these patches in its own root; including patch assets in Stack is not automatic application. Package distribution remains deferred under ADR 0004, so this milestone qualifies the repository example rather than an independently installed package. Do not remove the patches merely because unfiltered builds happen to succeed with development values present.
+The root Bun manifest and lockfile apply the remaining patch in this source-linked repository. **Bun root patches do not automatically propagate through an installed dependency's manifest.** A separate consuming repository must configure this core patch in its own root; including its asset in Stack is not automatic application. Package distribution remains deferred under ADR 0004, so this qualifies the repository example rather than independently installed packages.
 
-On upgrades, rerun `bunx --bun vp run research:varlock`, the environment tests, and the full-stack build before updating pins or dropping patches. The probe builds one artifact without dynamic values, loads it under two runtime payloads, checks import ordering and retry, and rejects sensitive/implicitly public imported entries. happy-dom supplies browser globals; this is not real-browser E2E.
+The standard loader uses the pinned native `internal.loadEnvGraph` interface to keep graphs independent and resolve only selected settings. Its classification adapter also relies on the maintained metadata patch. Treat these as qualified pinned interfaces, with the runtime integration tests covering upgrades.
+
+On upgrades, rerun `bunx --bun vp run research:varlock`, the environment tests, and the full-stack build before updating pins or dropping the core patch. The probe builds one artifact without dynamic values, serves it under different runtime configurations, checks startup injection, import ordering without browser fetches, safe serialization, local development resolution without a backend, and rejects sensitive/implicitly public imported entries. happy-dom supplies browser globals; this is not real-browser E2E.
 
 Native references: [schemas](https://varlock.dev/guides/schema/), [monorepos](https://varlock.dev/guides/monorepos/), [dynamic values](https://varlock.dev/guides/dynamic-config/), [Bun](https://varlock.dev/integrations/bun/), and [providers](https://varlock.dev/guides/plugins/).
+
+## Runnable sandbox
+
+The full-stack landing page names its browser settings `CLIENT_PUBLIC_STATIC` and `CLIENT_PUBLIC_DYNAMIC`. Four server settings demonstrate the public/secret and static/dynamic combinations: `SERVER_PUBLIC_STATIC`, `SERVER_PUBLIC_DYNAMIC`, `SERVER_SECRET_STATIC`, and `SERVER_SECRET_DYNAMIC`. Values live alongside their schema. The page's button fetches `/api/env`; the browser document includes only declared client dynamic settings. Standard startup has no bootstrap endpoint.
+
+The two secret-classified settings contain dummy strings, intentionally returned by this teaching endpoint. Do not put real credentials in them. Sensitivity metadata does not prohibit explicit response serialization when automatic leak scanning is disabled. The endpoint returns only its four named demo settings and never enumerates the server environment.
+
+Browser static reads are compiled into the bundle. The current Bun server build keeps native runtime `ENV` reads, so server static and dynamic settings both come from the validated startup snapshot. Server static values additionally resolve during static-only build validation; the sandbox supplies committed fake values so builds require no real credentials. See the [sandbox walkthrough](../examples/fullstack/README.md#try-the-environment-sandbox).

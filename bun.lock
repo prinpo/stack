@@ -68,7 +68,6 @@
     },
   },
   "patchedDependencies": {
-    "@varlock/vite-integration@1.5.4": "patches/@varlock%2Fvite-integration@1.5.4.patch",
     "varlock@1.23.0": "patches/varlock@1.23.0.patch",
   },
   "overrides": {

@@ -51,6 +51,17 @@ section {
   border-radius: 12px;
   background: #fffef9;
 }
+section + section {
+  margin-top: 24px;
+}
+.env-values dt {
+  font-weight: 700;
+  margin-top: 16px;
+}
+.env-values dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
 form {
   margin-top: 28px;
 }

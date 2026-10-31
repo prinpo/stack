@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { join } from "node:path";
@@ -7,6 +8,26 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { stack } from "../src/vite";
 
 const cleanup: Array<() => Promise<unknown>> = [];
+
+test("Bun's config runner loads Stack's server environment defaults", () => {
+  const result = spawnSync(
+    "bun",
+    [
+      "--no-env-file",
+      "--eval",
+      `import { loadConfigFromFile } from "vite";
+const loaded = await loadConfigFromFile(
+  { command: "serve", mode: "development" },
+  "vite.config.ts", undefined, "silent", undefined, "runner",
+);
+if (!loaded) throw new Error("Example config was not loaded");
+console.log("config loaded");`,
+    ],
+    { cwd: join(process.cwd(), "examples/fullstack"), encoding: "utf8", timeout: 15_000 },
+  );
+  expect(result.status, result.stderr).toBe(0);
+  expect(result.stdout).toContain("config loaded");
+});
 
 afterEach(async () => {
   for (const close of cleanup.reverse()) await close();

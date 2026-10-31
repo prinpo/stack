@@ -1,13 +1,23 @@
-import { publicEnv } from "@prinpo/stack/env/elysia";
 import { Elysia, t } from "@prinpo/stack/server";
 
+import { ENV } from "../env/server";
 import { errors } from "./errors";
 import { logging } from "./logging";
 
 export const app = new Elysia()
-  .use(publicEnv({ keys: ["PUBLIC_DEPLOYMENT_NAME"] }))
   .use(logging)
   .use(errors)
+  // Teaching endpoint: these four settings contain dummy strings, including the
+  // secret-classified examples. Keep real application credentials out of it.
+  .get("/api/env", ({ set }) => {
+    set.headers["cache-control"] = "no-store";
+    return {
+      SERVER_PUBLIC_STATIC: ENV.SERVER_PUBLIC_STATIC,
+      SERVER_PUBLIC_DYNAMIC: ENV.SERVER_PUBLIC_DYNAMIC,
+      SERVER_SECRET_STATIC: ENV.SERVER_SECRET_STATIC,
+      SERVER_SECRET_DYNAMIC: ENV.SERVER_SECRET_DYNAMIC,
+    };
+  })
   .get("/api/hello", ({ query }) => ({ message: `Hello, ${query.name}!` }), {
     query: t.Object({ name: t.String({ minLength: 1 }) }),
   })

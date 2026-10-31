@@ -24,7 +24,7 @@ async function server(source: string, credential: string | undefined = "syntheti
     );
     await writeFile(
       join(cwd, "server.ts"),
-      'const originalConsole = console.log; const OriginalResponse = Response;\nawait import("@prinpo/stack/env/auto-load");\n' +
+      'const originalConsole = console.log; const OriginalResponse = Response;\nconst { loadServerEnv } = await import("@prinpo/stack/env/server"); await loadServerEnv({ server: ".", client: false });\n' +
         source,
     );
     const env: NodeJS.ProcessEnv = { ...process.env, VARLOCK_TELEMETRY_DISABLED: "1" };
@@ -59,26 +59,6 @@ async function server(source: string, credential: string | undefined = "syntheti
   }
 }
 
-test.each([
-  { keys: ["STACK_ENV_ORIGIN"], body: { STACK_ENV_ORIGIN: "https://deployment.example" } },
-  { keys: [], body: {} },
-])(
-  "the public endpoint serves only selected public dynamic keys without caching ($keys)",
-  async ({ keys, body }) => {
-    const result = await server(`import { publicEnv } from "@prinpo/stack/env/elysia";
-import { Elysia } from "@prinpo/stack/server";
-const app = new Elysia().use(publicEnv({ keys: ${JSON.stringify(keys)}, path: "/api/settings" }));
-const response = await app.handle(new Request("http://localhost/api/settings"));
-console.log(JSON.stringify({ status: response.status, cache: response.headers.get("cache-control"), body: await response.json() }));`);
-    expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout.trim().split("\n").at(-1) ?? "null")).toEqual({
-      status: 200,
-      cache: "no-store",
-      body,
-    });
-  },
-);
-
 test("missing runtime credentials prevent application initialization", async () => {
   const missing = await server('console.log("APPLICATION_STARTED");', "");
   expect(missing.status).not.toBe(0);
@@ -106,14 +86,3 @@ test("the default schema leaves console and Response unintercepted", async () =>
     responseSame: true,
   });
 });
-
-test.each(["STACK_ENV_TOKEN", "UNDECLARED_KEY"])(
-  "the endpoint rejects %s in its public allowlist",
-  async (key) => {
-    const result = await server(
-      `import { publicEnv } from "@prinpo/stack/env/elysia";\npublicEnv({ keys: [${JSON.stringify(key)}] });`,
-    );
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("is not declared public and dynamic");
-  },
-);

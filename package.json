@@ -19,16 +19,13 @@
     "patches"
   ],
   "type": "module",
-  "sideEffects": [
-    "./src/env/auto-load.ts",
-    "./dist/env/auto-load.js"
-  ],
+  "sideEffects": false,
   "exports": {
     "./client": "./src/client.ts",
     "./devtools": "./src/devtools.ts",
     "./env": "./src/env.ts",
-    "./env/auto-load": "./src/env/auto-load.ts",
-    "./env/elysia": "./src/env/elysia.ts",
+    "./env/server": "./src/env/server.ts",
+    "./env/defaults": "./src/env/.env.schema",
     "./env/vite": "./src/env/vite.ts",
     "./logger": "./src/logger.ts",
     "./logger/elysia": "./src/logger/elysia.ts",
@@ -115,7 +112,6 @@
     }
   },
   "patchedDependencies": {
-    "varlock@1.23.0": "patches/varlock@1.23.0.patch",
-    "@varlock/vite-integration@1.5.4": "patches/@varlock%2Fvite-integration@1.5.4.patch"
+    "varlock@1.23.0": "patches/varlock@1.23.0.patch"
   }
 }

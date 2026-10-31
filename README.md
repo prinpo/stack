@@ -2,7 +2,7 @@
 
 A thin application framework for Bun, Elysia, Eden, TanStack Router, and TanStack Query. Stack owns a tested set of library versions and connects their native APIs through a few utilities.
 
-The foundation includes file-based routing, router devtools, a Vite preset, a development API proxy, and an Elysia serving plugin. The Eden Query connector adds typed queries and mutations. Optional Blocks integrate evlog logging and [Varlock configuration](docs/env.md), including typed schemas and public runtime values. Database and auth integrations follow separately. See the [original milestone boundary](docs/milestones/0001-fullstack-foundation.md) and [architectural decisions](docs/adr/).
+The foundation includes file-based routing, router devtools, a Vite preset, a development API proxy, and an Elysia serving plugin. The Eden Query connector adds typed queries and mutations. Standard server startup integrates [Varlock configuration](docs/env.md), including typed schemas and public runtime values. Optional logging integrates evlog. Database and auth integrations follow separately. See the [original milestone boundary](docs/milestones/0001-fullstack-foundation.md) and [architectural decisions](docs/adr/).
 
 ## Try the full-stack example
 
@@ -19,21 +19,20 @@ The [full-stack example](examples/fullstack/README.md) documents its files and d
 
 ## Public imports
 
-| Import                        | Provides                                                            |
-| ----------------------------- | ------------------------------------------------------------------- |
-| `@prinpo/stack/server`        | Native Elysia exports, including its default export, and `serveApp` |
-| `@prinpo/stack/client`        | Native Eden exports, including `treaty`                             |
-| `@prinpo/stack/logger`        | Native evlog utilities                                              |
-| `@prinpo/stack/logger/elysia` | Opt-in `logger` plugin and request-context `apiError`               |
-| `@prinpo/stack/logger/client` | Browser-safe `isStructuredApiError` guard                           |
-| `@prinpo/stack/query`         | Native TanStack React Query exports and the Eden Query connector    |
-| `@prinpo/stack/react`         | Native TanStack Router exports                                      |
-| `@prinpo/stack/devtools`      | Native router devtools exports                                      |
-| `@prinpo/stack/env`           | Browser-safe Varlock access and public hydration helpers            |
-| `@prinpo/stack/env/vite`      | Opt-in native Vite plugins with static-only, public-only loading    |
-| `@prinpo/stack/env/elysia`    | Opt-in public runtime configuration endpoint                        |
-| `@prinpo/stack/env/auto-load` | Explicit initialization of the CLI-validated server graph           |
-| `@prinpo/stack/vite`          | The `stack` Vite preset                                             |
+| Import                        | Provides                                                                |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| `@prinpo/stack/server`        | Native Elysia exports, standard `startServer`, and low-level `serveApp` |
+| `@prinpo/stack/client`        | Native Eden exports, including `treaty`                                 |
+| `@prinpo/stack/logger`        | Native evlog utilities                                                  |
+| `@prinpo/stack/logger/elysia` | Opt-in `logger` plugin and request-context `apiError`                   |
+| `@prinpo/stack/logger/client` | Browser-safe `isStructuredApiError` guard                               |
+| `@prinpo/stack/query`         | Native TanStack React Query exports and the Eden Query connector        |
+| `@prinpo/stack/react`         | Native TanStack Router exports                                          |
+| `@prinpo/stack/devtools`      | Native router devtools exports                                          |
+| `@prinpo/stack/env`           | Browser-safe Varlock ENV access and schema types                        |
+| `@prinpo/stack/env/server`    | Server startup, client snapshots, and connection settings               |
+| `@prinpo/stack/env/vite`      | Opt-in native Vite plugins with static-only, public-only loading        |
+| `@prinpo/stack/vite`          | The `stack` Vite preset                                                 |
 
 Import React and React DOM from their upstream packages. They are optional peers; UI applications install compatible versions themselves. Other integrated libraries are pinned regular dependencies. Backend entry points can run without React installed. Frontend-only applications still install the shared dependency set and omit the backend configuration.
 
@@ -50,15 +49,15 @@ import { stack } from "@prinpo/stack/vite";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
-  plugins: [stack({ api: { target: "http://localhost:3000" } })],
+  plugins: [stack({ api: true })],
 });
 ```
 
-The preset configures React, file-route generation, automatic route splitting, shared React resolution, and the optional API proxy. By default, requests under `/api` keep their paths when forwarded to Elysia. `/apiary` remains a frontend path. Proxying preserves the browser's origin.
+The preset configures React, file-route generation, automatic route splitting, shared React resolution, and the optional API proxy. `api: true` includes Varlock and reads backend connection settings for proxying and resolves client configuration locally for HTML delivery. Use an explicit `api.target` for standalone proxying to another backend. By default, requests under `/api` keep their paths when forwarded to Elysia. `/apiary` remains a frontend path. Proxying preserves the browser's origin.
 
 For a frontend-only application, use `stack()`. Configure `router.routesDirectory` and `router.generatedRouteTree` for a different layout, or pass other native Router plugin options through `router`. React plugin options go through `react`. A custom proxy namespace uses `api.prefix`, for example `/rpc`.
 
-Router's `Register` and generated `FileRoutesByPath` declarations augment the native `@tanstack/react-router` module. Keep that native type-registration target even though application imports use Stack; the [example application](examples/fullstack/src/application.tsx) demonstrates it. Exclude generated files from formatting and linting, as the [example config](examples/fullstack/vite.config.ts) does.
+Router's `Register` and generated `FileRoutesByPath` declarations augment the native `@tanstack/react-router` module. Keep that native type-registration target even though application imports use Stack; the [example application](examples/fullstack/src/main.tsx) demonstrates it. Exclude generated files from formatting and linting, as the [example config](examples/fullstack/vite.config.ts) does.
 
 ## Server and Eden
 
@@ -111,24 +110,19 @@ The [logging guide](docs/logger.md) covers one-call evlog setup, shared plugin r
 
 ## Serving the browser build
 
-Start an ordinary Elysia instance with optional production browser serving:
+Use standard startup to initialize configuration before importing the Elysia app:
 
 ```ts
-import { serveApp } from "@prinpo/stack/server";
+import { startServer } from "@prinpo/stack/server";
 
-import { app } from "./app";
-
-serveApp(app, {
-  isProduction: process.env.NODE_ENV === "production",
-  port: 3000,
-  assets: "dist",
-  apiPrefix: "/api",
-});
+await startServer(() => import("./app"));
 ```
+
+Stack owns `HOST=127.0.0.1`, `PORT=3000`, and `NODE_ENV=development`. App values live in independent `env/server` and `env/client` schemas; Stack derives public dynamic delivery automatically. Use `stack({ api: true })` in Vite to read backend connection settings for proxying and resolve client envs locally. See the [environment guide](docs/env.md) for overrides, startup profiles, and advanced standalone helpers. The lower-level `serveApp` helper remains available for applications managing startup themselves.
 
 `assets` defaults to `dist`, relative to the working directory; `apiPrefix` defaults to `/api`. The directory must contain `index.html`. Keep its contents limited to public browser build output. The plugin serves assets and returns the app shell for GET/HEAD browser navigations accepting HTML. Unknown API paths, missing asset paths with file extensions, and non-navigation requests keep their 404 responses.
 
-Stack builds, package distribution checks, production application builds, and end-to-end testing are deferred in the [source development milestone](docs/milestones/0002-source-linked-development.md). Existing build configuration and production wiring remain for later work.
+Stack package distribution checks and browser E2E remain deferred under the [source development milestone](docs/milestones/0002-source-linked-development.md). The example browser/server builds and HTTP startup behavior are validated against source.
 
 ## Working on Stack
 

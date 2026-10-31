@@ -1,10 +1,9 @@
-import { varlockVitePlugin } from "@prinpo/stack/env/vite";
 import { stack } from "@prinpo/stack/vite";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   cacheDir: "../../node_modules/.vite/fullstack",
-  plugins: [varlockVitePlugin(), stack({ api: { target: "http://localhost:3000" } })],
+  plugins: [stack({ api: true })],
   server: { port: 5173, strictPort: true },
   lint: {
     ignorePatterns: ["src/routeTree.gen.ts", "src/env/**"],

@@ -2,7 +2,6 @@ import { TanStackRouterDevtools } from "@prinpo/stack/devtools";
 import { Link, Outlet, createRootRoute } from "@prinpo/stack/react";
 
 import { ApiProvider } from "../client";
-import { ENV } from "../env/client";
 
 export const Route = createRootRoute({ component: Layout });
 
@@ -12,13 +11,13 @@ function Layout() {
       <main>
         <header>
           <p className="eyebrow">PRINPO / STACK</p>
-          <h1>{ENV.APP_TITLE}</h1>
-          <p>Deployment: {ENV.PUBLIC_DEPLOYMENT_NAME}</p>
+          <h1>Prinpo Stack</h1>
           <p>Bun + Elysia + Eden + TanStack Router + Query</p>
           <nav>
             <Link to="/" activeOptions={{ exact: true }}>
-              Home
+              Environment sandbox
             </Link>
+            <Link to="/queries">Queries and mutations</Link>
             <Link to="/about">How it connects</Link>
           </nav>
         </header>

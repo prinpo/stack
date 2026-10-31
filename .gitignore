@@ -12,3 +12,12 @@ dist
 .env.*
 !.env.example
 !.env.schema
+
+# Public configuration and dummy sandbox values for the full-stack example.
+!examples/fullstack/env/client/.env
+!examples/fullstack/env/server/.env
+!examples/fullstack/env/client/.env.development
+!examples/fullstack/env/client/.env.production
+!examples/fullstack/env/server/.env.start
+!examples/fullstack/env/server/.env.development
+!examples/fullstack/env/server/.env.production
