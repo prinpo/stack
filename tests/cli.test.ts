@@ -307,8 +307,8 @@ test("development restarts frontend and backend on server env changes and cleans
   await writeFile(join(cwd, "env/server/.env.development"), `PORT=${nextPort}\nCLI_VALUE=second\n`);
   await expect.poll(async () => (await health())?.value, { timeout: 10_000 }).toBe("second");
   expect((await health()).pid).not.toBe(before.pid);
-  expect(app.output()).toContain(
-    "[stack] env/server/.env.development changed, restarting servers...",
+  expect(app.output()).toMatch(
+    /\[backend\]\s+\[stack\] env\/server\/\.env\.development changed, restarting servers\.\.\./,
   );
   expect(await (await fetch(origin + "/frontend-pid")).text()).not.toBe(frontendBefore);
   app.child.kill("SIGTERM");

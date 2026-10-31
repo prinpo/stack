@@ -23,9 +23,16 @@ export function intro(command?: string, profile?: string) {
   process.stderr.write(`${stderrColor.dim(title)}\n`);
 }
 
+function processPrefix(area: Area, stderr = false) {
+  const { style } = areaPresentation(area, stderr);
+  return style.bold(`[${area}]`.padEnd(11));
+}
+
 export function restartNotice(path: string, multipleServers: boolean) {
   const message = `${path} changed, restarting ${multipleServers ? "servers" : "server"}...`;
-  process.stderr.write(`${stderrColor.gray("[stack]")} ${stderrColor.green(message)}\n`);
+  process.stderr.write(
+    `${processPrefix("backend", true)}${stderrColor.white("[stack]")} ${stderrColor.green(message)}\n`,
+  );
 }
 
 export function heading(area: Area, message: string) {
@@ -42,8 +49,7 @@ export function labeledEnvironment(env: NodeJS.ProcessEnv) {
 
 /** Readline handles split chunks, UTF-8, CRLF, and the final unterminated line. */
 export function forwardLines(input: Readable, output: Writable, area: Area, stderr = false) {
-  const { style } = areaPresentation(area, stderr);
-  const prefix = style.bold(`[${area}]`.padEnd(11));
+  const prefix = processPrefix(area, stderr);
   createInterface({ input, crlfDelay: Infinity, terminal: false }).on("line", (line) => {
     output.write(`${prefix}${line}\n`);
   });
