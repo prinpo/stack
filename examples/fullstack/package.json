@@ -4,15 +4,7 @@
   "type": "module",
   "scripts": {
     "stack": "bun --no-env-file ../../src/cli/main.ts",
-    "dev": "bun run stack dev",
-    "build": "bun run stack build",
-    "start": "bun run stack start",
-    "env:types": "bun run stack env codegen",
-    "doctor": "bun run stack doctor",
-    "check": "bunx --bun vp check",
-    "logs": "bun run stack logs",
-    "logs:errors": "bun run stack logs errors",
-    "logs:json": "bun run stack logs --json"
+    "check": "bunx --bun vp check"
   },
   "dependencies": {
     "@prinpo/stack": "file:../..",

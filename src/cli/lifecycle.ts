@@ -2,11 +2,13 @@ import type { ChildProcess } from "node:child_process";
 
 import { defineCommand, showUsage } from "citty";
 import { existsSync, watch } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { serverEnvPaths } from "../env/paths";
 import { environment, profileArgs, takeOptions } from "./options";
+import { type Area, type BuildResult, buildSummary, heading, intro } from "./output";
 import { capabilities, isFile, outputs } from "./project";
 import { runBun, spawnBun, stop, tool } from "./tools";
 
@@ -36,27 +38,56 @@ function lifecycleCommand(
   return command;
 }
 
+async function outputSize(directory: string): Promise<number> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const sizes = await Promise.all(
+    entries.map(async (entry) => {
+      const path = join(directory, entry.name);
+      return entry.isDirectory() ? outputSize(path) : entry.isFile() ? (await stat(path)).size : 0;
+    }),
+  );
+  return sizes.reduce((total, bytes) => total + bytes, 0);
+}
+
 export const build = lifecycleCommand(
   "build",
   "Build detected capabilities without deployment credentials",
   async (env) => {
+    const started = performance.now();
+    intro("build", env.APP_ENV);
     await rm(outputs.manifest, { force: true });
     const app = capabilities();
+    const results: BuildResult[] = [];
     await Promise.all(
       [outputs.client, outputs.server].map((path) => rm(path, { recursive: true, force: true })),
     );
-    if (app.frontend && existsSync("env/client"))
-      await runBun(
-        [tool("varlock", "varlock"), "load", "--path", "env/client", "--format", "json-full"],
-        { ...env, _VARLOCK_STATIC_ONLY: "1", _VARLOCK_PUBLIC_ONLY: "1" },
-        "ignore",
-      );
-    if (app.frontend)
+    if (app.frontend) {
+      const frontendStarted = performance.now();
+      heading("frontend", "Building browser assets");
+      if (existsSync("env/client"))
+        await runBun(
+          [tool("varlock", "varlock"), "load", "--path", "env/client", "--format", "json-full"],
+          { ...env, _VARLOCK_STATIC_ONLY: "1", _VARLOCK_PUBLIC_ONLY: "1" },
+          "ignore",
+          "frontend",
+        );
       await runBun(
         [tool("vite-plus", "vp"), "build", "--outDir", outputs.client, "--configLoader", "runner"],
         env,
+        "inherit",
+        "frontend",
       );
+      const milliseconds = performance.now() - frontendStarted;
+      results.push({
+        area: "frontend",
+        directory: outputs.client,
+        milliseconds,
+        bytes: await outputSize(outputs.client),
+      });
+    }
     if (app.backend) {
+      const backendStarted = performance.now();
+      heading("backend", "Building Bun server");
       await runBun(
         [
           tool("varlock", "varlock"),
@@ -67,6 +98,7 @@ export const build = lifecycleCommand(
         ],
         { ...env, _VARLOCK_STATIC_ONLY: "1" },
         "ignore",
+        "backend",
       );
       await runBun(
         [
@@ -80,10 +112,20 @@ export const build = lifecycleCommand(
           outputs.server,
         ],
         env,
+        "inherit",
+        "backend",
       );
+      const milliseconds = performance.now() - backendStarted;
+      results.push({
+        area: "backend",
+        directory: outputs.server,
+        milliseconds,
+        bytes: await outputSize(outputs.server),
+      });
     }
     await mkdir("dist", { recursive: true });
     await writeFile(outputs.manifest, JSON.stringify({ version: 1, ...app }) + "\n");
+    buildSummary(results, performance.now() - started, env.APP_ENV ?? "production");
   },
 );
 
@@ -133,12 +175,26 @@ export const dev = lifecycleCommand(
   "Run detected capabilities with native code watching",
   async (env) => {
     const app = capabilities();
-    const commands = [
-      ...(app.backend ? [["--watch", "--no-clear-screen", "src/server/index.ts"]] : []),
-      ...(app.frontend
-        ? [[tool("vite-plus", "vp"), "dev", "--configLoader", "runner", "--strictPort"]]
-        : []),
-    ];
+    intro("dev", env.APP_ENV);
+    const commands: { area: Area; args: string[] }[] = [];
+    if (app.backend)
+      commands.push({
+        area: "backend",
+        args: ["--watch", "--no-clear-screen", "src/server/index.ts"],
+      });
+    if (app.frontend)
+      commands.push({
+        area: "frontend",
+        args: [
+          tool("vite-plus", "vp"),
+          "dev",
+          "--configLoader",
+          "runner",
+          "--strictPort",
+          "--clearScreen",
+          "false",
+        ],
+      });
     let children: ChildProcess[] = [];
     let closing = false;
     let finish!: (status: number) => void;
@@ -153,7 +209,7 @@ export const dev = lifecycleCommand(
     };
     const launch = () => {
       for (const command of commands) {
-        const child = spawnBun(command, env);
+        const child = spawnBun(command.args, env, "inherit", command.area);
         children.push(child);
         child.once("error", (error) => {
           console.error(error.message);

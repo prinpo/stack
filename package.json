@@ -44,16 +44,12 @@
   },
   "scripts": {
     "build": "vp pack",
-    "dev": "vp run example:dev",
+    "dev": "bun run stack dev",
     "test": "vp test",
     "check": "vp check",
     "prepare": "vp config",
-    "example:dev": "cd examples/fullstack && bun run dev",
     "example:check": "cd examples/fullstack && bunx --bun vp check",
     "research:varlock": "bun --no-env-file scripts/probe-varlock.ts",
-    "example:logs": "cd examples/fullstack && bun run logs",
-    "example:logs:errors": "cd examples/fullstack && bun run logs:errors",
-    "example:logs:json": "cd examples/fullstack && bun run logs:json",
     "stack": "cd examples/fullstack && bun run stack"
   },
   "dependencies": {
@@ -69,6 +65,7 @@
     "@tanstack/router-plugin": "1.168.46",
     "@varlock/vite-integration": "1.5.4",
     "@vitejs/plugin-react": "6.1.2",
+    "chalk": "6.0.1",
     "citty": "0.2.2",
     "elysia": "1.4.30",
     "evlog": "2.34.0",

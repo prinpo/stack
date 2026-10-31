@@ -2,17 +2,13 @@
 
 Stack includes a Linux/Bun CLI in `@prinpo/stack`. After installing Stack and application development tooling, use its local `stack` executable from package scripts or `bunx --no-install stack`. The executable and delegated JavaScript tools run on Bun. Keep `env = false` in application `bunfig.toml` so Bun package runners also leave dotenv precedence to Varlock. Vite+ remains application-owned development tooling; commands never download missing tools.
 
-```json
-{
-  "scripts": {
-    "dev": "stack dev",
-    "build": "stack build",
-    "start": "stack start"
-  }
-}
+```sh
+bunx --no-install stack dev
+bunx --no-install stack build
+bunx --no-install stack start
 ```
 
-The source-linked repository example has one `stack` script pointing at the live source executable: Bun does not link the root package's own binary in this workspace. From the repository root, `bun run stack <command>` targets that example. An independently installed package exposes its ordinary local executable.
+The source-linked repository example has one `stack` script pointing at the live source executable: Bun does not link the root package's own binary in this workspace. From the repository root, `bun run stack <command>` targets that example. The example keeps only this source shim and its `check` script; lifecycle and utility script aliases are unnecessary. An independently installed package exposes its ordinary local executable.
 
 ## Application commands
 
@@ -27,9 +23,11 @@ stack doctor --json
 
 Stack detects a frontend from root `index.html`, a backend from `src/server/index.ts`, and both for full-stack applications. It owns these conventions; no CLI config file or layout overrides are required. Keep native `vite.config.ts` for browser tooling and the normal deferred `startServer(() => import("./app"))` backend entry.
 
-Development runs Vite+ and Bun's code watcher as one session. Ctrl+C stops the session; an unexpected process exit stops its siblings and fails the command. Any file change under an existing `env/server` restarts both processes so Vite refreshes proxy settings too. Native Vite integration handles client changes. Restart manually after creating schema directories or editing external schema imports.
+Human `dev`, `build`, and `doctor` output begins with a dimmed Prinpo Stack/version line. Chalk detects terminal color support, with `NO_COLOR` disabling colors and `FORCE_COLOR` available to force them. JSON doctor output and native env/log machine output have no decorative headers.
 
-Builds validate static settings without deployment credentials, clear the previous manifest and owned outputs, and write `dist/manifest.json` only on success. Browser files are in `dist/client`; backend code is in `dist/server`. Startup requires a valid manifest and its advertised artifacts. It does not guess from stale files and does not require source entries to detect the built application. Schemas, dependencies, and other runtime assets remain required.
+Development runs Vite+ and Bun's code watcher as one session. Frontend and backend terminal lines carry distinct colored labels, including stderr, while native tool colors are preserved in terminals. Screen clearing is disabled so one process cannot erase another's output. Ctrl+C stops the session; an unexpected process exit stops its siblings and fails the command. Any file change under an existing `env/server` restarts both processes so Vite refreshes proxy settings too. Native Vite integration handles client changes. Restart manually after creating schema directories or editing external schema imports.
+
+Builds validate static settings without deployment credentials, clear the previous manifest and owned outputs, and write `dist/manifest.json` only on success. Browser files are in `dist/client`; backend code is in `dist/server`. Startup requires a valid manifest and its advertised artifacts. It does not guess from stale files and does not require source entries to detect the built application. Schemas, dependencies, and other runtime assets remain required. Builds show separate frontend/backend sections and label native compiler output. The final summary reports Stack version, selected profile, uncompressed output bytes per enabled area, per-area validation/build time, and total elapsed time. Sizes exclude external dependencies; failed builds do not print a success summary.
 
 Backend/full-stack startup hands off to Bun running `dist/server/index.js`. Frontend-only startup hands off to Stack's lightweight `Bun.serve` runtime. Both serve public dynamic configuration in prepared HTML, support HEAD and SPA navigation, and preserve missing-asset/API 404s. Public assets remain separate from server output. The CLI adds no ongoing production supervision or request handling.
 

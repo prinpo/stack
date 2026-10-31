@@ -163,7 +163,9 @@ test("a failed rebuild invalidates the previous manifest and cannot start partia
   const cwd = await project({ "src/server/index.ts": 'console.log("built");' });
   expect(run(cwd, ["build"]).status).toBe(0);
   await writeFile(join(cwd, "src/server/index.ts"), "this is not typescript !!!");
-  expect(run(cwd, ["build"]).status).not.toBe(0);
+  const failed = run(cwd, ["build"]);
+  expect(failed.status).not.toBe(0);
+  expect(failed.stdout).not.toContain("Build complete");
   const result = run(cwd, ["start"]);
   expect(result.status).not.toBe(0);
   expect(result.stderr).toContain("Run stack build");
@@ -298,6 +300,8 @@ test("development restarts frontend and backend on server env changes and cleans
     .poll(async () => (await health())?.value ?? app.output(), { timeout: 10_000 })
     .toBe("first");
   const before = await health();
+  expect(app.output()).toContain("[frontend]");
+  expect(app.output()).toContain("[backend]");
   const frontendBefore = await (await fetch(origin + "/frontend-pid")).text();
   const nextPort = await freePort();
   await writeFile(join(cwd, "env/server/.env.development"), `PORT=${nextPort}\nCLI_VALUE=second\n`);
@@ -469,4 +473,41 @@ test("startup rejects directories in place of advertised build artifacts with re
   const result = run(cwd, ["start"]);
   expect(result.status).not.toBe(0);
   expect(result.stderr).toContain("Run stack build");
+});
+
+test("development labels complete output lines on their original streams, including final fragments", async () => {
+  const port = await freePort();
+  const cwd = await project({
+    "src/server/index.ts": `Bun.serve({ port: ${port}, fetch: () => new Response("ok") }); process.stdout.write("split "); setTimeout(() => { process.stdout.write("message\\nfinal fragment"); process.stderr.write("warning\\n"); }, 25);`,
+  });
+  const app = launch(cwd, ["dev"], {});
+  let stdout = "";
+  let stderr = "";
+  app.child.stdout?.on("data", (chunk) => {
+    stdout += chunk;
+  });
+  app.child.stderr?.on("data", (chunk) => {
+    stderr += chunk;
+  });
+  await expect.poll(() => stdout, { timeout: 5000 }).toContain("split message");
+  app.child.kill("SIGTERM");
+  await once(app.child, "close");
+  expect(stdout).toMatch(/\[backend\]\s+split message\n/);
+  expect(stdout).toMatch(/\[backend\]\s+final fragment\n/);
+  expect(stderr).toMatch(/\[backend\]\s+warning\n/);
+  expect(stdout).not.toContain("warning");
+});
+
+test("successful builds summarize the enabled area with measured artifact size, timings, and Stack version", async () => {
+  const cwd = await project({ "src/server/index.ts": 'console.log("backend");' });
+  const result = run(cwd, ["build"]);
+  expect(result.status, result.stderr).toBe(0);
+  const bytes = (await readFile(join(cwd, "dist/server/index.js"))).byteLength;
+  expect(result.stdout).toContain("Build complete");
+  expect(result.stdout).toContain("Stack v0.0.0");
+  expect(result.stdout).toMatch(
+    new RegExp(`Backend\\s+${bytes} B\\s+\\d+(?:\\.\\d+)? (?:ms|s)\\s+dist/server`),
+  );
+  expect(result.stdout).not.toContain("Frontend");
+  expect(result.stdout).toMatch(/Total\s+\d+(?:\.\d+)? B\s+\d+(?:\.\d+)? (?:ms|s)/);
 });

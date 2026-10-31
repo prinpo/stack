@@ -10,7 +10,7 @@ From the repository root:
 
 ```sh
 bunx --bun vp install
-bunx --bun vp run example:dev
+bun run stack dev
 ```
 
 Open <http://localhost:5173>. Elysia runs on port 3000. The example is a Bun workspace that imports Stack's TypeScript source directly through `@prinpo/stack/...`. Changes to the source feed into the running application without building, packing, or reinstalling Stack. `bunx --bun vp run dev` from the root starts the same example.

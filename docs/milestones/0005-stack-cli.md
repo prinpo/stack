@@ -97,3 +97,13 @@ The source-linked example uses one `stack` script pointing to the live source ex
 Standards review: no hard violations; two maintainability findings resolved by sharing server graph paths and SPA navigation/shell policy. The latter was the more consequential duplication because it could make the two production servers disagree.
 
 Spec review: two correctness findings resolved with regression tests. Incompatible inherited snapshots can no longer override an explicit startup mode/profile, and directories cannot stand in for advertised entry files. The snapshot issue was the higher-severity finding. No review findings remain open.
+
+## Terminal presentation follow-up
+
+Human development, build, and doctor commands show a dimmed Prinpo Stack/version intro. Chalk supplies automatic terminal colors with NO_COLOR support. Doctor groups capabilities and schema presence with clear enabled/disabled indicators; JSON remains undecorated. Developer-configurable names remain unbranded.
+
+Development labels each frontend/backend stdout and stderr line with a distinct colored process name, preserving native colors in terminals and flushing partial final lines. Process cleanup and environment-triggered restarts retain their existing behavior. Builds use the same labels plus separate area headings, then summarize enabled output sizes, validation/build durations, Stack version, profile, and total time. Output sizes exclude external dependencies.
+
+The example keeps only stack (the source-workspace shim) and check scripts. Root convenience commands and active documentation use the CLI directly.
+
+Terminal follow-up validation passes: 646 tests across 43 files (23 CLI integration tests), root formatting/lint/types, example checks, and an example build. A real terminal check verifies color and dimmed branding; forced-color doctor JSON stays clean on both streams. Standards review's one duplicated presentation mapping is now shared; Spec review found no issues. A separate failure probe retained 20,000 child-output lines and its final diagnostic, preserved exit status 7, and emitted no success summary.

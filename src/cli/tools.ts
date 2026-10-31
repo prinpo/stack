@@ -3,6 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 
+import { type Area, forwardLines, labeledEnvironment } from "./output";
+
 const require = createRequire(import.meta.url);
 
 /** Resolve the installed package's executable, including packages with private manifests. */
@@ -37,12 +39,16 @@ export function spawnBun(
   args: string[],
   env: NodeJS.ProcessEnv,
   stdout: "inherit" | "ignore" = "inherit",
+  area?: Area,
 ) {
-  return spawn(process.execPath, ["--no-env-file", ...args], {
-    env,
+  const child = spawn(process.execPath, ["--no-env-file", ...args], {
+    env: area ? labeledEnvironment(env) : env,
     detached: true,
-    stdio: ["inherit", stdout, "inherit"],
+    stdio: ["inherit", area && stdout === "inherit" ? "pipe" : stdout, area ? "pipe" : "inherit"],
   });
+  if (area && child.stdout) forwardLines(child.stdout, process.stdout, area);
+  if (area && child.stderr) forwardLines(child.stderr, process.stderr, area, true);
+  return child;
 }
 
 /** Stop the entire tool group, including watchers and grandchildren. */
@@ -70,8 +76,9 @@ export async function runBun(
   args: string[],
   env: NodeJS.ProcessEnv,
   stdout: "inherit" | "ignore" = "inherit",
+  area?: Area,
 ) {
-  const child = spawnBun(args, env, stdout);
+  const child = spawnBun(args, env, stdout, area);
   const onInterrupt = () => {
     void stop(child);
   };
@@ -80,7 +87,7 @@ export async function runBun(
   try {
     const status = await new Promise<number>((done, reject) => {
       child.once("error", reject);
-      child.once("exit", (code, signal) => done(code ?? (signal === "SIGINT" ? 130 : 143)));
+      child.once("close", (code, signal) => done(code ?? (signal === "SIGINT" ? 130 : 143)));
     });
     if (status !== 0) process.exit(status);
   } finally {
