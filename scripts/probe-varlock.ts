@@ -9,7 +9,12 @@ const vp = resolve("node_modules/vite-plus/bin/vp");
 const happyDom = resolve("node_modules/happy-dom/lib/index.js");
 const baseEnv: NodeJS.ProcessEnv = { ...process.env, VARLOCK_TELEMETRY_DISABLED: "1" };
 for (const key of Object.keys(baseEnv)) {
-  if (key.startsWith("STACK_PROBE_") || key.startsWith("_VARLOCK") || key.startsWith("__VARLOCK"))
+  if (
+    ["NODE_ENV", "APP_ENV"].includes(key) ||
+    key.startsWith("STACK_PROBE_") ||
+    key.startsWith("_VARLOCK") ||
+    key.startsWith("__VARLOCK")
+  )
     delete baseEnv[key];
 }
 
@@ -96,7 +101,7 @@ globalThis.__stackApplication = {
 const reservation = Bun.serve({ port: 0, fetch: () => new Response() });
 process.env.PORT = String(reservation.port);
 await reservation.stop();
-const app = await startServer(async () => ({ app: new Elysia() }), { env: { server: ".", client: "." } });
+const app = await startServer(async () => ({ app: new Elysia() }), { assets: "dist", env: { server: ".", client: "." } });
 try {
   await app.modules;
   const documents = [];

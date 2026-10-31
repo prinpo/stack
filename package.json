@@ -11,6 +11,9 @@
     "type": "git",
     "url": "git+https://github.com/prinpo/stack.git"
   },
+  "bin": {
+    "stack": "./src/cli/main.ts"
+  },
   "workspaces": [
     "examples/*"
   ],
@@ -50,12 +53,14 @@
     "research:varlock": "bun --no-env-file scripts/probe-varlock.ts",
     "example:logs": "cd examples/fullstack && bun run logs",
     "example:logs:errors": "cd examples/fullstack && bun run logs:errors",
-    "example:logs:json": "cd examples/fullstack && bun run logs:json"
+    "example:logs:json": "cd examples/fullstack && bun run logs:json",
+    "stack": "cd examples/fullstack && bun run stack"
   },
   "dependencies": {
     "@babel/parser": "7.29.9",
     "@elysiajs/eden": "1.4.9",
     "@elysiajs/static": "1.4.10",
+    "@evlog/cli": "0.11.1",
     "@sinclair/typebox": "0.34.52",
     "@tanstack/react-query": "5.102.8",
     "@tanstack/react-router": "1.170.44",
@@ -64,6 +69,7 @@
     "@tanstack/router-plugin": "1.168.46",
     "@varlock/vite-integration": "1.5.4",
     "@vitejs/plugin-react": "6.1.2",
+    "citty": "0.2.2",
     "elysia": "1.4.30",
     "evlog": "2.34.0",
     "exact-mirror": "0.2.7",
@@ -73,7 +79,6 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@evlog/cli": "0.11.1",
     "@testing-library/dom": "10.4.1",
     "@testing-library/jest-dom": "7.0.0",
     "@testing-library/react": "16.3.2",
@@ -110,6 +115,9 @@
       "version": "1.4.3",
       "onFail": "download"
     }
+  },
+  "engines": {
+    "bun": ">=1.4.3"
   },
   "patchedDependencies": {
     "varlock@1.23.0": "patches/varlock@1.23.0.patch"

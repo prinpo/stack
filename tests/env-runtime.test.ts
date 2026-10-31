@@ -56,7 +56,12 @@ test("Stack provides validated connection defaults without application schema de
 console.log(JSON.stringify(await readServerConnection()));`,
   );
   expect(result.status, result.stderr).toBe(0);
-  expect(JSON.parse(result.stdout)).toEqual({ host: "127.0.0.1", port: 3000, mode: "development" });
+  expect(JSON.parse(result.stdout)).toEqual({
+    host: "127.0.0.1",
+    port: 3000,
+    mode: "development",
+    profile: "development",
+  });
 });
 
 test.each(["0", "65536", "not-a-port"])(
@@ -77,7 +82,7 @@ test("standard startup keeps independent schemas, initializes before app imports
   const result = await runtime(
     {
       "env/server/.env": "NODE_ENV=production\n",
-      "dist/index.html": "<html><head></head><body>Application</body></html>",
+      "dist/client/index.html": "<html><head></head><body>Application</body></html>",
       "env/server/.env.schema":
         schema +
         "# @sensitive @dynamic\nSHARED_SETTING=server-private-value\n# @public @dynamic\nBACKEND_PUBLIC=backend-only-value\n",
@@ -100,7 +105,7 @@ try {
   const value = await (await fetch(new URL("/api/value", app.server.url))).text();
   const response = await fetch(new URL("/api/public-env", app.server.url));
   const { readClientEnv } = await import("@prinpo/stack/env/server");
-  const localClient = await readClientEnv({ mode: "production" });
+  const localClient = await readClientEnv({ profile: "production" });
   const document = await fetch(app.server.url);
   const html = await document.text();
   console.log("RESULT=" + JSON.stringify({ value, localClient: localClient.clientValues.SHARED_SETTING, endpoint: response.status, client: html.includes("client-public-value"), leaked: html.includes("server-private-value") || html.includes("backend-only-value"), cache: document.headers.get("cache-control") }));
@@ -150,7 +155,7 @@ test("production HTML with no client dynamics never falls back to backend public
       "env/server/.env": "NODE_ENV=production\n",
       "env/server/.env.schema": schema + "# @public @dynamic\nBACKEND_PUBLIC=must-not-leak\n",
       "env/client/.env.schema": schema + "# @public @static @required\nBUILD_ONLY=\n",
-      "dist/index.html": "<html><head></head><body>Application</body></html>",
+      "dist/client/index.html": "<html><head></head><body>Application</body></html>",
       "app.ts": 'import { Elysia } from "@prinpo/stack/server"; export const app = new Elysia();',
     },
     `import { startServer } from "@prinpo/stack/server";
@@ -174,7 +179,7 @@ test("missing HTML head fails startup before opening a listener", async () => {
   const result = await runtime(
     {
       "env/server/.env": "NODE_ENV=production\n",
-      "dist/index.html": "<html><body>Application</body></html>",
+      "dist/client/index.html": "<html><body>Application</body></html>",
       "app.ts":
         'import { Elysia } from "@prinpo/stack/server"; export const app = new Elysia(); app.listen = () => { throw new Error("LISTENER_STARTED"); };',
     },

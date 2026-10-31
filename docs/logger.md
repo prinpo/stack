@@ -1,6 +1,6 @@
 # Optional logging
 
-The logger Block integrates evlog with Bun/Elysia. Elysia, Eden, and Query remain independently usable; ordinary server imports do not enable logging. Stack pins evlog 2.34.0 and Zod 4.6.7 as regular dependencies. The repository pins the separately versioned evlog CLI 0.11.1 as development tooling.
+The logger Block integrates evlog with Bun/Elysia. Elysia, Eden, and Query remain independently usable; ordinary server imports do not enable logging. Stack pins evlog 2.34.0 and Zod 4.6.7 as regular dependencies. Stack pins the separately versioned evlog CLI 0.11.1 for its isolated CLI commands; importing runtime logging does not load the CLI.
 
 ## Configure once
 
@@ -125,6 +125,6 @@ bunx --bun vp run example:logs:errors
 bunx --bun vp run example:logs:json
 ```
 
-The example shares `PRINPO_LOG_DIR` between its logger and commands. Other applications can optionally install the tested CLI as a development dependency and run `evlog logs --dir <directory>`, adding `--what errors`, `--json`, or `--what <requestId>`. Runtime logging needs no CLI. Repository scripts disable CLI usage telemetry. The CLI declares Node 22+ support; its Elysia `map`/`init` integration is not supported in this pinned version.
+The example shares `LOG_DIR` between its logger and commands. Installed applications use `stack logs`, `stack logs errors`, or `stack logs <requestId>`, with native filters, `--json`, and `--follow`. One-shot JSON is a native result object; following emits newline-delimited events. Directory precedence is `--dir`, selected-profile LOG_DIR, then `.evlog/logs`. Explicit directories skip environment loading; otherwise only LOG_DIR is resolved, without unrelated credentials. Use `--env staging` to inspect that profile's directory. Runtime logging needs no CLI. Repository scripts disable CLI usage telemetry. The CLI declares Node 22+ support; its Elysia `map`/`init` integration is not supported in this pinned version.
 
 Streaming integration, stream completion/cancellation diagnostics, browser log collection, external services, validation rewriting, and application feedback/actions remain deferred. Stream bodies retain native Elysia handling and are not intercepted.

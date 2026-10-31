@@ -22,6 +22,18 @@ index ab4fcf56b2d005a17da424f5f38c9b365cecc2ad..a6feab05d0d382225c74ff642373c8bc
  		await this.processSensitive();
  		if (!this.envGraph.proxyResolutionView?.[this.key]) {
  			if (this.valueResolver?.def?.impliesSensitive && !this._sensitiveExplicitlySet) {
+diff --git a/dist/load-graph-LEL3JPbc.mjs b/dist/load-graph-LEL3JPbc.mjs
+index f685069c28614441b619a9ceb04a1d6dc0aa5794..8412f25f3bd0b5db6650e97f969f58540a1beb0f 100644
+--- a/dist/load-graph-LEL3JPbc.mjs
++++ b/dist/load-graph-LEL3JPbc.mjs
+@@ -677,6 +677,7 @@ function loadFromPaths(rawPaths, config) {
+ 	})));
+ }
+ async function loadVarlockEnvGraph(opts) {
++	opts = { ...opts, currentEnvFallback: opts?.currentEnvFallback ?? process.env._VARLOCK_ENV_PROFILE, entryFilePaths: opts?.entryFilePaths?.length ? opts.entryFilePaths : process.env._VARLOCK_LOAD_PATH ? [process.env._VARLOCK_LOAD_PATH] : undefined };
+ 	const runtimeOverrideValues = getGraphEnvOverridesFromRuntimeEnv();
+ 	if (process.env["__VARLOCK_PROXY_CHILD"] === "1" && !await getActiveProxySession()) throw new CliExitError("Proxy session record is unavailable", { suggestion: "The proxy session that launched this process can no longer be read (it may have been stopped, or its record corrupted). Re-run inside an active `varlock proxy run` / `varlock proxy start` session." });
+ 	const proxyResolutionView = await getProxyResolutionViewForEnv().catch(() => void 0);
 diff --git a/dist/load.command-DNCIpZGQ.mjs b/dist/load.command-DNCIpZGQ.mjs
 index b733f54223c3aa0b304f6c5e02482fa2b115134b..6337fc0ad10b2c1e19b9ff9fdcbf45bdeb19a874 100644
 --- a/dist/load.command-DNCIpZGQ.mjs

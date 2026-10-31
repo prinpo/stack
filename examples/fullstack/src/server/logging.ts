@@ -4,5 +4,5 @@ import { ENV } from "../env/server";
 
 export const logging = logger({
   service: "stack-example",
-  persistence: { dir: ENV.PRINPO_LOG_DIR },
+  persistence: { dir: ENV.LOG_DIR },
 });

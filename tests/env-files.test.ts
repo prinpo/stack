@@ -12,7 +12,6 @@ test("example profiles load committed defaults and keep personal and production 
       "client/.env.development",
       "client/.env.production",
       "server/.env",
-      "server/.env.start",
       "server/.env.schema",
       "server/.env.development",
       "server/.env.production",
@@ -29,14 +28,14 @@ test("example profiles load committed defaults and keep personal and production 
     const env: NodeJS.ProcessEnv = { ...process.env, VARLOCK_TELEMETRY_DISABLED: "1" };
     for (const key of Object.keys(env)) {
       if (
-        ["NODE_ENV", "PORT", "PRINPO_LOG_DIR", "CLIENT_PUBLIC_DYNAMIC"].includes(key) ||
+        ["NODE_ENV", "APP_ENV", "PORT", "LOG_DIR", "CLIENT_PUBLIC_DYNAMIC"].includes(key) ||
         key.startsWith("_VARLOCK") ||
         key.startsWith("__VARLOCK") ||
         key.startsWith("STACK_ENV_")
       )
         delete env[key];
     }
-    function load(path: string) {
+    function load(path: string, mode = "development") {
       const result = spawnSync(
         "bun",
         [
@@ -50,10 +49,10 @@ await app.modules;
 const response = await app.handle(new Request("http://localhost/api/env"));
 const sandbox = await response.json();
 const { readClientEnv } = await import("@prinpo/stack/env/server");
-const browser = config.mode === "production" ? config.clientValues : (await readClientEnv({ mode: config.mode })).clientValues;
+const browser = config.mode === "production" ? config.clientValues : (await readClientEnv({ profile: config.mode })).clientValues;
 console.log("STACK_ENV_RESULT=" + JSON.stringify({ mode: config.mode, host: config.host, port: config.port, name: browser.CLIENT_PUBLIC_DYNAMIC, secret: ENV.STACK_ENV_FILE_SECRET, sandbox, browser, cache: response.headers.get("cache-control") }));`,
         ],
-        { cwd, env, encoding: "utf8", timeout: 15_000 },
+        { cwd, env: { ...env, NODE_ENV: mode, APP_ENV: mode }, encoding: "utf8", timeout: 15_000 },
       );
       expect(result.status, result.stderr).toBe(0);
       expect(result.stderr).not.toContain("WARNING");
@@ -93,7 +92,7 @@ console.log("STACK_ENV_RESULT=" + JSON.stringify({ mode: config.mode, host: conf
       secret: "synthetic-sandbox-credential",
     });
 
-    const production = load("env/server/.env.start");
+    const production = load("env/server", "production");
     expect(production).toMatchObject({
       mode: "production",
       name: "client-public-dynamic-production",
@@ -116,7 +115,7 @@ console.log("STACK_ENV_RESULT=" + JSON.stringify({ mode: config.mode, host: conf
       join(cwd, "env/client/.env.production.local"),
       "CLIENT_PUBLIC_DYNAMIC=hosted\n",
     );
-    const hosted = load("env/server/.env.start");
+    const hosted = load("env/server", "production");
     expect(hosted).toMatchObject({
       mode: "production",
       name: "hosted",
