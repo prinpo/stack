@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { serverEnvPaths } from "../env/paths";
 import { environment, profileArgs, takeOptions } from "./options";
-import { type Area, type BuildResult, buildSummary, heading, intro } from "./output";
+import { type Area, type BuildResult, buildSummary, heading, intro, restartNotice } from "./output";
 import { capabilities, isFile, outputs } from "./project";
 import { runBun, spawnBun, stop, tool } from "./tools";
 
@@ -228,7 +228,8 @@ export const dev = lifecycleCommand(
     let debounce: ReturnType<typeof setTimeout> | undefined;
     const watcher =
       app.backend && existsSync("env/server")
-        ? watch("env/server", { recursive: true }, () => {
+        ? watch("env/server", { recursive: true }, (_, file) => {
+            const changedPath = file ? join("env/server", file) : "env/server";
             clearTimeout(debounce);
             debounce = setTimeout(() => {
               restarting = restarting
@@ -237,7 +238,7 @@ export const dev = lifecycleCommand(
                   children = [];
                   await Promise.all(previous.map(stop));
                   if (!closing) {
-                    console.error("Environment changed; restarting development session.");
+                    restartNotice(changedPath, commands.length > 1);
                     launch();
                   }
                 })

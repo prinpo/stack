@@ -23,6 +23,11 @@ export function intro(command?: string, profile?: string) {
   process.stderr.write(`${stderrColor.dim(title)}\n`);
 }
 
+export function restartNotice(path: string, multipleServers: boolean) {
+  const message = `${path} changed, restarting ${multipleServers ? "servers" : "server"}...`;
+  process.stderr.write(`${stderrColor.gray("[stack]")} ${stderrColor.green(message)}\n`);
+}
+
 export function heading(area: Area, message: string) {
   const { title, style } = areaPresentation(area);
   console.log(`\n${style.bold(title)} ${color.dim(`— ${message}`)}`);
