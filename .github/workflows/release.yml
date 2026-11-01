@@ -35,7 +35,7 @@ env:
 jobs:
   prepare:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, prinpo-stack]
     timeout-minutes: 25
     permissions:
       contents: read
@@ -56,6 +56,8 @@ jobs:
       - uses: ./tools/.github/actions/setup
         with:
           directory: tools
+      - name: Clear release staging from previous jobs
+        run: rm -rf "$ARTIFACT_DIR"
       - uses: actions/download-artifact@v4
         if: inputs.prepared_run_id != ''
         with:

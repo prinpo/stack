@@ -2,6 +2,8 @@
 
 Stack ships TypeScript source for Bun applications. There is no compiled library distribution. CI runs root formatting, lint and type checks, example checks, the full test suite, and `bun run stack build` on pull requests, merge queues and pushes to `main`. The package integration test installs a tarball outside the workspace and verifies backend use without React, public export resolution, the defaults schema, the installed CLI and a browser build. Configure `Check` as the required branch-protection check if merge enforcement is desired.
 
+CI and release preparation use the PC's self-hosted runner, labelled `prinpo-stack`. The npm publishing job stays on a GitHub-hosted runner because npm trusted publishing does not support self-hosted runners. See [runner operation](self-hosted-runner.md) for setup, maintenance and troubleshooting.
+
 The manual **Release** workflow (`.github/workflows/release.yml`) supports two npm channels:
 
 | Channel   | Package version             | Git tag                      | GitHub Release                |

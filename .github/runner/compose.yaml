@@ -1,0 +1,17 @@
+name: prinpo-stack-runner
+services:
+  runner:
+    build: .
+    image: prinpo-stack-runner:local
+    container_name: prinpo-stack-runner
+    init: true
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT: "0"
+    volumes:
+      - state:/home/runner
+volumes:
+  state:
+    name: prinpo-stack-runner-state

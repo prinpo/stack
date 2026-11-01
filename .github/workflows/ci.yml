@@ -12,7 +12,7 @@ concurrency:
 jobs:
   check:
     name: Check
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, prinpo-stack]
     timeout-minutes: 20
     env:
       VARLOCK_TELEMETRY_DISABLED: "1"
