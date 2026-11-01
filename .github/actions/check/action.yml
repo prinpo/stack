@@ -1,0 +1,21 @@
+name: Validate Stack
+description: Run checks, tests (including an isolated package consumer), and the full-stack example build.
+inputs:
+  directory:
+    description: Workspace directory
+    default: .
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      working-directory: ${{ inputs.directory }}
+      run: bunx --bun vp check
+    - shell: bash
+      working-directory: ${{ inputs.directory }}
+      run: bunx --bun vp run example:check
+    - shell: bash
+      working-directory: ${{ inputs.directory }}
+      run: bunx --bun vp test run
+    - shell: bash
+      working-directory: ${{ inputs.directory }}
+      run: bun run stack build

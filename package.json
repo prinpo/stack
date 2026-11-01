@@ -1,6 +1,6 @@
 {
   "name": "@prinpo/stack",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Composable Bun, Elysia, Eden, and TanStack Router integrations.",
   "homepage": "https://github.com/prinpo/stack#readme",
   "bugs": {
@@ -42,7 +42,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vp pack",
+    "package:check": "bun --no-env-file scripts/release/package.ts",
     "dev": "bun run stack dev",
     "test": "vp test",
     "check": "vp check",
@@ -78,7 +78,7 @@
     "@testing-library/dom": "10.4.1",
     "@testing-library/jest-dom": "7.0.0",
     "@testing-library/react": "16.3.2",
-    "@types/bun": "1.4.3",
+    "@types/bun": "1.4.4",
     "@types/node": "^26.6.5",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
@@ -108,11 +108,11 @@
   "devEngines": {
     "packageManager": {
       "name": "bun",
-      "version": "1.4.3",
+      "version": "1.4.4",
       "onFail": "download"
     }
   },
   "engines": {
-    "bun": ">=1.4.3"
+    "bun": ">=1.4.4"
   }
 }

@@ -1,0 +1,136 @@
+name: Release
+run-name: Release ${{ inputs.channel }}${{ inputs.prepare_only && ' (prepare only)' || '' }}
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel (ignored when resuming a prepared run)
+        type: choice
+        options: [nightly, latest]
+        default: nightly
+      nightly_tag:
+        description: Published nightly Git tag to promote (latest only)
+        type: string
+      version:
+        description: Matching normal version, e.g. 0.1.0 (latest only)
+        type: string
+      prepare_only:
+        description: Validate and upload the tarball without publishing
+        type: boolean
+        default: true
+      prepared_run_id:
+        description: Optional release run ID whose validated tarball should be resumed unchanged
+        type: string
+permissions:
+  contents: read
+# Serialize both channels together. Never cancel an active publisher.
+concurrency:
+  group: package-release
+  cancel-in-progress: false
+env:
+  VARLOCK_TELEMETRY_DISABLED: "1"
+  SOURCE_DIR: ${{ github.workspace }}/source
+  ARTIFACT_DIR: ${{ github.workspace }}/release-package
+  PREPARED_RUN_ID: ${{ inputs.prepared_run_id }}
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      source: ${{ steps.plan.outputs.source }}
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: tools
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./tools/.github/actions/setup
+        with:
+          directory: tools
+      - uses: actions/download-artifact@v4
+        if: inputs.prepared_run_id != ''
+        with:
+          name: release-package
+          path: release-package
+          run-id: ${{ inputs.prepared_run_id }}
+          github-token: ${{ github.token }}
+      - name: Resolve source and version
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+          NIGHTLY_TAG: ${{ inputs.nightly_tag }}
+          NORMAL_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$PREPARED_RUN_ID" ]; then
+            bun --no-env-file tools/scripts/release/main.ts restore
+          else
+            bun --no-env-file tools/scripts/release/main.ts resolve
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.plan.outputs.source }}
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./tools/.github/actions/setup
+        with:
+          directory: source
+      - uses: ./tools/.github/actions/check
+        with:
+          directory: source
+      - name: Pack and validate the release tarball
+        if: inputs.prepared_run_id == ''
+        run: bun --no-env-file tools/scripts/release/main.ts pack
+      - name: Validate the preserved tarball
+        if: inputs.prepared_run_id != ''
+        run: bun --no-env-file tools/scripts/release/main.ts validate
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-package
+          path: release-package/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Preparation summary
+        env:
+          RELEASE_VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          echo "Prepared $RELEASE_VERSION. Download the release-package artifact for the tarball, checksums and source metadata." >> "$GITHUB_STEP_SUMMARY"
+  publish:
+    needs: prepare
+    if: ${{ !inputs.prepare_only }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          install: "false"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm install --global npm@11.21.0
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: release-package
+      - name: Publish the preserved package and finish its GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Publisher uses only the prepared tarball; it never installs Stack dependencies.
+          SOURCE_DIR: ${{ github.workspace }}
+        run: bun --no-env-file scripts/release/main.ts publish

@@ -128,7 +128,7 @@ Stack owns `HOST=127.0.0.1`, `PORT=3000`, `NODE_ENV=development`, and APP_ENV de
 
 `assets` defaults to `dist/client`, relative to the working directory; `apiPrefix` defaults to `/api`. The directory must contain `index.html`. Keep its contents limited to public browser build output. The plugin serves assets and returns the app shell for GET/HEAD browser navigations accepting HTML. Unknown API paths, missing asset paths with file extensions, and non-navigation requests keep their 404 responses.
 
-Stack package distribution checks and browser E2E remain deferred under the [source development milestone](docs/milestones/0002-source-linked-development.md). The example browser/server builds and HTTP startup behavior are validated against source.
+CI validates the example browser/server build against source and installs a release tarball into an isolated consumer to verify backend imports without React, public export resolution, schema assets, CLI execution, and a browser build. Browser E2E remains deferred.
 
 ## Working on Stack
 
@@ -136,6 +136,8 @@ Stack package distribution checks and browser E2E remain deferred under the [sou
 bunx --bun vp check
 bunx --bun vp test
 bunx --bun vp run example:check
+bun run stack build
+bun run package:check
 ```
 
 Library checks run against source. CLI integration tests build disposable applications and exercise production HTTP behavior; installed-package smoke checks verify executable resolution. Compile-only checks exercise Eden's inferred contract through the public exports. Existing tests cover the Vite connection, route generation and watching, and the serving plugin's HTTP behavior. Refresh behavior is verified manually at this stage.
@@ -143,3 +145,5 @@ Library checks run against source. CLI integration tests build disposable applic
 The example uses Vite's native config runner (`--configLoader runner`) to track the Stack preset and its source dependencies. Browser-used Stack modules use Vite's HMR, falling back to a page reload where necessary. Bun's watch mode restarts the backend when its imported source changes; reload the browser manually to fetch updated backend data. Tooling changes restart Vite automatically. Watching follows native dependency tracking with minimal configuration; broader reloads or restarts are a last resort.
 
 Stack maintainers update vulnerable dependencies and publish new Stack versions. Applications can use temporary package-manager overrides while an update is prepared; those versions fall outside the tested dependency set.
+
+See the [release runbook](docs/releases.md) for manual nightly publication, promotion to `latest`, npm trusted-publisher setup, and recovery.
