@@ -30,7 +30,7 @@ A strict client-schema preflight may require the upstream exported `internal` gr
 
 ### Reproduced gate result
 
-Run `bunx --bun vp run research:varlock`. The original unpatched probe used Bun 1.4.3, Vite+ 1.2.0 with the config runner, Varlock 1.23.0, and Vite integration 1.5.4. It built a temporary public-only schema and evaluated emitted JavaScript in happy-dom; this was not a real-browser E2E test. Only synthetic values were used. The command now runs the patched contract probe described below; Varlock packages are pinned runtime dependencies of the optional Block.
+Run `bunx --bun vp run research:varlock`. The original unpatched probe used Bun, Vite+ 1.2.0 with the config runner, Varlock 1.23.0, and Vite integration 1.5.4. It built a temporary public-only schema and evaluated emitted JavaScript in happy-dom; this was not a real-browser E2E test. Only synthetic values were used. The command now runs the patched contract probe described below; Varlock packages are pinned runtime dependencies of the optional Block.
 
 1. A required public dynamic value prevents an ordinary unfiltered build when its value is absent.
 2. `_VARLOCK_FILTER=!@dynamic` permits compilation, but ordinary HTML-entry builds do not inject the public-dynamic allowlist. Hydration accepts an undeclared key as well as the intended key. Supplying the dynamic value at build time does not fix this missing entry metadata.

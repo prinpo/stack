@@ -102,7 +102,7 @@ The existing skip-token regression tests also check interaction with a global de
 
 ## Local verification
 
-Executed on the inspection date, using Bun 1.4.3. Unless explicitly stated otherwise, upstream checks used its locked development dependencies, not Stack's dependency set.
+Executed on the inspection date, using Bun. Unless explicitly stated otherwise, upstream checks used its locked development dependencies, not Stack's dependency set.
 
 - `bun install --frozen-lockfile --ignore-scripts` in the clone: passed. Example database-generation postinstall scripts were intentionally skipped.
 - `bun run unit-test:run`: **581 tests across 44 files passed**, including example tests. Reported V8 runtime coverage: 97.15% statements, 93.42% branches, 98.23% lines. Coverage is not proof of type soundness.
