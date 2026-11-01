@@ -33,12 +33,12 @@ The workflow uses that nightly's exact source commit, even if `main` has advance
 The `@prinpo` npm scope owner performs this once, after this workflow is merged to `main`. No bootstrap scripts or publishing tokens are stored in the repository.
 
 1. Run Release for **nightly**, with **prepare_only** checked. Download and extract its `release-package` artifact into a local directory. Note the run ID and the tarball filename in `release.json`.
-2. In that directory, verify the archive and authenticate interactively:
+2. In that directory, verify the archive and authenticate interactively. Explicitly set npm's project prefix to the extracted artifact directory so it does not inherit Stack's Bun-only `devEngines` from a parent checkout:
 
    ```sh
    sha256sum --check SHA256SUMS
-   npm login
-   npm publish ./prinpo-stack-<nightly-version>.tgz --access public --tag nightly --ignore-scripts
+   npm --prefix "$PWD" login
+   npm --prefix "$PWD" publish ./prinpo-stack-<nightly-version>.tgz --access public --tag nightly --ignore-scripts
    ```
 
    Replace `<nightly-version>` with the actual version. Use the downloaded archive unchanged. The local bootstrap has no GitHub provenance; subsequent CI publications do.

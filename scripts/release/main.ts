@@ -135,6 +135,8 @@ async function publishRelease() {
     command(
       [
         "npm",
+        "--prefix",
+        outputDir,
         "publish",
         tarball,
         "--access",
@@ -148,7 +150,15 @@ async function publishRelease() {
     );
   } else if (action.updateDistTag) {
     command(
-      ["npm", "dist-tag", "add", `@prinpo/stack@${release.version}`, release.channel],
+      [
+        "npm",
+        "--prefix",
+        outputDir,
+        "dist-tag",
+        "add",
+        `@prinpo/stack@${release.version}`,
+        release.channel,
+      ],
       sourceDir,
     );
   }
