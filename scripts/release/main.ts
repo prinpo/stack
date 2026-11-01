@@ -6,6 +6,7 @@ import { type GitHubRelease, github, releaseState } from "./github";
 import { command, preparePackage, validatePackage } from "./package";
 import {
   assertReleaseVersion,
+  latestNightly,
   nightlyVersion,
   normalVersion,
   planRelease,
@@ -31,20 +32,26 @@ async function resolveRelease() {
   if (process.env.GITHUB_REF !== "refs/heads/main") throw new Error("Dispatch releases from main");
   const runId = process.env.GITHUB_RUN_ID!;
   const run = await github<{ created_at: string }>(`actions/runs/${runId}`);
+  const { history, publishedVersions } = await releaseState();
   let source = process.env.GITHUB_SHA!;
-  const nightlyTag = process.env.NIGHTLY_TAG ?? "";
+  let nightlyTag: string | undefined;
   if (channel === "latest") {
-    if (!nightlyTag.startsWith("v") || !nightlyVersion.test(nightlyTag.slice(1)))
-      throw new Error("Select a published nightly Git tag");
-    const nightly = await github<GitHubRelease>(`releases/tags/${nightlyTag}`);
-    if (nightly.draft || !nightly.prerelease || !nightly.published_at)
-      throw new Error("Selected nightly has not been published");
+    nightlyTag = latestNightly(history).tag_name;
     source = command(["git", "rev-parse", `${nightlyTag}^{commit}`], sourceDir);
   }
   if (!/^[a-f0-9]{40}$/.test(source)) throw new Error("Invalid release source commit");
   command(["git", "merge-base", "--is-ancestor", source, "origin/main"], sourceDir);
+  if (
+    channel === "latest" &&
+    command(
+      ["git", "diff", "--name-only", source, "origin/main", "--", ".github/workflows"],
+      sourceDir,
+    )
+  )
+    throw new Error(
+      "Release workflows changed since the selected nightly. Publish a fresh nightly before releasing latest.",
+    );
   const manifest = JSON.parse(command(["git", "show", `${source}:package.json`], sourceDir));
-  const { publishedVersions } = await releaseState();
   const plan = planRelease({
     channel,
     baseVersion: manifest.version,
@@ -52,7 +59,6 @@ async function resolveRelease() {
     date: run.created_at,
     runNumber: process.env.GITHUB_RUN_NUMBER!,
     nightlyTag,
-    version: process.env.NORMAL_VERSION,
   });
   await Bun.write(
     metadataPath,
@@ -67,31 +73,10 @@ async function packRelease() {
   await validatePackage(tarball, release.version);
 }
 
-async function restoreRelease() {
-  const release: Release = await Bun.file(metadataPath).json();
-  if (release.runId !== process.env.PREPARED_RUN_ID)
-    throw new Error("Artifact belongs to another run");
-  const run = await github<{ path: string; event: string; head_branch: string }>(
-    `actions/runs/${release.runId}`,
-  );
-  if (
-    run.path !== ".github/workflows/release.yml" ||
-    run.event !== "workflow_dispatch" ||
-    run.head_branch !== "main"
-  )
-    throw new Error("Only artifacts prepared by the release workflow on main can be resumed");
-  if (!/^[a-f0-9]{40}$/.test(release.source)) throw new Error("Invalid prepared source");
-  command(["git", "merge-base", "--is-ancestor", release.source, "origin/main"], sourceDir);
-  await appendFile(
-    process.env.GITHUB_OUTPUT!,
-    `source=${release.source}\nversion=${release.version}\n`,
-  );
-}
-
 async function publishRelease() {
   const release: Release = await Bun.file(metadataPath).json();
   if (
-    release.runId !== (process.env.PREPARED_RUN_ID || process.env.GITHUB_RUN_ID) ||
+    release.runId !== process.env.GITHUB_RUN_ID ||
     !/^[a-f0-9]{40}$/.test(release.source) ||
     release.tag !== `v${release.version}`
   )
@@ -130,7 +115,6 @@ async function publishRelease() {
       baseVersion: release.version.split("-")[0]!,
       publishedVersions,
       nightlyTag: release.nightlyTag,
-      version: release.version,
     });
     command(
       [
@@ -228,14 +212,6 @@ switch (process.argv[2]) {
   case "pack":
     await packRelease();
     break;
-  case "restore":
-    await restoreRelease();
-    break;
-  case "validate": {
-    const release: Release = await Bun.file(metadataPath).json();
-    await validatePackage(join(outputDir, `prinpo-stack-${release.version}.tgz`), release.version);
-    break;
-  }
   case "publish":
     await publishRelease();
     break;

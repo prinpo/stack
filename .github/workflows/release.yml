@@ -1,22 +1,13 @@
 name: Release
-run-name: Release ${{ inputs.prepared_run_id != '' && format('retry {0}', inputs.prepared_run_id) || inputs.channel }}
+run-name: Release ${{ inputs.channel }}
 on:
   workflow_dispatch:
     inputs:
       channel:
-        description: Release channel (ignored when resuming a prepared run)
+        description: Nightly from main, or promote the newest successful nightly to latest
         type: choice
         options: [nightly, latest]
         default: nightly
-      nightly_tag:
-        description: Published nightly Git tag to promote (latest only)
-        type: string
-      version:
-        description: Matching normal version, e.g. 0.1.0 (latest only)
-        type: string
-      prepared_run_id:
-        description: Optional failed release run ID to retry using its exact validated tarball
-        type: string
 permissions:
   contents: read
 # Serialize both channels together. Never cancel an active publisher.
@@ -27,7 +18,6 @@ env:
   VARLOCK_TELEMETRY_DISABLED: "1"
   SOURCE_DIR: ${{ github.workspace }}/source
   ARTIFACT_DIR: ${{ github.workspace }}/release-package
-  PREPARED_RUN_ID: ${{ inputs.prepared_run_id }}
 jobs:
   prepare:
     if: github.ref == 'refs/heads/main'
@@ -35,7 +25,7 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
-      actions: read
+      actions: read # Read this run's creation time for stable nightly versions on retry.
     outputs:
       source: ${{ steps.plan.outputs.source }}
       version: ${{ steps.plan.outputs.version }}
@@ -54,26 +44,12 @@ jobs:
           directory: tools
       - name: Clear release staging from previous jobs
         run: rm -rf "$ARTIFACT_DIR"
-      - uses: actions/download-artifact@v4
-        if: inputs.prepared_run_id != ''
-        with:
-          name: release-package
-          path: release-package
-          run-id: ${{ inputs.prepared_run_id }}
-          github-token: ${{ github.token }}
       - name: Resolve source and version
         id: plan
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_CHANNEL: ${{ inputs.channel }}
-          NIGHTLY_TAG: ${{ inputs.nightly_tag }}
-          NORMAL_VERSION: ${{ inputs.version }}
-        run: |
-          if [ -n "$PREPARED_RUN_ID" ]; then
-            bun --no-env-file tools/scripts/release/main.ts restore
-          else
-            bun --no-env-file tools/scripts/release/main.ts resolve
-          fi
+        run: bun --no-env-file tools/scripts/release/main.ts resolve
       - uses: actions/checkout@v4
         with:
           ref: ${{ steps.plan.outputs.source }}
@@ -87,11 +63,7 @@ jobs:
         with:
           directory: source
       - name: Pack and validate the release tarball
-        if: inputs.prepared_run_id == ''
         run: bun --no-env-file tools/scripts/release/main.ts pack
-      - name: Validate the preserved tarball
-        if: inputs.prepared_run_id != ''
-        run: bun --no-env-file tools/scripts/release/main.ts validate
       - uses: actions/upload-artifact@v4
         with:
           name: release-package

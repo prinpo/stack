@@ -79,7 +79,6 @@ globalThis.fetch = async (input, options = {}) => {
           GH_TOKEN: "",
           SOURCE_DIR: directory,
           ARTIFACT_DIR: directory,
-          PREPARED_RUN_ID: "",
           GITHUB_RUN_ID: "123",
           GITHUB_STEP_SUMMARY: summary,
           NPM_CALL: join(directory, "npm-called"),

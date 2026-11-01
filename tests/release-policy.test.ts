@@ -1,6 +1,24 @@
 import { expect, test } from "vite-plus/test";
 
-import { planRelease } from "../scripts/release/policy";
+import { latestNightly, planRelease } from "../scripts/release/policy";
+
+test("promotion selects the newest completed nightly without choosing drafts or normal releases", () => {
+  const release = (tag_name: string, draft = false, prerelease = true) => ({
+    tag_name,
+    draft,
+    prerelease,
+    published_at: draft ? null : "2026-11-01T00:00:00Z",
+  });
+  expect(
+    latestNightly([
+      release("v0.1.0-nightly.20261101.9"),
+      release("v0.1.0-nightly.20261101.10"),
+      release("v0.1.0-nightly.20261102.11", true),
+      release("v0.2.0", false, false),
+    ]).tag_name,
+  ).toBe("v0.1.0-nightly.20261101.10");
+  expect(() => latestNightly([])).toThrow("successful nightly");
+});
 
 test("manual nightlies expose their intended version, UTC date and workflow run", () => {
   expect(
@@ -32,27 +50,25 @@ test("nightlies reject an intended version that has already shipped or fallen be
   }
 });
 
-test("a normal release promotes the explicitly selected nightly to its matching base", () => {
+test("a normal release derives its version from the selected nightly's intended base", () => {
   expect(
     planRelease({
       channel: "latest",
       baseVersion: "0.2.0",
       publishedVersions: ["0.1.0"],
       nightlyTag: "v0.2.0-nightly.20261101.42",
-      version: "0.2.0",
       date: "2026-11-02",
       runNumber: "43",
     }),
   ).toEqual({ channel: "latest", version: "0.2.0", tag: "v0.2.0" });
 });
 
-test("promotion rejects missing, malformed and mismatched nightly or normal versions", () => {
+test("promotion rejects missing, malformed and mismatched nightly tags", () => {
   const valid = {
     channel: "latest",
     baseVersion: "0.2.0",
     publishedVersions: ["0.1.0"],
     nightlyTag: "v0.2.0-nightly.20261101.42",
-    version: "0.2.0",
     date: "2026-11-02",
     runNumber: "43",
   } as const;
@@ -60,8 +76,6 @@ test("promotion rejects missing, malformed and mismatched nightly or normal vers
     { nightlyTag: "" },
     { nightlyTag: "v0.2.0-beta.1" },
     { nightlyTag: "v0.3.0-nightly.20261101.42" },
-    { version: "0.3.0" },
-    { version: "0.2.0-beta.1" },
     { baseVersion: "00.2.0" },
   ]) {
     expect(() =>

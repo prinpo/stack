@@ -5,12 +5,33 @@ export interface ReleaseRequest {
   date: string;
   runNumber: string;
   nightlyTag?: string;
-  version?: string;
 }
 
 export const normalVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 export const nightlyVersion =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-nightly\.(\d{8})\.([1-9]\d*)$/;
+
+export function latestNightly(
+  history: readonly {
+    tag_name: string;
+    draft: boolean;
+    prerelease: boolean;
+    published_at: string | null;
+  }[],
+) {
+  const nightly = history
+    .filter(
+      (release) =>
+        !release.draft &&
+        release.prerelease &&
+        release.published_at &&
+        release.tag_name.startsWith("v") &&
+        nightlyVersion.test(release.tag_name.slice(1)),
+    )
+    .sort((a, b) => compareRelease(b.tag_name.slice(1), a.tag_name.slice(1)))[0];
+  if (!nightly) throw new Error("Publish a successful nightly before releasing latest");
+  return nightly;
+}
 
 function compareNormal(left: string, right: string) {
   const a = left.split(".").map(BigInt);
@@ -26,12 +47,8 @@ export function assertReleaseVersion(request: Omit<ReleaseRequest, "date" | "run
   if (!normalVersion.test(request.baseVersion)) throw new Error("Invalid intended normal version");
   if (request.channel === "latest") {
     const nightly = request.nightlyTag?.startsWith("v") ? request.nightlyTag.slice(1) : "";
-    if (
-      !nightlyVersion.test(nightly) ||
-      nightly.split("-")[0] !== request.baseVersion ||
-      request.version !== request.baseVersion
-    )
-      throw new Error("Select a nightly and matching normal version");
+    if (!nightlyVersion.test(nightly) || nightly.split("-")[0] !== request.baseVersion)
+      throw new Error("Selected nightly does not match its intended normal version");
   }
   if (
     request.publishedVersions.some(
@@ -45,7 +62,7 @@ export function planRelease(request: ReleaseRequest) {
   assertReleaseVersion(request);
   const version =
     request.channel === "latest"
-      ? request.version!
+      ? request.baseVersion
       : `${request.baseVersion}-nightly.${new Date(request.date).toISOString().slice(0, 10).replaceAll("-", "")}.${request.runNumber}`;
   return { channel: request.channel, version, tag: `v${version}` };
 }

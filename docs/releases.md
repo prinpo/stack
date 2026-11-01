@@ -4,7 +4,7 @@ Stack ships TypeScript source for Bun applications. There is no compiled library
 
 CI and release preparation use the PC's self-hosted runner, labelled `prinpo-stack`. The npm publishing job stays on a GitHub-hosted runner because npm trusted publishing does not support self-hosted runners. See [runner operation](self-hosted-runner.md) for setup, maintenance and troubleshooting.
 
-The manual **Release** workflow (`.github/workflows/release.yml`) supports two npm channels:
+The manual **Release** workflow (`.github/workflows/release.yml`) has one input: **channel**. Run it from branch **main** and choose one of two npm channels:
 
 | Channel   | Package version             | Git tag                      | GitHub Release                |
 | --------- | --------------------------- | ---------------------------- | ----------------------------- |
@@ -16,7 +16,7 @@ Nightlies never run on a schedule. Every release request validates a tarball and
 ## Publish a nightly
 
 1. On `main`, set `package.json.version` to the intended next normal version through a PR. Initially this is `0.1.0`. After a normal release, advance it before publishing another nightly; bases at or below a previously published normal version are rejected.
-2. Open Actions → Release → Run workflow. Select branch **main**, channel **nightly**, and leave the normal-version and nightly-tag inputs blank.
+2. Open Actions → Release → Run workflow. Select branch **main** and channel **nightly**.
 3. Run the workflow. The prepared package gets its nightly version without changing the source checkout or committing a bump; successful validation always proceeds to publishing.
 4. Inspect the run's checks and `release-package` artifact. It contains the exact `.tgz`, `SHA256SUMS` and `release.json` (version, source commit and originating run ID).
 
@@ -26,9 +26,11 @@ Release notes compare against the previous published tag in the same channel. Th
 
 ## Promote to a normal release
 
-After testing a nightly, dispatch Release on **main**, select **latest**, and enter its full Git tag and the matching normal version. For example, promote `v0.1.0-nightly.20261101.42` as `0.1.0`. If npm is still processing the nightly, its tested tarball is available as a GitHub Release asset.
+After testing the newest successful nightly, dispatch Release on **main** and select **latest**. The workflow automatically chooses the highest published nightly version and derives its normal version from that commit's `package.json`. For example, `v0.1.0-nightly.20261101.42` becomes `0.1.0`. Drafts, unpublished releases and non-nightly tags are excluded. If no successful nightly exists, the workflow explains that a nightly must be published first. If npm is still processing the nightly, its tested tarball is available as a GitHub Release asset.
 
 The workflow uses that nightly's exact source commit, even if `main` has advanced. The nightly must have a published GitHub prerelease and its commit must belong to `main` history. The final version must match its base and exceed all previously published normal versions. Both visible npm versions and completed GitHub Releases count for this policy, including successful submissions whose npm visibility is pending. The package is repacked with the normal version and validated again. Afterwards, open a PR advancing `package.json.version` to the next intended normal version.
+
+`package.json` is the only place to choose the intended normal version. There is no manual tag, version override or cross-run recovery field in the release form. Selecting an older nightly or repairing a historical release is an exceptional maintenance operation rather than a routine workflow option.
 
 ## npm publishing configuration
 
@@ -40,11 +42,17 @@ This workflow uses `npm publish`. npm's optional `npm stage publish` flow requir
 
 References: [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/), [existing-package prerequisite](https://docs.npmjs.com/cli/v11/commands/npm-trust/), [Bun publishing](https://bun.sh/docs/pm/cli/publish).
 
+## GitHub tag permissions
+
+The GitHub-hosted publisher uses the built-in `GITHUB_TOKEN` with `contents: write` for tags and GitHub Releases. No personal access token or additional GitHub secret is needed for the normal release flow. npm authentication remains OIDC, and the self-hosted preparation job keeps its read-only token.
+
+GitHub may require extra permission when tagging a historical commit whose workflow files differ from the default branch. For this project's normal flow, publish a fresh nightly after workflow changes rather than adding a separate credential for historical tagging. Promotion checks this before publishing and asks for a fresh nightly when needed. See GitHub's [release permissions](https://docs.github.com/en/rest/releases/releases#create-a-release).
+
 ## Recover an interrupted release
 
 - If preparation failed, fix the problem and dispatch a new run. Nothing has been published.
 - If publication failed, prefer **Re-run failed jobs** on that run. This downloads its preserved tarball; it does not pack a replacement. Avoid **Re-run all jobs**, which would try to upload a second artifact with the same name.
-- To recover through a new dispatch, enter the failed release's **prepared_run_id**. The other release-selection inputs are ignored; the workflow revalidates and submits the preserved tarball. Only artifacts originating from this release workflow on `main` are accepted. Artifacts are retained for 90 days; download them for longer-term retention. Published releases also carry them as assets.
+- There is no cross-run restore input. Use the original run's **Re-run failed jobs** for ordinary retries. If recovery requires changing workflow code, handle the historical release separately instead of dispatching a replacement with a run ID. Artifacts are retained for 90 days; download them for longer-term retention. Published releases also carry them as assets.
 - If npm already contains the version, its SHA-512 integrity must match the tested tarball. Matching bytes are accepted and missing metadata steps resume. Different bytes fail: choose a new version rather than unpublishing, overwriting a package, or moving a tag.
 - A new publication cannot move a channel backwards. Recovery of an identical older package may finish its GitHub metadata, but does not move the npm channel backwards or mark an older normal release latest.
 - Registry visibility lag after successful npm submission does not fail the workflow. If npm succeeded but a later GitHub operation failed, let npm finish processing before retrying so its visible integrity can prove the previous submission. If GitHub asset upload failed, the release stays draft until a retry attaches all assets. Existing Git tags must already point to the intended source commit.
