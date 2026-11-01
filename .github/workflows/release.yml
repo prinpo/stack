@@ -1,5 +1,5 @@
 name: Release
-run-name: Release ${{ inputs.channel }}${{ inputs.prepare_only && ' (prepare only)' || '' }}
+run-name: Release ${{ inputs.prepared_run_id != '' && format('retry {0}', inputs.prepared_run_id) || inputs.channel }}
 on:
   workflow_dispatch:
     inputs:
@@ -14,12 +14,8 @@ on:
       version:
         description: Matching normal version, e.g. 0.1.0 (latest only)
         type: string
-      prepare_only:
-        description: Validate and upload the tarball without publishing
-        type: boolean
-        default: true
       prepared_run_id:
-        description: Optional release run ID whose validated tarball should be resumed unchanged
+        description: Optional failed release run ID to retry using its exact validated tarball
         type: string
 permissions:
   contents: read
@@ -106,10 +102,9 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.plan.outputs.version }}
         run: |
-          echo "Prepared $RELEASE_VERSION. Download the release-package artifact for the tarball, checksums and source metadata." >> "$GITHUB_STEP_SUMMARY"
+          echo "Validated $RELEASE_VERSION. The publish job submits this exact tarball to npm; release-package preserves its checksums and source metadata for recovery." >> "$GITHUB_STEP_SUMMARY"
   publish:
     needs: prepare
-    if: ${{ !inputs.prepare_only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

@@ -16,4 +16,4 @@ Manual GitHub Actions dispatch is the only publication trigger. Nightly requests
 
 Publish the validated tarball to npm before creating its Git tag and GitHub Release. Preserve the tarball and checksums so an interrupted release can verify an already published npm artifact and finish missing GitHub steps. Never replace a published version or move an existing release tag; changed package contents require a new version.
 
-Provide a reusable prepare-only option that uses the same package preparation and validation path as publication, uploading the versioned tarball and checksums without publishing. Use it to obtain the initial bootstrap tarball and to test packaging changes afterward, without another release channel or separate bootstrap implementation.
+The initial bootstrap used a reusable prepare-only option. [ADR 0012](0012-complete-releases-after-npm-accepts-the-tested-tarball.md) removes that option after bootstrap and replaces immediate registry-visibility checks with successful npm submission as the completion gate. Every release request now proceeds from tarball validation to npm publication.

@@ -1,0 +1,5 @@
+# Complete releases after npm accepts the tested tarball
+
+Validate each release by installing its exact tarball into an isolated consumer before invoking `npm publish`. Successful npm submission is the publication gate; public registry visibility can lag during npm processing and must not fail an otherwise successful release. Git tags and GitHub Releases record the accepted submission, so they may appear before the package becomes installable from npm. Use both visible npm versions and completed GitHub Releases to prevent version and channel regressions while npm's index catches up.
+
+Remove the prepare-only release path now that npm bootstrap and OIDC setup are complete, superseding that part of ADR 0011. Every successful release preparation proceeds to npm publication; retain tarballs, checksums and metadata as recovery artifacts between jobs. A nonzero npm exit remains a failure. Existing visible npm versions still require an integrity match before recovery can skip resubmission. This workflow uses direct publishing; npm's separate staged-approval flow is not introduced.

@@ -48,3 +48,17 @@ export async function registryPackage(): Promise<RegistryPackage> {
   if (!response.ok) throw new Error(`npm registry lookup failed: ${response.status}`);
   return response.json();
 }
+
+/** GitHub also records accepted submissions while npm's public index catches up. */
+export async function releaseState() {
+  const [registry, history] = await Promise.all([registryPackage(), releases()]);
+  const publishedVersions = [
+    ...Object.keys(registry.versions),
+    ...history
+      .filter(
+        (release) => !release.draft && release.published_at && release.tag_name.startsWith("v"),
+      )
+      .map((release) => release.tag_name.slice(1)),
+  ];
+  return { registry, history, publishedVersions };
+}

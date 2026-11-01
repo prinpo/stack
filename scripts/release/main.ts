@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { appendFile, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
-import { type GitHubRelease, github, registryPackage, releases } from "./github";
+import { type GitHubRelease, github, releaseState } from "./github";
 import { command, preparePackage, validatePackage } from "./package";
 import {
   assertReleaseVersion,
@@ -44,11 +44,11 @@ async function resolveRelease() {
   if (!/^[a-f0-9]{40}$/.test(source)) throw new Error("Invalid release source commit");
   command(["git", "merge-base", "--is-ancestor", source, "origin/main"], sourceDir);
   const manifest = JSON.parse(command(["git", "show", `${source}:package.json`], sourceDir));
-  const registry = await registryPackage();
+  const { publishedVersions } = await releaseState();
   const plan = planRelease({
     channel,
     baseVersion: manifest.version,
-    publishedVersions: Object.keys(registry.versions),
+    publishedVersions,
     date: run.created_at,
     runNumber: process.env.GITHUB_RUN_NUMBER!,
     nightlyTag,
@@ -105,13 +105,13 @@ async function publishRelease() {
   if ((await readFile(join(outputDir, "SHA256SUMS"), "utf8")) !== `${checksum}  ${filename}\n`)
     throw new Error("Release tarball checksum mismatch");
   const integrity = `sha512-${createHash("sha512").update(bytes).digest("base64")}`;
-  let registry = await registryPackage();
+  const { registry, history, publishedVersions } = await releaseState();
   const action = publicationAction({
     ...release,
     integrity,
     publishedIntegrity: registry.versions[release.version]?.dist.integrity,
     currentVersion: registry["dist-tags"][release.channel],
-    publishedVersions: Object.keys(registry.versions),
+    publishedVersions,
   });
   // Resolve existing tags before npm publication; never move a tag to repair a conflict.
   const tags = JSON.parse(
@@ -128,7 +128,7 @@ async function publishRelease() {
     assertReleaseVersion({
       channel: release.channel,
       baseVersion: release.version.split("-")[0]!,
-      publishedVersions: Object.keys(registry.versions),
+      publishedVersions,
       nightlyTag: release.nightlyTag,
       version: release.version,
     });
@@ -162,13 +162,8 @@ async function publishRelease() {
       sourceDir,
     );
   }
-  registry = await registryPackage();
-  if (registry.versions[release.version]?.dist.integrity !== integrity)
-    throw new Error("npm has not exposed the expected artifact yet; rerun the failed publish job");
-
   if (!existingTag)
     await github("git/refs", "POST", { ref: `refs/tags/${release.tag}`, sha: release.source });
-  const history = await releases();
   let published = history.find((entry) => entry.tag_name === release.tag);
   if (!published) {
     const pattern = release.channel === "latest" ? normalVersion : nightlyVersion;
@@ -218,16 +213,11 @@ async function publishRelease() {
   );
   await github(`releases/${published.id}`, "PATCH", {
     draft: false,
-    make_latest:
-      release.channel === "latest" &&
-      registry["dist-tags"].latest === release.version &&
-      action.isNewest
-        ? "true"
-        : "false",
+    make_latest: release.channel === "latest" && action.isNewest ? "true" : "false",
   });
   await appendFile(
     process.env.GITHUB_STEP_SUMMARY!,
-    `Published [${release.tag}](${published.html_url}) from ${release.source}.\n`,
+    `Published [${release.tag}](${published.html_url}) from ${release.source}.\n\nnpm submission succeeded. Registry availability may be delayed by npm processing. The attached tarball was validated before submission.\n`,
   );
 }
 
