@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { serverEnvPaths } from "../env/paths";
+import { loadStaticEnv } from "../env/server";
 import { environment, profileArgs, takeOptions } from "./options";
 import { type Area, type BuildResult, buildSummary, heading, intro, restartNotice } from "./output";
 import { capabilities, isFile, outputs } from "./project";
@@ -65,12 +66,11 @@ export const build = lifecycleCommand(
       const frontendStarted = performance.now();
       heading("frontend", "Building browser assets");
       if (existsSync("env/client"))
-        await runBun(
-          [tool("varlock", "varlock"), "load", "--path", "env/client", "--format", "json-full"],
-          { ...env, _VARLOCK_STATIC_ONLY: "1", _VARLOCK_PUBLIC_ONLY: "1" },
-          "ignore",
-          "frontend",
-        );
+        await loadStaticEnv(["env/client"], {
+          values: env,
+          profile: env.APP_ENV,
+          publicOnly: true,
+        });
       await runBun(
         [tool("vite-plus", "vp"), "build", "--outDir", outputs.client, "--configLoader", "runner"],
         env,
@@ -88,18 +88,7 @@ export const build = lifecycleCommand(
     if (app.backend) {
       const backendStarted = performance.now();
       heading("backend", "Building Bun server");
-      await runBun(
-        [
-          tool("varlock", "varlock"),
-          "load",
-          ...serverEnvPaths().flatMap((path) => ["--path", path]),
-          "--format",
-          "json-full",
-        ],
-        { ...env, _VARLOCK_STATIC_ONLY: "1" },
-        "ignore",
-        "backend",
-      );
+      await loadStaticEnv(serverEnvPaths(), { values: env, profile: env.APP_ENV });
       await runBun(
         [
           "build",

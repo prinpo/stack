@@ -75,6 +75,6 @@ Directory precedence is explicit `--dir`, then the selected profile's LOG_DIR, t
 
 ## Installation qualification
 
-The required Varlock core patch is included under `patches/` and must be configured at the consuming repository root. Bun does not apply a dependency's root patches transitively. The [environment guide](env.md#pinned-upstream-patches) explains the requirement. Installing the executable does not remove it.
+No dependency patches or consumer patch configuration are required. Stack owns static build validation and client exposure checks through its [unpatched Varlock integration](env.md#unpatched-varlock-integration).
 
 Interactive menus, database/auth commands, scaffolding, Docker workflows, broad import watching, and Windows support are deferred.

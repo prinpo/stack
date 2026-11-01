@@ -107,3 +107,5 @@ Development labels each frontend/backend stdout and stderr line with a distinct 
 The example keeps only stack (the source-workspace shim) and check scripts. Root convenience commands and active documentation use the CLI directly.
 
 Terminal follow-up validation passes: 646 tests across 43 files (23 CLI integration tests), root formatting/lint/types, example checks, and an example build. A real terminal check verifies color and dimmed branding; forced-color doctor JSON stays clean on both streams. Standards review's one duplicated presentation mapping is now shared; Spec review found no issues. A separate failure probe retained 20,000 child-output lines and its final diagnostic, preserved exit status 7, and emitted no success summary.
+
+Current integration note: the core package patch has also been retired. Stack now owns static graph selection and browser replacement against unmodified Varlock; see [the environment guide](../env.md#unpatched-varlock-integration). Patch requirements above describe the historical implementation.

@@ -25,18 +25,20 @@ async function load(
     if (key.startsWith("_VARLOCK") || key.startsWith("__VARLOCK") || key.startsWith("STACK_ENV_"))
       delete env[key];
   }
-  if (mode !== "runtime") env._VARLOCK_STATIC_ONLY = "1";
-  if (mode === "client") env._VARLOCK_PUBLIC_ONLY = "1";
-  const result = spawnSync(
-    "bun",
-    ["--no-env-file", resolve("node_modules/varlock/bin/cli.js"), "load", "--format", "json-full"],
-    {
-      cwd,
-      env: { ...env, ...overrides },
-      encoding: "utf8",
-      timeout: 15_000,
-    },
-  );
+  const args =
+    mode === "runtime"
+      ? [resolve("node_modules/varlock/bin/cli.js"), "load", "--format", "json-full"]
+      : [
+          "--eval",
+          `import { loadStaticEnv } from ${JSON.stringify(resolve("src/env/server.ts"))};
+console.log(JSON.stringify(await loadStaticEnv([process.cwd()], { publicOnly: ${mode === "client"} })));`,
+        ];
+  const result = spawnSync("bun", ["--no-env-file", ...args], {
+    cwd,
+    env: { ...env, ...overrides },
+    encoding: "utf8",
+    timeout: 15_000,
+  });
   return { ...result, cwd };
 }
 
@@ -98,7 +100,7 @@ test("a trusted frozen blob cannot bypass client schema checks during builds", a
     }),
   });
   expect(result.status).not.toBe(0);
-  expect(result.stderr).toContain("Static-only loading cannot reuse frozen configuration");
+  expect(result.stderr).toContain("Client configuration contains sensitive item STACK_ENV_TOKEN");
 });
 
 test("client classification rejects direct runtime functions without executing them", async () => {

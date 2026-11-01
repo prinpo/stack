@@ -116,3 +116,5 @@ The development HTTP transport described above has been superseded: Vite now use
 ## Retired compatibility surface
 
 The endpoint transport, `env/elysia` entry, explicit server-key HTML adapter, manual hydration exports, and separate `env/auto-load` entry have been removed. `env/html.ts` now supplies shared metadata serialization and production injection; server initialization reuses its validated native graph internally. The Vite entry-metadata patch was also removed after the same emitted-module probe passed without it. The remaining core patch is still required for static-only/public-only loading. Earlier sections record the original investigation and superseded interfaces, not current setup instructions.
+
+Current integration note: the core package patch has also been retired. Stack now owns static graph selection and browser replacement against unmodified Varlock; see [the environment guide](../env.md#unpatched-varlock-integration). Patch requirements above describe the historical implementation.

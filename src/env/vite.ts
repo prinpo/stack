@@ -1,78 +1,95 @@
-import type { VarlockVitePluginOptions as NativeVarlockVitePluginOptions } from "@varlock/vite-integration";
+import type { SerializedEnvGraph } from "varlock";
 import type { Plugin } from "vite";
 
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import replace from "@rollup/plugin-replace";
+import { existsSync, statSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
 import { clientEnvScript } from "./html";
-import { readClientEnv } from "./server";
+import { loadStaticEnv, readClientEnv } from "./server";
 
-export type VarlockVitePluginOptions = NativeVarlockVitePluginOptions & {
-  /** Override the locally resolved client directory; defaults to the native schema root. */
+export interface VarlockVitePluginOptions {
+  /** Client schema path, relative to the Vite root; defaults to env/client or root. */
   client?: string;
   /** Share the backend profile when composing the full-stack preset. */
   profile?: string | (() => string | undefined);
-};
+  /** Override the schema search root. */
+  rootDir?: string;
+}
 
-/** Native Vite integration, with static-only resolution and a public-only client graph. */
+/** Compile public static settings with Vite; hydrate public dynamics through HTML. */
 export async function varlockVitePlugin({
   client,
   profile,
-  ...options
+  rootDir,
 }: VarlockVitePluginOptions = {}): Promise<Plugin[]> {
-  const staticOnly = process.env._VARLOCK_STATIC_ONLY;
-  const publicOnly = process.env._VARLOCK_PUBLIC_ONLY;
-  const loadPath = process.env._VARLOCK_LOAD_PATH;
-  const envProfile = process.env._VARLOCK_ENV_PROFILE;
-  const selectedClient =
-    client ?? (existsSync(resolve("env/client")) ? resolve("env/client") : undefined);
-  if (selectedClient) process.env._VARLOCK_LOAD_PATH = resolve(selectedClient);
-  process.env._VARLOCK_ENV_PROFILE =
+  let clientPath: string;
+  let graph: SerializedEnvGraph;
+  let replacement: ReturnType<typeof replace>;
+  const selectedProfile = () =>
     (typeof profile === "function" ? profile() : profile) ??
     process.env.APP_ENV ??
     process.env.NODE_ENV ??
     "development";
-  process.env._VARLOCK_STATIC_ONLY = "1";
-  process.env._VARLOCK_PUBLIC_ONLY = "1";
-  try {
-    // Upstream captures its CLI environment and loads configuration on import.
-    const native = await import("@varlock/vite-integration");
-    const plugins: Plugin[] = native.varlockVitePlugin(options);
-    plugins.push({
-      name: "prinpo:public-env-html",
-      apply: "serve",
+  return [
+    {
+      name: "prinpo:public-env",
+      async config(config) {
+        const root = resolve(rootDir ?? config.root ?? process.cwd());
+        clientPath = client
+          ? resolve(root, client)
+          : existsSync(resolve(root, "env/client"))
+            ? resolve(root, "env/client")
+            : root;
+        graph = await loadStaticEnv([clientPath], { publicOnly: true, profile: selectedProfile() });
+        replacement = replace({
+          preventAssignment: true,
+          values: Object.fromEntries(
+            Object.entries(graph.config)
+              .filter(([, item]) => !(item.isDynamic ?? item.isSensitive))
+              .map(([key, item]) => [`ENV.${key}`, JSON.stringify(item.value) ?? "undefined"]),
+          ),
+        });
+      },
+      transform(code, id) {
+        if (!/\.[cm]?[jt]sx?(?:\?|$)/.test(id)) return;
+        if (typeof replacement.transform === "function")
+          return replacement.transform.call(this, code, id);
+      },
+      configResolved(config) {
+        for (const source of graph.sources) {
+          if (!source.enabled || !source.path) continue;
+          const path = resolve(
+            graph.basePath ??
+              (statSync(clientPath).isDirectory() ? clientPath : dirname(clientPath)),
+            source.path,
+          );
+          if (existsSync(path) && statSync(path).isFile()) config.configFileDependencies.push(path);
+        }
+      },
       transformIndexHtml: {
-        order: "post",
-        async handler() {
-          const graph = native.getVarlockLoadedEnv();
-          if (!graph) throw new Error("Client environment schema has not been loaded");
-          const snapshot = await readClientEnv({
-            client: client ?? graph.basePath,
-            profile:
-              (typeof profile === "function" ? profile() : profile) ??
-              process.env.APP_ENV ??
-              process.env.NODE_ENV ??
-              "development",
+        order: "pre",
+        async handler(html, context) {
+          html = html.replace(/%ENV\.([a-zA-Z_][a-zA-Z0-9._]*)%/g, (_, key: string) => {
+            const item = graph.config[key];
+            if (!item || item.isSensitive || item.isDynamic)
+              throw new Error(`HTML replacement requires a public static config item: ${key}`);
+            return String(item.value ?? "");
           });
-          return [
-            {
-              tag: "script",
-              children: clientEnvScript(snapshot.clientValues, snapshot.clientKeys),
-              injectTo: "head-prepend",
-            },
-          ];
+          if (!context.server) return html;
+          const snapshot = await readClientEnv({ client: clientPath, profile: selectedProfile() });
+          return {
+            html,
+            tags: [
+              {
+                tag: "script",
+                children: clientEnvScript(snapshot.clientValues, snapshot.clientKeys),
+                injectTo: "head-prepend",
+              },
+            ],
+          };
         },
       },
-    });
-    return plugins;
-  } finally {
-    if (loadPath === undefined) delete process.env._VARLOCK_LOAD_PATH;
-    else process.env._VARLOCK_LOAD_PATH = loadPath;
-    if (envProfile === undefined) delete process.env._VARLOCK_ENV_PROFILE;
-    else process.env._VARLOCK_ENV_PROFILE = envProfile;
-    if (staticOnly === undefined) delete process.env._VARLOCK_STATIC_ONLY;
-    else process.env._VARLOCK_STATIC_ONLY = staticOnly;
-    if (publicOnly === undefined) delete process.env._VARLOCK_PUBLIC_ONLY;
-    else process.env._VARLOCK_PUBLIC_ONLY = publicOnly;
-  }
+    },
+  ];
 }

@@ -73,3 +73,5 @@ See [the environment guide](../env.md#pinned-upstream-patches) for the remaining
 - The complete example browser/backend build passed with deployment values absent. The same built server was exercised under two runtime configurations, and the same browser artifact was evaluated under two payloads.
 - A forced frozen-lockfile reinstall successfully reapplied the checked-in patches before the focused checks and full suite.
 - Standards review found an overly broad backend metadata restriction and incidental Bun cache-marker additions. Both were corrected. Spec review found direct effectful classification was not rejected; literal-classification checks and a no-execution regression now cover it. Conditional backend requirements remain validated at runtime.
+
+Current integration note: the core package patch has also been retired. Stack now owns static graph selection and browser replacement against unmodified Varlock; see [the environment guide](../env.md#unpatched-varlock-integration). Patch requirements above describe the historical implementation.

@@ -49,7 +49,7 @@ export async function readServerConnection(
   return connection(graph.getSerializedGraph());
 }
 
-async function requirePublicClient(graph: Graph) {
+async function classifyGraph(graph: Graph, publicOnly: boolean) {
   for (const item of Object.values(graph.configSchema)) {
     const decorators = [
       ...Object.values(item.effectiveDecorators),
@@ -61,18 +61,26 @@ async function requirePublicClient(graph: Graph) {
         dec.decValueResolver &&
         !dec.decValueResolver.isStatic
       )
-        throw new Error(
-          `Value-dependent metadata on ${item.key}: client classification must be literal`,
-        );
+        throw new Error(`Value-dependent metadata on ${item.key}: classification must be literal`);
     }
-    // The pinned patch supports classification-only resolution; upstream's
-    // declaration still describes its original zero-argument method.
-    const classify: (classificationOnly?: boolean) => Promise<void> =
-      item.resolveMetadata.bind(item);
-    await classify(true);
-    if (item.isBuiltin) continue;
+    // Pinned Varlock internals: classify without resolving @required or other
+    // decorators that may depend on deployment credentials. Never replace methods
+    // or mark metadata resolved: normal runtime resolution must still run in full.
+    const classifier = item as unknown as {
+      processSensitive(): Promise<void>;
+      processDynamic(): Promise<void>;
+    };
+    await classifier.processSensitive();
+    if (item.valueResolver?.def?.impliesSensitive && !item._sensitiveExplicitlySet)
+      item._isSensitive = true;
+    await classifier.processDynamic();
+    if (!publicOnly || item.isBuiltin) continue;
     if (item.isSensitive || !item._sensitiveExplicitlySet)
-      throw new Error(`Client configuration item ${item.key} must explicitly declare @public`);
+      throw new Error(
+        item.isSensitive
+          ? `Client configuration contains sensitive item ${item.key}; ${item.key} must explicitly declare @public`
+          : `Client item ${item.key} must explicitly declare @public (or @sensitive=false)`,
+      );
   }
   internal.checkForSchemaErrors(graph);
 }
@@ -86,7 +94,7 @@ async function clientSnapshot(
   let clientKeys: string[] = [];
   if (clientPath && existsSync(clientPath)) {
     const client = await graphAt([clientPath], values, profile);
-    await requirePublicClient(client);
+    await classifyGraph(client, true);
     clientKeys = Object.values(client.configSchema)
       .filter((item) => !item.isBuiltin && item.isDynamic)
       .map((item) => item.key);
@@ -181,5 +189,27 @@ export async function readLogDirectory(profile?: string) {
 
 /** Check client exposure metadata without resolving values (including during codegen). */
 export async function validateClientEnv(paths: string[], profile?: string) {
-  await requirePublicClient(await graphAt(paths, originalEnvironment(), profile));
+  await classifyGraph(await graphAt(paths, originalEnvironment(), profile), true);
+}
+
+/** Validate static inputs without resolving runtime credentials or trusting snapshots. */
+export async function loadStaticEnv(
+  paths: string[],
+  options: { profile?: string; publicOnly?: boolean; values?: NodeJS.ProcessEnv } = {},
+) {
+  const graph = await graphAt(paths, options.values ?? originalEnvironment(), options.profile);
+  await classifyGraph(graph, options.publicOnly ?? false);
+  const keys = Object.values(graph.configSchema)
+    .filter((item) => !item.isDynamic)
+    .map((item) => item.key);
+  for (const key of keys) {
+    for (const dep of graph.expandKeysWithTransitiveDeps([key])) {
+      if (graph.configSchema[dep]?.isDynamic)
+        throw new Error(`Static item ${key} depends on dynamic item ${dep}; mark ${key} @dynamic`);
+    }
+  }
+  await graph.resolveEnvValues(keys);
+  internal.checkForConfigErrors(graph);
+  await graph.runCodeGeneratorsIfNeeded();
+  return graph.getSerializedGraph();
 }
