@@ -1,0 +1,23 @@
+name: Set up Stack
+description: Set up the repository's exact Bun version and optionally install frozen workspace dependencies.
+inputs:
+  directory:
+    description: Workspace directory
+    default: .
+  install:
+    description: Install workspace dependencies
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - id: version
+      shell: bash
+      working-directory: ${{ inputs.directory }}
+      run: node -e 'console.log("bun=" + require("./package.json").devEngines.packageManager.version)' >> "$GITHUB_OUTPUT"
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ steps.version.outputs.bun }}
+    - shell: bash
+      if: inputs.install == 'true'
+      working-directory: ${{ inputs.directory }}
+      run: bunx --bun vp install --frozen-lockfile

@@ -5,6 +5,8 @@ import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vite-plus/test";
 
+import { version } from "../package.json";
+
 const cli = resolve("src/cli/main.ts");
 const directories: string[] = [];
 const processes: ReturnType<typeof spawn>[] = [];
@@ -507,7 +509,7 @@ test("successful builds summarize the enabled area with measured artifact size, 
   expect(result.status, result.stderr).toBe(0);
   const bytes = (await readFile(join(cwd, "dist/server/index.js"))).byteLength;
   expect(result.stdout).toContain("Build complete");
-  expect(result.stdout).toContain("Stack v0.0.0");
+  expect(result.stdout).toContain(`Stack v${version}`);
   expect(result.stdout).toMatch(
     new RegExp(`Backend\\s+${bytes} B\\s+\\d+(?:\\.\\d+)? (?:ms|s)\\s+dist/server`),
   );

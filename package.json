@@ -1,6 +1,6 @@
 {
   "name": "@prinpo/stack",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Composable Bun, Elysia, Eden, and TanStack Router integrations.",
   "homepage": "https://github.com/prinpo/stack#readme",
   "bugs": {
@@ -42,7 +42,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vp pack",
+    "package:check": "bun --no-env-file scripts/release/package.ts",
     "dev": "bun run stack dev",
     "test": "vp test",
     "check": "vp check",

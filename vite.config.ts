@@ -4,27 +4,6 @@ export default defineConfig({
   staged: {
     "*": "vp check --fix --no-error-on-unmatched-pattern",
   },
-  pack: {
-    entry: [
-      "src/server.ts",
-      "src/client.ts",
-      "src/react.tsx",
-      "src/query.ts",
-      "src/devtools.ts",
-      "src/env.ts",
-      "src/env/server.ts",
-      "src/env/vite.ts",
-      "src/vite.ts",
-      "src/logger.ts",
-      "src/logger/elysia.ts",
-      "src/logger/client.ts",
-    ],
-    deps: { neverBundle: true, onlyBundle: [], resolveDepSubpath: false },
-    dts: {
-      generator: "tsgo",
-    },
-    exports: true,
-  },
   test: {
     projects: [
       {
