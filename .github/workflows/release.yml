@@ -8,6 +8,10 @@ on:
         type: choice
         options: [nightly, latest]
         default: nightly
+      version:
+        description: Stable version override (for example 1.2.3). Defaults to the version the latest nightly previewed.
+        type: string
+        required: false
 permissions:
   contents: read
 # Serialize both channels together. Never cancel an active publisher.
@@ -49,6 +53,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_CHANNEL: ${{ inputs.channel }}
+          STABLE_VERSION_OVERRIDE: ${{ inputs.version }}
         run: bun --no-env-file tools/scripts/release/main.ts resolve
       - uses: actions/checkout@v4
         with:
@@ -103,3 +108,26 @@ jobs:
           # Publisher uses only the prepared tarball; it never installs Stack dependencies.
           SOURCE_DIR: ${{ github.workspace }}
         run: bun --no-env-file scripts/release/main.ts publish
+  finalize:
+    name: Record stable version
+    needs: [prepare, publish]
+    if: inputs.channel == 'latest'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: ./.github/actions/setup
+      - name: Refresh manifests and lockfile, validate and push bookkeeping
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          SOURCE_DIR: ${{ github.workspace }}
+        run: bun --no-env-file scripts/release/finalize.ts

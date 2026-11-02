@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { type GitHubRelease, github, releaseState } from "./github";
 import { command, preparePackage, validatePackage } from "./package";
 import {
-  assertReleaseVersion,
+  assertNewVersion,
   latestNightly,
   nightlyVersion,
   normalVersion,
@@ -54,11 +54,12 @@ async function resolveRelease() {
   const manifest = JSON.parse(command(["git", "show", `${source}:package.json`], sourceDir));
   const plan = planRelease({
     channel,
-    baseVersion: manifest.version,
+    stableVersion: manifest.version,
     publishedVersions,
     date: run.created_at,
     runNumber: process.env.GITHUB_RUN_NUMBER!,
     nightlyTag,
+    versionOverride: process.env.STABLE_VERSION_OVERRIDE,
   });
   await Bun.write(
     metadataPath,
@@ -110,12 +111,7 @@ async function publishRelease() {
     throw new Error("Existing Git tag points at a different source");
   if (action.publish) {
     // Recheck version policy in case a prepared release has become stale.
-    assertReleaseVersion({
-      channel: release.channel,
-      baseVersion: release.version.split("-")[0]!,
-      publishedVersions,
-      nightlyTag: release.nightlyTag,
-    });
+    assertNewVersion(release.version, publishedVersions);
     command(
       [
         "npm",

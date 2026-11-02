@@ -4,21 +4,22 @@ Stack ships TypeScript source for Bun applications. There is no compiled library
 
 CI and release preparation use the PC's self-hosted runner, labelled `prinpo-stack`. The npm publishing job stays on a GitHub-hosted runner because npm trusted publishing does not support self-hosted runners. See [runner operation](self-hosted-runner.md) for setup, maintenance and troubleshooting.
 
-The manual **Release** workflow (`.github/workflows/release.yml`) has one input: **channel**. Run it from branch **main** and choose one of two npm channels:
+The manual **Release** workflow (`.github/workflows/release.yml`) has two inputs: **channel** and an optional **version** override for normal releases. Run it from branch **main** and choose one of two npm channels:
 
 | Channel   | Package version             | Git tag                      | GitHub Release                |
 | --------- | --------------------------- | ---------------------------- | ----------------------------- |
-| `nightly` | `0.1.0-nightly.20261101.42` | `v0.1.0-nightly.20261101.42` | Prerelease                    |
-| `latest`  | `0.1.0`                     | `v0.1.0`                     | Normal release, marked latest |
+| `nightly` | `0.1.1-nightly.20261101.42` | `v0.1.1-nightly.20261101.42` | Prerelease                    |
+| `latest`  | `0.1.1`                     | `v0.1.1`                     | Normal release, marked latest |
+
+The root `package.json.version` records the **last stable release**, not the next development version. With recorded stable version `0.1.0`, nightlies automatically target `0.1.1`. Do not manually bump the manifest after releasing: normal-release finalization records the shipped version for you. The private example has no version field and needs no version bookkeeping.
 
 Nightlies never run on a schedule. Every release request validates a tarball and proceeds to npm publication; there is no prepare-only mode. The UTC date comes from the workflow run's creation time; the final number is GitHub's workflow run number, preserved across job retries. Both channels share a concurrency group, and an active run is never cancelled by a newer request. GitHub may replace an older pending request when several runs queue; check the Actions page before assuming a queued release will execute. Manually pushed tags do not publish.
 
 ## Publish a nightly
 
-1. On `main`, set `package.json.version` to the intended next normal version through a PR. Initially this is `0.1.0`. After a normal release, advance it before publishing another nightly; bases at or below a previously published normal version are rejected.
-2. Open Actions → Release → Run workflow. Select branch **main** and channel **nightly**.
-3. Run the workflow. The prepared package gets its nightly version without changing the source checkout or committing a bump; successful validation always proceeds to publishing.
-4. Inspect the run's checks and `release-package` artifact. It contains the exact `.tgz`, `SHA256SUMS` and `release.json` (version, source commit and originating run ID).
+1. Open Actions → Release → Run workflow. Select branch **main** and channel **nightly**. Leave **version** empty; supplying it for a nightly is rejected.
+2. Run the workflow. It adds one patch to the recorded stable version, then adds the nightly suffix without changing the source checkout or committing a bump. Every nightly in the same development cycle uses that same next-patch base.
+3. Inspect the run's checks and `release-package` artifact. It contains the exact `.tgz`, `SHA256SUMS` and `release.json` (version, source commit and originating run ID).
 
 Preparation runs all CI validation against the resolved source, then installs and validates the actual versioned release tarball. The consumer installs Stack from the local `.tgz`, not from the npm registry. Publication submits that preserved tarball with npm OIDC and provenance. A successful npm command is sufficient to create the Git tag and GitHub Release; the workflow does not wait for npm's public metadata or try to install the just-submitted version from npm. The GitHub Release carries the tested tarball, checksums and metadata. npm may make the version installable later, after processing.
 
@@ -26,11 +27,21 @@ Release notes compare against the previous published tag in the same channel. Th
 
 ## Promote to a normal release
 
-After testing the newest successful nightly, dispatch Release on **main** and select **latest**. The workflow automatically chooses the highest published nightly version and derives its normal version from that commit's `package.json`. For example, `v0.1.0-nightly.20261101.42` becomes `0.1.0`. Drafts, unpublished releases and non-nightly tags are excluded. If no successful nightly exists, the workflow explains that a nightly must be published first. If npm is still processing the nightly, its tested tarball is available as a GitHub Release asset.
+After testing the newest successful nightly, dispatch Release on **main** and select **latest**. The workflow automatically chooses the highest published nightly version. With **version** empty, it uses the version that nightly previewed: `v0.1.1-nightly.20261101.42` becomes `0.1.1`. Drafts, unpublished releases and non-nightly tags are excluded. If no successful nightly exists, the workflow explains that a nightly must be published first. If npm is still processing the nightly, its tested tarball is available as a GitHub Release asset.
 
-The workflow uses that nightly's exact source commit, even if `main` has advanced. The nightly must have a published GitHub prerelease and its commit must belong to `main` history. The final version must match its base and exceed all previously published normal versions. Both visible npm versions and completed GitHub Releases count for this policy, including successful submissions whose npm visibility is pending. The package is repacked with the normal version and validated again. Afterwards, open a PR advancing `package.json.version` to the next intended normal version.
+For a minor or major release, set **version** to a newer plain version such as `0.2.0`. The workflow still uses the selected nightly's exact source commit; only the final package version changes. A nightly named `0.1.1-nightly.…` can therefore become `0.2.0` through this override.
 
-`package.json` is the only place to choose the intended normal version. There is no manual tag, version override or cross-run recovery field in the release form. Selecting an older nightly or repairing a historical release is an exceptional maintenance operation rather than a routine workflow option.
+The source commit must belong to `main` history. The final version must exceed the recorded stable version and all previously published normal versions. Both visible npm versions and completed GitHub Releases count for this policy, including successful submissions whose npm visibility is pending. The package is repacked with the final version and validated again. There is no manual tag or cross-run recovery field in the release form.
+
+## Automatic stable bookkeeping
+
+After npm submission and GitHub Release publication succeed for **latest**, the **Record stable version** job checks out the current `main`, writes the released version into the root manifest, refreshes `bun.lock` without upgrading dependencies, and runs repository checks. It commits only the manifest and lockfile as `chore(release): record vX.Y.Z`, then pushes with the built-in `GITHUB_TOKEN`. It runs on a GitHub-hosted runner so the PC's preparation runner retains read-only repository access.
+
+The finalizer re-fetches and reapplies the version change if a developer pushes to `main` concurrently. It never force-pushes, makes no duplicate commit on retry, and does not downgrade a newer stable version already recorded on `main`. A failed validation or push leaves the published package and release intact; rerun only the failed finalization job. New nightlies targeting an already shipped patch are blocked until bookkeeping is completed.
+
+After releasing `0.1.1`, the manifest records `0.1.1` and the next nightly automatically targets `0.1.2`. After an override to `0.2.0`, it automatically targets `0.2.1`. No development-version bump is needed.
+
+The bookkeeping push does not trigger push CI because it uses `GITHUB_TOKEN`; the finalizer runs checks before committing. The current unprotected `main` permits this without a PAT, release app or new secret. If branch rules change, revisit the automation's push policy. See [GitHub's token-trigger behavior](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
 
 ## npm publishing configuration
 
@@ -57,5 +68,6 @@ GitHub may require extra permission when tagging a historical commit whose workf
 - A new publication cannot move a channel backwards. Recovery of an identical older package may finish its GitHub metadata, but does not move the npm channel backwards or mark an older normal release latest.
 - Registry visibility lag after successful npm submission does not fail the workflow. If npm succeeded but a later GitHub operation failed, let npm finish processing before retrying so its visible integrity can prove the previous submission. If GitHub asset upload failed, the release stays draft until a retry attaches all assets. Existing Git tags must already point to the intended source commit.
 - If restoring a missing npm dist-tag fails, verify its permission on the trusted publisher. OIDC dist-tag management requires npm 11.21+ (the workflow pins a compatible version).
+- If **Record stable version** fails after a normal release succeeds, rerun that failed job. It records the already released version without publishing again. Do not manually bump to the next patch as a workaround.
 
 Test locally with `bun run package:check`. This prepares and validates the current source version under `dist/package`; it never publishes. Source checkout files and the lockfile remain unchanged during packaging.

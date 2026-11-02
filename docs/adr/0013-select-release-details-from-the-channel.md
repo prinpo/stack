@@ -1,6 +1,6 @@
 # Select release details from the channel
 
-Keep only the release channel as a workflow input. Stack currently has one developer, so manually selecting a nightly tag, repeating its normal version, and supplying recovery run IDs adds routine coordination without enough benefit. `nightly` packages the dispatched `main` commit; `latest` selects the highest published nightly version, retains its exact source commit, and derives the normal version from that commit's manifest. Drafts and non-nightly releases are excluded. This supersedes ADR 0011's explicit promotion inputs while preserving tested-source promotion and immutable versions.
+Automatically select release details from the channel. Stack currently has one developer, so manually selecting a nightly tag, repeating its normal version, and supplying recovery run IDs adds routine coordination without enough benefit. `nightly` packages the dispatched `main` commit; `latest` selects the highest published nightly version and retains its exact source commit. Drafts and non-nightly releases are excluded. This supersedes ADR 0011's explicit promotion inputs while preserving tested-source promotion and immutable versions. [ADR 0014](0014-record-stable-versions-and-derive-nightly-targets.md) adds an optional stable-version override and automatic version bookkeeping.
 
 Use GitHub's failed-job rerun mechanism to reuse that run's validated tarball. Remove cross-run restoration from the public form and implementation; historical repair after workflow code changes is separate maintenance.
 

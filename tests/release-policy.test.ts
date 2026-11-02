@@ -20,41 +20,41 @@ test("promotion selects the newest completed nightly without choosing drafts or 
   expect(() => latestNightly([])).toThrow("successful nightly");
 });
 
-test("manual nightlies expose their intended version, UTC date and workflow run", () => {
+test("nightlies target one patch after the last stable version with a UTC date and workflow run", () => {
   expect(
     planRelease({
       channel: "nightly",
-      baseVersion: "0.1.0",
+      stableVersion: "0.1.0",
       publishedVersions: [],
       date: "2026-11-01T23:59:00Z",
       runNumber: "42",
     }),
   ).toEqual({
     channel: "nightly",
-    version: "0.1.0-nightly.20261101.42",
-    tag: "v0.1.0-nightly.20261101.42",
+    version: "0.1.1-nightly.20261101.42",
+    tag: "v0.1.1-nightly.20261101.42",
   });
 });
 
 test("nightlies reject an intended version that has already shipped or fallen behind", () => {
-  for (const baseVersion of ["0.1.0", "0.0.9"]) {
+  for (const stableVersion of ["0.0.8", "0.0.9"]) {
     expect(() =>
       planRelease({
         channel: "nightly",
-        baseVersion,
+        stableVersion,
         publishedVersions: ["0.1.0", "0.2.0-nightly.20261101.10"],
         date: "2026-11-01",
         runNumber: "42",
       }),
-    ).toThrow("Advance");
+    ).toThrow("already been released");
   }
 });
 
-test("a normal release derives its version from the selected nightly's intended base", () => {
+test("a normal release derives its version from the selected nightly instead of its source manifest", () => {
   expect(
     planRelease({
       channel: "latest",
-      baseVersion: "0.2.0",
+      stableVersion: "0.1.0",
       publishedVersions: ["0.1.0"],
       nightlyTag: "v0.2.0-nightly.20261101.42",
       date: "2026-11-02",
@@ -63,10 +63,60 @@ test("a normal release derives its version from the selected nightly's intended 
   ).toEqual({ channel: "latest", version: "0.2.0", tag: "v0.2.0" });
 });
 
-test("promotion rejects missing, malformed and mismatched nightly tags", () => {
+test("latest accepts a newer plain stable override while nightly rejects an override", () => {
+  const request = {
+    channel: "latest",
+    stableVersion: "0.1.0",
+    nightlyTag: "v0.1.1-nightly.20261101.42",
+    publishedVersions: ["0.1.0"],
+    date: "2026-11-02",
+    runNumber: "43",
+  } as const;
+  expect(
+    planRelease({
+      ...request,
+      publishedVersions: [...request.publishedVersions],
+      versionOverride: "0.2.0",
+    }),
+  ).toEqual({ channel: "latest", version: "0.2.0", tag: "v0.2.0" });
+  for (const versionOverride of ["0.1.0", "v0.2.0", "0.2.0-beta.1"]) {
+    expect(() =>
+      planRelease({
+        ...request,
+        publishedVersions: [...request.publishedVersions],
+        versionOverride,
+      }),
+    ).toThrow();
+  }
+  expect(() =>
+    planRelease({
+      ...request,
+      publishedVersions: [],
+      channel: "nightly",
+      versionOverride: "0.2.0",
+    }),
+  ).toThrow("only for latest");
+  expect(() =>
+    planRelease({ ...request, publishedVersions: [], versionOverride: "0.0.9" }),
+  ).toThrow("already been released");
+});
+
+test("a failed stable finalization prevents targeting that already released patch again", () => {
+  expect(() =>
+    planRelease({
+      channel: "nightly",
+      stableVersion: "0.1.0",
+      publishedVersions: ["0.1.1"],
+      date: "2026-11-02",
+      runNumber: "43",
+    }),
+  ).toThrow("finish stable release bookkeeping");
+});
+
+test("promotion rejects missing or malformed nightly tags and stable manifests", () => {
   const valid = {
     channel: "latest",
-    baseVersion: "0.2.0",
+    stableVersion: "0.1.0",
     publishedVersions: ["0.1.0"],
     nightlyTag: "v0.2.0-nightly.20261101.42",
     date: "2026-11-02",
@@ -75,8 +125,7 @@ test("promotion rejects missing, malformed and mismatched nightly tags", () => {
   for (const override of [
     { nightlyTag: "" },
     { nightlyTag: "v0.2.0-beta.1" },
-    { nightlyTag: "v0.3.0-nightly.20261101.42" },
-    { baseVersion: "00.2.0" },
+    { stableVersion: "00.2.0" },
   ]) {
     expect(() =>
       planRelease({ ...valid, publishedVersions: [...valid.publishedVersions], ...override }),

@@ -1,10 +1,11 @@
 export interface ReleaseRequest {
   channel: "nightly" | "latest";
-  baseVersion: string;
+  stableVersion: string;
   publishedVersions: string[];
   date: string;
   runNumber: string;
   nightlyTag?: string;
+  versionOverride?: string;
 }
 
 export const normalVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
@@ -43,27 +44,37 @@ function compareNormal(left: string, right: string) {
   return 0;
 }
 
-export function assertReleaseVersion(request: Omit<ReleaseRequest, "date" | "runNumber">) {
-  if (!normalVersion.test(request.baseVersion)) throw new Error("Invalid intended normal version");
-  if (request.channel === "latest") {
-    const nightly = request.nightlyTag?.startsWith("v") ? request.nightlyTag.slice(1) : "";
-    if (!nightlyVersion.test(nightly) || nightly.split("-")[0] !== request.baseVersion)
-      throw new Error("Selected nightly does not match its intended normal version");
-  }
+export function assertNewVersion(version: string, publishedVersions: string[]) {
+  const target = version.split("-")[0]!;
+  if (!normalVersion.test(target)) throw new Error("Invalid normal release version");
   if (
-    request.publishedVersions.some(
-      (version) => normalVersion.test(version) && compareNormal(request.baseVersion, version) <= 0,
+    publishedVersions.some(
+      (published) => normalVersion.test(published) && compareNormal(target, published) <= 0,
     )
   )
-    throw new Error("Advance the intended version through a PR before releasing");
+    throw new Error(
+      "This version has already been released or superseded; finish stable release bookkeeping before another nightly",
+    );
 }
 
 export function planRelease(request: ReleaseRequest) {
-  assertReleaseVersion(request);
-  const version =
-    request.channel === "latest"
-      ? request.baseVersion
-      : `${request.baseVersion}-nightly.${new Date(request.date).toISOString().slice(0, 10).replaceAll("-", "")}.${request.runNumber}`;
+  if (!normalVersion.test(request.stableVersion)) throw new Error("Invalid last stable version");
+  const override = request.versionOverride?.trim();
+  let version: string;
+  if (request.channel === "nightly") {
+    if (override) throw new Error("The stable version override is supported only for latest");
+    const [major, minor, patch] = request.stableVersion.split(".");
+    const target = `${major}.${minor}.${BigInt(patch!) + 1n}`;
+    version = `${target}-nightly.${new Date(request.date).toISOString().slice(0, 10).replaceAll("-", "")}.${request.runNumber}`;
+  } else {
+    const nightly = request.nightlyTag?.startsWith("v") ? request.nightlyTag.slice(1) : "";
+    if (!nightlyVersion.test(nightly))
+      throw new Error("Select a successful nightly before releasing latest");
+    version = override || nightly.split("-")[0]!;
+    if (!normalVersion.test(version))
+      throw new Error("Stable version override must be a plain x.y.z version");
+  }
+  assertNewVersion(version, [...request.publishedVersions, request.stableVersion]);
   return { channel: request.channel, version, tag: `v${version}` };
 }
 

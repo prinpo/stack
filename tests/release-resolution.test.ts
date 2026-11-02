@@ -5,12 +5,13 @@ import { join, resolve } from "node:path";
 import { expect, test } from "vite-plus/test";
 
 test.each([
-  { channel: "nightly", workflowChanged: false },
-  { channel: "latest", workflowChanged: false },
-  { channel: "latest", workflowChanged: true },
+  { channel: "nightly", workflowChanged: false, versionOverride: "" },
+  { channel: "latest", workflowChanged: false, versionOverride: "" },
+  { channel: "latest", workflowChanged: true, versionOverride: "" },
+  { channel: "latest", workflowChanged: false, versionOverride: "0.2.0" },
 ] as const)(
-  "channel $channel selects source and version (workflows changed: $workflowChanged)",
-  async ({ channel, workflowChanged }) => {
+  "channel $channel selects source and version (workflows changed: $workflowChanged, override: $versionOverride)",
+  async ({ channel, workflowChanged, versionOverride }) => {
     const directory = await mkdtemp(join(tmpdir(), "stack-release-selection-"));
     const git = (...args: string[]) => {
       const result = spawnSync("git", args, { cwd: directory, encoding: "utf8" });
@@ -27,9 +28,9 @@ test.each([
       git("add", "package.json");
       git("-c", "commit.gpgsign=false", "commit", "-m", "fixture: nightly source");
       const nightlySource = git("rev-parse", "HEAD");
-      git("tag", "v0.1.0-nightly.20261101.9");
-      git("tag", "v0.1.0-nightly.20261101.10");
-      await writeFile(join(directory, "package.json"), '{"version":"0.2.0"}\n');
+      git("tag", "v0.1.1-nightly.20261101.9");
+      git("tag", "v0.1.1-nightly.20261101.10");
+      await writeFile(join(directory, "application.txt"), "New application changes\n");
       if (workflowChanged) {
         await mkdir(join(directory, ".github/workflows"), { recursive: true });
         await writeFile(
@@ -48,7 +49,7 @@ globalThis.fetch = async (input) => {
   const url = String(input);
   if (url.endsWith("actions/runs/123")) return Response.json({created_at: "2026-11-01T12:00:00Z"});
   if (url.startsWith("https://registry.npmjs.org/")) return Response.json({versions: {}, "dist-tags": {}});
-  if (url.endsWith("releases?per_page=100&page=1")) return Response.json([9,10].map(run => ({tag_name: "v0.1.0-nightly.20261101." + run, draft: false, prerelease: true, published_at: "2026-11-01T00:00:00Z"})));
+  if (url.endsWith("releases?per_page=100&page=1")) return Response.json([9,10].map(run => ({tag_name: "v0.1.1-nightly.20261101." + run, draft: false, prerelease: true, published_at: "2026-11-01T00:00:00Z"})));
   throw new Error("Unexpected request: " + url);
 };
 `,
@@ -67,6 +68,7 @@ globalThis.fetch = async (input) => {
             ...process.env,
             GH_TOKEN: "",
             RELEASE_CHANNEL: channel,
+            STABLE_VERSION_OVERRIDE: versionOverride,
             GITHUB_SHA: mainSource,
             GITHUB_REF: "refs/heads/main",
             GITHUB_RUN_ID: "123",
@@ -87,9 +89,11 @@ globalThis.fetch = async (input) => {
       expect(result.status, result.stdout + result.stderr).toBe(0);
       const release = JSON.parse(await readFile(join(directory, "output/release.json"), "utf8"));
       expect(release.source).toBe(channel === "latest" ? nightlySource : mainSource);
-      expect(release.version).toBe(channel === "latest" ? "0.1.0" : "0.2.0-nightly.20261101.42");
+      expect(release.version).toBe(
+        channel === "latest" ? versionOverride || "0.1.1" : "0.1.1-nightly.20261101.42",
+      );
       expect(release.nightlyTag).toBe(
-        channel === "latest" ? "v0.1.0-nightly.20261101.10" : undefined,
+        channel === "latest" ? "v0.1.1-nightly.20261101.10" : undefined,
       );
     } finally {
       await rm(directory, { recursive: true, force: true });

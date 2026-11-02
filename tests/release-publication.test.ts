@@ -148,6 +148,6 @@ test("a normal version recorded on GitHub blocks stale nightlies before npm expo
     ],
   });
   expect(result.status).not.toBe(0);
-  expect(result.output).toContain("Advance the intended version");
+  expect(result.output).toContain("already been released");
   expect(result.npmCalled).toBe(false);
 });
