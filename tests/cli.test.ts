@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vite-plus/test";
@@ -58,6 +58,54 @@ test("doctor explains inferred capabilities without resolving application creden
     frontend: { enabled: true, reason: "Found index.html" },
     backend: { enabled: false, reason: "Missing src/server/index.ts" },
     env: { client: false, server: true },
+    compose: { enabled: false, reason: "Missing docker-compose.dev.yml" },
+  });
+});
+
+test("doctor reports development Compose presence without invoking Docker or parsing configuration", async () => {
+  const cwd = await project({
+    "src/server/index.ts": "",
+    "docker-compose.dev.yml": "malformed compose file",
+    "env/server/.env.schema": "# @import(./missing)\n# ---\n",
+    "bin/docker": "#!/bin/sh\nprintf invoked > docker-invoked\nexit 99\n",
+  });
+  await chmod(join(cwd, "bin/docker"), 0o755);
+  const env = { PATH: `${join(cwd, "bin")}:${process.env.PATH}` };
+  const result = run(cwd, ["doctor", "--json"], env);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).compose).toEqual({
+    enabled: true,
+    reason: "Found docker-compose.dev.yml",
+  });
+  const human = run(cwd, ["doctor"], env);
+  expect(human.status, human.stderr).toBe(0);
+  expect(human.stdout).toContain("Development dependencies");
+  expect(human.stdout).toContain("Found docker-compose.dev.yml");
+  await expect(readFile(join(cwd, "docker-invoked"))).rejects.toThrow();
+});
+
+test.each(["alias", "directory"])("doctor does not enable Compose for an %s", async (kind) => {
+  const cwd = await project({ "index.html": "", "compose.dev.yml": "services: {}\n" });
+  if (kind === "directory") await mkdir(join(cwd, "docker-compose.dev.yml"));
+  const result = run(cwd, ["doctor", "--json"]);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).compose).toEqual({
+    enabled: false,
+    reason: "Missing docker-compose.dev.yml",
+  });
+  const human = run(cwd, ["doctor"]);
+  expect(human.stdout).toContain("○ disabled");
+  expect(human.stdout).toContain("Missing docker-compose.dev.yml");
+});
+
+test("a Compose file alone does not make doctor detect an application", async () => {
+  const cwd = await project({ "docker-compose.dev.yml": "services: {}\n" });
+  const result = run(cwd, ["doctor", "--json"]);
+  expect(result.status).toBe(1);
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    frontend: { enabled: false },
+    backend: { enabled: false },
+    compose: { enabled: true },
   });
 });
 
