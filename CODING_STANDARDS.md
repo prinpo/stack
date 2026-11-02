@@ -30,4 +30,6 @@ Mark breaking changes with `!` after the type/scope and explain the migration in
 
 Use the same semantic format for PR titles, describing the complete change being merged. A squash merge can then use the title as its commit subject.
 
+Before creating or updating a PR description, read and follow the [pr skill](.agents/skills/pr/SKILL.md), including its PR body template.
+
 Write the PR description from the full diff against its target branch. Include the resulting behavior, validation evidence, and relevant migration notes; update the title and description when the scope changes.
