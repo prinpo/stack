@@ -29,6 +29,10 @@ const command = defineCommand({
         console.log(
           `  ${project.env[area] ? color.green("✓") : color.dim("○")} env/${area} ${color.dim(project.env[area] ? "found" : "absent — defaults apply")}`,
         );
+      console.log(`\n${color.bold("Development dependencies")}`);
+      console.log(
+        `  ${project.compose.enabled ? color.green("✓ enabled") : color.dim("○ disabled")} ${color.dim(project.compose.reason)}`,
+      );
       console.log();
       if (!project.frontend.enabled && !project.backend.enabled)
         console.log(color.red("No application detected. Add index.html or src/server/index.ts."));

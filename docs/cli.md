@@ -35,7 +35,7 @@ Builds validate static settings without deployment credentials, clear the previo
 
 Backend/full-stack startup hands off to Bun running `dist/server/index.js`. Frontend-only startup hands off to Stack's lightweight `Bun.serve` runtime. Both serve public dynamic configuration in prepared HTML, support HEAD and SPA navigation, and preserve missing-asset/API 404s. Public assets remain separate from server output. The CLI adds no ongoing production supervision or request handling.
 
-Doctor explains structural capability detection and schema-directory presence. It starts nothing, makes no network calls, and resolves no credentials. Missing optional capabilities are informational; neither entry point produces a nonzero status. `--json` is suitable for agents.
+Doctor explains structural capability detection, schema-directory presence, and whether `docker-compose.dev.yml` enables development dependencies. It checks file presence without parsing Compose configuration or invoking Docker. It starts nothing, makes no network calls, and resolves no credentials. Missing optional capabilities are informational; neither entry point produces a nonzero status. `--json` is suitable for agents and includes Compose detection as `compose.enabled` and `compose.reason`.
 
 ## Profiles
 

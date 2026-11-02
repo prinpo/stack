@@ -2,10 +2,8 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { type Server, createServer } from "node:net";
 
-import { isFile } from "./project";
+import { developmentComposeFile, isFile } from "./project";
 import { stop } from "./tools";
-
-const file = "docker-compose.dev.yml";
 
 async function docker(
   args: string[],
@@ -52,8 +50,8 @@ async function docker(
 
 /** Manage infrastructure for one development session, without loading app configuration. */
 export function developmentCompose() {
-  const enabled = isFile(file);
-  const args = ["compose", "-f", file];
+  const enabled = isFile(developmentComposeFile);
+  const args = ["compose", "-f", developmentComposeFile];
   let target: string[] = [];
   let projectName = "";
   let started = false;
