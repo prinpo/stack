@@ -7,3 +7,5 @@ Keep CLI imports isolated from application runtime imports and run delegated Jav
 Separate deployment profile selection through APP_ENV from runtime behavior through NODE_ENV and from Vite's native modes. Separate public build output in `dist/client` from backend code in `dist/server`. Publish `dist/manifest.json` only after a successful build and use it to select production startup, avoiding source-file requirements and stale-output inference.
 
 The [CLI milestone](../milestones/0005-stack-cli.md) records the agreed command surface, defaults, lifecycle, and validation boundary. Interactive menus, database/auth commands, scaffolding, Docker workflows, and Windows support remain deferred.
+
+[ADR 0015](0015-manage-development-compose-through-stack-dev.md) subsequently brings development Compose startup and shutdown into scope.

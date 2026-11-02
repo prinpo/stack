@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { serverEnvPaths } from "../env/paths";
 import { loadStaticEnv } from "../env/server";
+import { developmentCompose } from "./compose";
 import { environment, profileArgs, takeOptions } from "./options";
 import { type Area, type BuildResult, buildSummary, heading, intro, restartNotice } from "./output";
 import { capabilities, isFile, outputs } from "./project";
@@ -185,6 +186,9 @@ export const dev = lifecycleCommand(
         ],
       });
     let children: ChildProcess[] = [];
+    const compose = developmentCompose();
+    const cancellation = new AbortController();
+    let launched = false;
     let closing = false;
     let finish!: (status: number) => void;
     const completed = new Promise<number>((done) => {
@@ -193,10 +197,12 @@ export const dev = lifecycleCommand(
     const close = (status: number) => {
       if (!closing) {
         closing = true;
+        cancellation.abort(status);
         finish(status);
       }
     };
     const launch = () => {
+      launched = true;
       for (const command of commands) {
         const child = spawnBun(command.args, env, "inherit", command.area);
         children.push(child);
@@ -226,7 +232,7 @@ export const dev = lifecycleCommand(
                   const previous = children;
                   children = [];
                   await Promise.all(previous.map(stop));
-                  if (!closing) {
+                  if (!closing && launched) {
                     restartNotice(changedPath, commands.length > 1);
                     launch();
                   }
@@ -243,6 +249,11 @@ export const dev = lifecycleCommand(
       close(1);
     });
     try {
+      const startupStatus = await compose.start(cancellation.signal);
+      if (startupStatus !== 0 || closing) {
+        process.exitCode = startupStatus || Number(cancellation.signal.reason);
+        return;
+      }
       launch();
       const status = await completed;
       process.exitCode = status;
@@ -251,6 +262,11 @@ export const dev = lifecycleCommand(
       watcher?.close();
       await restarting;
       await Promise.all(children.map(stop));
+      const cleanupStatus = await compose.stop();
+      if (cleanupStatus !== 0) {
+        console.error("Failed to stop development Compose services.");
+        process.exitCode ||= cleanupStatus;
+      }
       process.off("SIGINT", interrupt);
       process.off("SIGTERM", terminate);
     }
