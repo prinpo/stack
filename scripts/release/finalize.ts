@@ -27,7 +27,7 @@ async function finalize() {
     manifest.version = version;
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
     command(["bun", "install", "--lockfile-only", "--ignore-scripts"], directory);
-    command(["bunx", "--bun", "vp", "check"], directory);
+    command(["bun", "--bun", "vp", "check"], directory);
     command(["git", "add", "--", "package.json", "bun.lock"], directory);
     command(
       [

@@ -1,0 +1,9 @@
+# Manage one database with mandatory production migrations
+
+Add an optional Database Block using Stack-owned exact `drizzle-orm@1.0.0-rc.5` and `drizzle-kit@1.0.0-rc.5` dependencies. Preserve native Drizzle APIs and native `drizzle.config.ts` configuration; developers choose the dialect, runtime driver, and client options. The first version manages one database per application. Applications own any additional databases without Stack orchestration.
+
+For applications using the managed database lifecycle, production startup always applies committed migrations before accepting traffic. The initial version has no migration-disable option or alternate deployment-job mode. This chooses minimal setup over deployment-policy flexibility. Development never implicitly pushes schemas, generates migrations, or applies migrations; database mutations are explicit developer operations. Offline doctor may inspect local migration files and report their count, but resolves no credentials and makes no database connections.
+
+Qualify Stack's database integration with SQLite using Bun SQL, including lifecycle and automatic production migrations. PostgreSQL and alternative Drizzle drivers remain selectable without adding a database-server requirement to Stack's test suite. This testing scope does not establish correctness of untested dialects or driver-specific behavior; Stack remains responsible for its own orchestration, packaging, and failure handling.
+
+This brings database integration deferred by ADRs 0002 and 0010 into scope. Registration, migration execution, deployment concurrency, artifact packaging, command surface, and resource ownership remain open until the design interview resolves them. See the [database milestone](../milestones/0006-database.md) and [RC.5 evidence](../research/drizzle-rc5.md).

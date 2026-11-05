@@ -6,14 +6,16 @@ The foundation includes file-based routing, router devtools, a Vite preset, a de
 
 ## Try the full-stack example
 
+Install the Bun version declared in `package.json`. Vite+ is pinned locally; a global `vp` installation is optional. Prefer `bun --bun vp` for direct tooling commands so they use the project version and Bun runtime.
+
 From the repository root:
 
 ```sh
-bunx --bun vp install
+bun install --frozen-lockfile
 bun run stack dev
 ```
 
-Open <http://localhost:5173>. Elysia runs on port 3000. The example is a Bun workspace that imports Stack's TypeScript source directly through `@prinpo/stack/...`. Changes to the source feed into the running application without building, packing, or reinstalling Stack. `bunx --bun vp run dev` from the root starts the same example.
+Open <http://localhost:5173>. Elysia runs on port 3000. The example is a Bun workspace that imports Stack's TypeScript source directly through `@prinpo/stack/...`. Changes to the source feed into the running application without building, packing, or reinstalling Stack. `bun --bun vp run dev` from the root starts the same example.
 
 The [full-stack example](examples/fullstack/README.md) documents its files and development workflow. `examples/` is a place to try real scenarios and evaluate the DX.
 
@@ -133,9 +135,9 @@ CI validates the example browser/server build against source and installs a rele
 ## Working on Stack
 
 ```sh
-bunx --bun vp check
-bunx --bun vp test
-bunx --bun vp run example:check
+bun --bun vp check
+bun --bun vp test
+bun --bun vp run example:check
 bun run stack build
 bun run package:check
 ```

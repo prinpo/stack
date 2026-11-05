@@ -20,5 +20,5 @@ runs:
     - shell: bash
       if: inputs.install == 'true'
       working-directory: ${{ inputs.directory }}
-      # Bootstrap the local Vite+ binary; bare bunx vp would fetch an unrelated package.
+      # Install the pinned local Vite+ toolchain before running checks.
       run: bun install --frozen-lockfile

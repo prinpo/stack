@@ -9,13 +9,13 @@ runs:
   steps:
     - shell: bash
       working-directory: ${{ inputs.directory }}
-      run: bunx --bun vp check
+      run: bun --bun vp check
     - shell: bash
       working-directory: ${{ inputs.directory }}
-      run: bunx --bun vp run example:check
+      run: bun --bun vp run example:check
     - shell: bash
       working-directory: ${{ inputs.directory }}
-      run: bunx --bun vp test run
+      run: bun --bun vp test run
     - shell: bash
       working-directory: ${{ inputs.directory }}
       run: bun run stack build

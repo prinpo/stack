@@ -46,8 +46,8 @@
     "dev": "bun run stack dev",
     "test": "vp test",
     "check": "vp check",
-    "prepare": "vp config",
-    "example:check": "cd examples/fullstack && bunx --bun vp check",
+    "prepare": "vp config --no-agent",
+    "example:check": "cd examples/fullstack && bun --bun vp check",
     "research:varlock": "bun --no-env-file scripts/probe-varlock.ts",
     "stack": "cd examples/fullstack && bun run stack"
   },

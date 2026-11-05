@@ -134,10 +134,10 @@ Stack supplies headless integration logic; applications own presentation, transl
 ## Validation
 
 ```sh
-bunx --bun vp check
-bunx --bun vp test
-bunx --bun vp test --project eden-query
-bunx --bun vp run example:check
+bun --bun vp check
+bun --bun vp test
+bun --bun vp test --project eden-query
+bun --bun vp run example:check
 ```
 
 The imported tests cover runtime routing, real Treaty requests, errors, cache identity, pagination, React context/hooks, and compile-time input/output/cache inference. Test helpers use Vite+ and a dedicated happy-dom environment. The fullstack example is the starting point for browser verification.

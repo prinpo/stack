@@ -42,13 +42,16 @@ async function repository(stableVersion = "0.1.0") {
   git("-c", "commit.gpgsign=false", "commit", "-m", "test: seed repository");
   git("remote", "add", "origin", remote);
   git("push", "-u", "origin", "main");
-  const tools = join(directory, "tools");
-  await mkdir(tools);
+  const tools = join(checkout, "node_modules/.bin");
+  await mkdir(tools, { recursive: true });
   await writeFile(
-    join(tools, "bunx"),
-    '#!/bin/sh\nprintf "checked\\n" > "$CHECK_MARKER"\nexit "${CHECK_EXIT:-0}"\n',
+    join(tools, "vp"),
+    `#!/usr/bin/env bun
+await Bun.write(process.env.CHECK_MARKER, "checked\\n");
+process.exit(Number(process.env.CHECK_EXIT ?? "0"));
+`,
   );
-  await chmod(join(tools, "bunx"), 0o755);
+  await chmod(join(tools, "vp"), 0o755);
   return {
     directory,
     checkout,
@@ -60,7 +63,6 @@ async function repository(stableVersion = "0.1.0") {
           ...process.env,
           SOURCE_DIR: checkout,
           RELEASE_VERSION: version,
-          PATH: `${tools}:${process.env.PATH}`,
           CHECK_MARKER: join(directory, "checked"),
           ...overrides,
         },

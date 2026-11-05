@@ -7,13 +7,13 @@ A runnable environment sandbox using Stack's public entry points. The landing pa
 From the repository root:
 
 ```sh
-bunx --bun vp install
+bun install --frozen-lockfile
 bun run stack dev
 ```
 
 Open <http://localhost:5173>. This example is a private Bun workspace. Its `file:../..` dependency links to the root `@prinpo/stack` package, whose public exports point into `src/`. Both application and Stack imports resolve to live TypeScript source through the same public `@prinpo/stack/...` paths. No library build or artifact setup is needed.
 
-The root install uses Bun's hoisted linker. Keep shared tooling versions aligned with the root manifest so dependencies stay in the root `node_modules`; Vite's cache also lives there.
+Vite+ is installed locally; a global `vp` installation is optional. Prefer `bun --bun vp` for direct tooling commands. The root install uses Bun's hoisted linker. Keep shared tooling versions aligned with the root manifest so dependencies stay in the root `node_modules`; Vite's cache also lives there.
 
 From this directory, use `bun run stack dev` to run both processes, or `bun run stack doctor` to inspect the application. The `stack` script points to the live source executable because Bun does not link the root package's own binary in this source-linked workspace; installed applications use the package's local `stack` executable directly. `bun run check` formats, lints, and typechecks the application after dependencies are installed. The generated route tree is committed so checking also works before the first dev-server run.
 
