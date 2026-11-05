@@ -22,6 +22,12 @@ export type CoercedEnvSchema = {
   LOG_DIR: string;
   
   /**
+   * **DATABASE_URL** 🔐 _sensitive_  
+   * File-backed SQLite for the database example. This value is resolved at startup.  
+   */
+  DATABASE_URL: string;
+  
+  /**
    * **SERVER_PUBLIC_STATIC**  
    * Validated during builds and read by the server at startup.  
    */
@@ -47,7 +53,7 @@ export type CoercedEnvSchema = {
   
 };
 
-type _CoercedEnvSchema_2f13d289 = CoercedEnvSchema;
+type _CoercedEnvSchema_348864c5 = CoercedEnvSchema;
 
 export type EnvSchemaAsStrings = {
   [Property in keyof CoercedEnvSchema]:
@@ -55,7 +61,7 @@ export type EnvSchemaAsStrings = {
       : (NonNullable<CoercedEnvSchema[Property]> extends boolean ? ('true' | 'false') : string)
 };
 
-type _EnvSchemaAsStrings_2f13d289 = EnvSchemaAsStrings;
+type _EnvSchemaAsStrings_348864c5 = EnvSchemaAsStrings;
 
 export type PublicCoercedEnvSchema = Readonly<Pick<CoercedEnvSchema, 'HOST' | 'PORT' | 'NODE_ENV' | 'APP_ENV' | 'LOG_DIR' | 'SERVER_PUBLIC_STATIC' | 'SERVER_PUBLIC_DYNAMIC'>>;
 

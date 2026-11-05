@@ -116,9 +116,105 @@ if (await response.text() !== "packed" || isStructuredApiError(null)) throw new 
     );
     command([cli, "build"], consumer, env);
     await readFile(join(consumer, "dist/client/index.html"));
+    await validateDatabaseConsumer(consumer, cli, env);
   } finally {
     await rm(consumer, { recursive: true, force: true });
   }
+}
+
+/** Qualify native Drizzle imports and source-free production migration in a packed consumer. */
+async function validateDatabaseConsumer(consumer: string, cli: string, env: NodeJS.ProcessEnv) {
+  const manifest = JSON.parse(await readFile(join(consumer, "package.json"), "utf8"));
+  await writeFile(
+    join(consumer, "package.json"),
+    JSON.stringify({
+      ...manifest,
+      devDependencies: {
+        "@types/bun": devDependencies["@types/bun"],
+        typescript: devDependencies.typescript,
+      },
+    }),
+  );
+  command(["bun", "install", "--ignore-scripts"], consumer, env);
+  await mkdir(join(consumer, "env/server"), { recursive: true });
+  await mkdir(join(consumer, "src/server"), { recursive: true });
+  await writeFile(
+    join(consumer, "env/server/.env.schema"),
+    "# @redact=false @preventLeaks=false\n# ---\n# @dynamic\nDATABASE_URL=sqlite://consumer.sqlite\n",
+  );
+  await writeFile(
+    join(consumer, "drizzle.config.ts"),
+    `import {defineConfig} from "drizzle-kit"; import {ENV} from "@prinpo/stack/env"; export default defineConfig({dialect:"sqlite",out:"./migrations",schema:"./schema.ts",dbCredentials:{url:ENV.DATABASE_URL}});`,
+  );
+  await writeFile(
+    join(consumer, "schema.ts"),
+    `import {sqliteTable,integer,text} from "drizzle-orm/sqlite-core"; export const notes=sqliteTable("notes",{id:integer().primaryKey(),text:text().notNull()});`,
+  );
+  await writeFile(
+    join(consumer, "database.types.ts"),
+    `import {defineRelations, type InferSelectModel} from "drizzle-orm";
+import {drizzle} from "drizzle-orm/bun-sql/sqlite";
+import {notes} from "./schema";
+const db=drizzle.mock({relations:defineRelations({notes})});
+const row:InferSelectModel<typeof notes>={id:1,text:"typed"};
+const expected:{id:number;text:string}=row;
+const result:Promise<typeof expected[]>=db.query.notes.findMany().execute();
+void result;
+// @ts-expect-error Native schema inference rejects a numeric note.
+db.insert(notes).values({text:42});
+`,
+  );
+  command(
+    [
+      join(consumer, "node_modules/.bin/tsc"),
+      "--noEmit",
+      "--strict",
+      "--skipLibCheck",
+      "--target",
+      "esnext",
+      "--module",
+      "preserve",
+      "--moduleResolution",
+      "bundler",
+      "--types",
+      "bun",
+      "database.types.ts",
+    ],
+    consumer,
+    env,
+  );
+  await writeFile(
+    join(consumer, "src/server/index.ts"),
+    `import {createServer} from "node:net";
+import {once} from "node:events";
+import {SQL} from "bun";
+import {drizzle} from "drizzle-orm/bun-sql/sqlite";
+import {defineRelations} from "drizzle-orm";
+import {Elysia,startServer} from "@prinpo/stack/server";
+import {ENV} from "@prinpo/stack/env";
+import {notes} from "../../schema";
+const probe=createServer(); probe.listen(0,"127.0.0.1"); await once(probe,"listening");
+const address=probe.address(); if(!address || typeof address==="string") throw new Error("No port");
+process.env.PORT=String(address.port); await new Promise<void>(done=>probe.close(()=>done()));
+const app=await startServer(async()=>{
+const client=new SQL(ENV.DATABASE_URL); const db=drizzle({client,relations:defineRelations({notes})});
+await db.insert(notes).values({id:1,text:"packed database"}).onConflictDoNothing();
+return {app:new Elysia().get("/api/notes",()=>db.query.notes.findMany()).onStop(async()=>{await client.close();})};
+},{env:{client:false}});
+try { const rows=await (await fetch(new URL("/api/notes",app.server!.url))).json();
+if(JSON.stringify(rows)!==JSON.stringify([{id:1,text:"packed database"}])) throw new Error("Broken packed database");
+} finally {await app.stop();}
+`,
+  );
+  command([cli, "db", "generate", "--name", "initial"], consumer, env);
+  command([cli, "build"], consumer, env);
+  for (const name of ["src/server", "schema.ts", "drizzle.config.ts", "migrations"])
+    await rm(join(consumer, name), { recursive: true });
+  command([cli, "start"], consumer, env);
+  command(["bun", "--no-env-file", "dist/server/index.js"], consumer, {
+    ...env,
+    NODE_ENV: "production",
+  });
 }
 
 if (import.meta.main) {

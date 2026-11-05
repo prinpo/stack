@@ -17,6 +17,7 @@ const main = defineCommand({
     logs: () => import("./logs").then((module) => module.default),
     env: () => import("./env").then((module) => module.default),
     doctor: () => import("./doctor").then((module) => module.default),
+    db: () => import("./database").then((module) => module.default),
   },
 });
 
@@ -33,5 +34,5 @@ try {
   else await runCommand(main, { rawArgs: args });
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
+  process.exitCode ||= 1;
 }

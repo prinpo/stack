@@ -34,10 +34,16 @@ const command = defineCommand({
         `  ${project.compose.enabled ? color.green("✓ enabled") : color.dim("○ disabled")} ${color.dim(project.compose.reason)}`,
       );
       console.log();
+      console.log(color.bold("Database"));
+      console.log(
+        `  ${project.database.enabled ? "✓ enabled" : "○ disabled"} ${project.database.reason}`,
+      );
+      if (project.database.enabled) console.log(color.dim(`    ${project.database.directory}`));
       if (!project.frontend.enabled && !project.backend.enabled)
         console.log(color.red("No application detected. Add index.html or src/server/index.ts."));
     }
-    if (!project.frontend.enabled && !project.backend.enabled) process.exitCode = 1;
+    if ((!project.frontend.enabled && !project.backend.enabled) || !project.database.ready)
+      process.exitCode = 1;
   },
 });
 

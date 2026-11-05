@@ -1,12 +1,21 @@
 import { Elysia, t } from "@prinpo/stack/server";
 
 import { ENV } from "../env/server";
+import { client, db } from "./database";
+import { notes } from "./database/schema";
 import { errors } from "./errors";
 import { logging } from "./logging";
 
 export const app = new Elysia()
   .use(logging)
   .use(errors)
+  .onStop(async () => {
+    await client.close();
+  })
+  .get("/api/notes", () => db.select().from(notes).orderBy(notes.id))
+  .post("/api/notes", ({ body }) => db.insert(notes).values(body).returning(), {
+    body: t.Object({ text: t.String({ minLength: 1, maxLength: 500 }) }),
+  })
   // Teaching endpoint: these four settings contain dummy strings, including the
   // secret-classified examples. Keep real application credentials out of it.
   .get("/api/env", ({ set }) => {

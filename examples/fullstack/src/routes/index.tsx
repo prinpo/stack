@@ -1,5 +1,6 @@
-import { useQuery } from "@prinpo/stack/query";
+import { useMutation, useQuery } from "@prinpo/stack/query";
 import { createFileRoute } from "@prinpo/stack/react";
+import { useState } from "react";
 
 import { eden } from "../client";
 import { ENV } from "../env/client";
@@ -8,9 +9,52 @@ export const Route = createFileRoute("/")({ component: EnvironmentSandbox });
 
 function EnvironmentSandbox() {
   const serverEnv = useQuery({ ...eden.env.get.queryOptions(), enabled: false });
+  const notes = useQuery(eden.notes.get.queryOptions());
+  const [text, setText] = useState("");
+  const addNote = useMutation(
+    eden.notes.post.mutationOptions({
+      onSuccess: async () => {
+        setText("");
+        await notes.refetch();
+      },
+    }),
+  );
 
   return (
     <>
+      <section>
+        <h2>Persistent notes</h2>
+        <p>Notes are stored in SQLite and remain available after the server restarts.</p>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            addNote.mutate({ text });
+          }}
+        >
+          <label>
+            Note{" "}
+            <input
+              value={text}
+              maxLength={500}
+              onChange={(event) => setText(event.target.value)}
+              required
+            />
+          </label>
+          <button type="submit" disabled={addNote.isPending}>
+            {addNote.isPending ? "Saving…" : "Save note"}
+          </button>
+        </form>
+        {(notes.isError || addNote.isError) && (
+          <p role="alert">
+            Could not load or save notes. Check the server and apply development migrations.
+          </p>
+        )}
+        <ul>
+          {notes.data?.map((note) => (
+            <li key={note.id}>{note.text}</li>
+          ))}
+        </ul>
+      </section>
       <section>
         <p className="eyebrow">VARLOCK ENVIRONMENT SANDBOX</p>
         <h2>Browser environment</h2>

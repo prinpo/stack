@@ -6,6 +6,9 @@ dist
 *.log
 .evlog
 .DS_Store
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
 
 # dotenv environment variable files
 .env

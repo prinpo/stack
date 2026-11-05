@@ -1,11 +1,13 @@
-import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 
+import { spawnBunProcess, stopProcessGroup as stop } from "../processes";
 import { type Area, forwardLines, labeledEnvironment } from "./output";
 
 const require = createRequire(import.meta.url);
+
+export { stop };
 
 /** Resolve the installed package's executable, including packages with private manifests. */
 export function tool(name: string, executable: string) {
@@ -41,35 +43,14 @@ export function spawnBun(
   stdout: "inherit" | "ignore" = "inherit",
   area?: Area,
 ) {
-  const child = spawn(process.execPath, ["--no-env-file", ...args], {
-    env: area ? labeledEnvironment(env) : env,
-    detached: true,
-    stdio: ["inherit", area && stdout === "inherit" ? "pipe" : stdout, area ? "pipe" : "inherit"],
-  });
+  const child = spawnBunProcess(args, area ? labeledEnvironment(env) : env, [
+    "inherit",
+    area && stdout === "inherit" ? "pipe" : stdout,
+    area ? "pipe" : "inherit",
+  ]);
   if (area && child.stdout) forwardLines(child.stdout, process.stdout, area);
   if (area && child.stderr) forwardLines(child.stderr, process.stderr, area, true);
   return child;
-}
-
-/** Stop the entire tool group, including watchers and grandchildren. */
-export async function stop(child: ChildProcess) {
-  if (!child.pid) return;
-  const kill = (signal: NodeJS.Signals) => {
-    try {
-      process.kill(-child.pid!, signal);
-    } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error;
-    }
-  };
-  kill("SIGTERM");
-  const timeout = setTimeout(() => kill("SIGKILL"), 2000);
-  try {
-    if (child.exitCode === null && child.signalCode === null)
-      await new Promise<void>((done) => child.once("exit", () => done()));
-  } finally {
-    clearTimeout(timeout);
-    kill("SIGKILL");
-  }
 }
 
 export async function runBun(

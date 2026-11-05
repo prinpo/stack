@@ -8,6 +8,7 @@ From the repository root:
 
 ```sh
 bun install --frozen-lockfile
+bun run stack db migrate
 bun run stack dev
 ```
 
@@ -20,6 +21,10 @@ From this directory, use `bun run stack dev` to run both processes, or `bun run 
 Vite updates browser-used Stack modules through HMR or a page reload. The client script uses `--configLoader runner` so changes to Stack's Vite preset and its helpers also restart Vite through native config dependency tracking. Bun's `--watch` mode restarts the backend when its imported application or Stack modules change. Reload the page manually when you want to fetch updated backend responses. Unused blocks do not need to trigger updates.
 
 ## Follow the connection
+
+The landing page also reads and saves persistent SQLite notes. Root `drizzle.config.ts` enables the Database Block with Bun SQL SQLite and committed `migrations/`. DATABASE_URL defaults to the ignored local `example.sqlite`; override it through the server environment. Apply development migrations explicitly with `bun run stack db migrate` from the repository root. After schema changes, generate, review, commit, and apply migrations; development never does this automatically. Production build packages the config/history and startup always migrates before importing the app.
+
+The database module exports its native client/Drizzle instance. Elysia's stop hook closes the client; the server entry stops the app on SIGINT/SIGTERM. Notes survive restarts. No global cache, universal driver wrapper, or PostgreSQL service is needed. See the [database guide](../../docs/database.md) for PostgreSQL/Bun SQL setup and limitations.
 
 | File                   | Responsibility                                                                                        |
 | ---------------------- | ----------------------------------------------------------------------------------------------------- |

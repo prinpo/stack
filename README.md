@@ -2,7 +2,7 @@
 
 A thin application framework for Bun, Elysia, Eden, TanStack Router, and TanStack Query. Stack owns a tested set of library versions and connects their native APIs through a few utilities.
 
-The foundation includes file-based routing, router devtools, a Vite preset, a development API proxy, and an Elysia serving plugin. The Eden Query connector adds typed queries and mutations. Standard server startup integrates [Varlock configuration](docs/env.md), including typed schemas and public runtime values. Optional logging integrates evlog. Database and auth integrations follow separately. See the [original milestone boundary](docs/milestones/0001-fullstack-foundation.md) and [architectural decisions](docs/adr/).
+The foundation includes file-based routing, router devtools, a Vite preset, a development API proxy, and an Elysia serving plugin. The Eden Query connector adds typed queries and mutations. Standard server startup integrates [Varlock configuration](docs/env.md), including typed schemas and public runtime values. Optional logging integrates evlog. The optional [Database Block](docs/database.md) adds native Drizzle workflows and production startup migrations. Authentication remains deferred. See the [original milestone boundary](docs/milestones/0001-fullstack-foundation.md) and [architectural decisions](docs/adr/).
 
 ## Try the full-stack example
 
@@ -12,6 +12,7 @@ From the repository root:
 
 ```sh
 bun install --frozen-lockfile
+bun run stack db migrate
 bun run stack dev
 ```
 
@@ -43,6 +44,8 @@ See the [CLI guide](docs/cli.md) for commands, defaults, machine output, and ins
 | `@prinpo/stack/vite`          | The `stack` Vite preset                                                 |
 
 Import React and React DOM from their upstream packages. They are optional peers; UI applications install compatible versions themselves. Other integrated libraries are pinned regular dependencies. Backend entry points can run without React installed. Frontend-only applications still install the shared dependency set and omit the backend configuration.
+
+The initial Database Block uses native `drizzle-orm/...` and `drizzle-kit` imports as a temporary exception to reexports. Stack owns exact RC.5 versions; developers choose their dialect and driver. See the [database guide](docs/database.md).
 
 The root [package.json](package.json) defines `@prinpo/stack`, its source exports, pinned library dependencies, optional React peers, and development tools. `src/` contains source files only. The example is a private Bun workspace whose `file:../..` dependency links directly to the root package; no separate Stack workspace or self-dependency is needed.
 

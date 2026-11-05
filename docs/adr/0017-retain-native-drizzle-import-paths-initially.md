@@ -1,0 +1,5 @@
+# Retain native Drizzle import paths initially
+
+Initially retain `drizzle-orm/...` and `drizzle-kit` imports for the Database Block rather than mirroring Drizzle's dialect, driver, migrator, and validation entry points through Stack. This is a temporary exception to ADRs 0001 and 0002's reexport policy: accept reduced consistency across Blocks to avoid maintaining a large parallel export surface during the initial integration. Revisit the exception in a future database integration iteration.
+
+Stack still owns exact ORM/Kit versions and delivers them as dependencies; alternative external drivers remain application-owned. Qualify native import resolution, type inference, and use of the pinned dependencies in an independently installed consumer under the supported Bun/Vite+ toolchain. This decision does not assume that arbitrary package managers expose transitive dependencies or transfer ORM/Kit version ownership to applications.

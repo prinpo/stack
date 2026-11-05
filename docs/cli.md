@@ -35,7 +35,7 @@ Builds validate static settings without deployment credentials, clear the previo
 
 Backend/full-stack startup hands off to Bun running `dist/server/index.js`. Frontend-only startup hands off to Stack's lightweight `Bun.serve` runtime. Both serve public dynamic configuration in prepared HTML, support HEAD and SPA navigation, and preserve missing-asset/API 404s. Public assets remain separate from server output. The CLI adds no ongoing production supervision or request handling.
 
-Doctor explains structural capability detection, schema-directory presence, and whether `docker-compose.dev.yml` enables development dependencies. It checks file presence without parsing Compose configuration or invoking Docker. It starts nothing, makes no network calls, and resolves no credentials. Missing optional capabilities are informational; neither entry point produces a nonzero status. `--json` is suitable for agents and includes Compose detection as `compose.enabled` and `compose.reason`.
+Doctor explains structural capability detection, schema-directory presence, and whether `docker-compose.dev.yml` enables development dependencies. It checks file presence without parsing Compose configuration or invoking Docker. It starts nothing, makes no network calls, and resolves no credentials. Missing optional capabilities are informational; missing both application entry points or enabled database migrations produces a nonzero status. `--json` is suitable for agents and includes Compose detection as `compose.enabled` and `compose.reason`.
 
 ## Profiles
 
@@ -81,4 +81,10 @@ Directory precedence is explicit `--dir`, then the selected profile's LOG_DIR, t
 
 No dependency patches or consumer patch configuration are required. Stack owns static build validation and client exposure checks through its [unpatched Varlock integration](env.md#unpatched-varlock-integration).
 
-Interactive menus, database/auth commands, scaffolding, production Docker workflows, broad import watching, and Windows support are deferred.
+## Database utilities
+
+Root `drizzle.config.ts` enables one managed database using project-root `migrations/`. `stack db` delegates native `generate`, `migrate`, `push`, `pull`, `studio`, `check`, `up`, and `export`, preserving native flags/help and adding Stack's `--env`. Development never automatically changes schemas. Production always migrates before app import/listening, including frontend-only applications with database config. Build packages config and complete migration folders under `dist/database` and fails early when no migrations exist. Kit remains a production dependency. See the [database guide](database.md).
+
+Doctor also reports database capability, migration directory, and local migration count without importing config, resolving credentials, or connecting. Enabled database support with missing/empty migrations causes a nonzero status and a structured JSON finding; it blocks production build/start but not development. An absent optional database is informational.
+
+Interactive menus, auth commands, scaffolding, production Docker workflows, broad import watching, and Windows support are deferred.

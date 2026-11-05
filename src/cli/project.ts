@@ -1,11 +1,12 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-export const developmentComposeFile = "docker-compose.dev.yml";
+import { inspectDatabase } from "../database/files";
+import { isFile } from "../files";
 
-export function isFile(path: string) {
-  return existsSync(path) && statSync(path).isFile();
-}
+export { isFile } from "../files";
+
+export const developmentComposeFile = "docker-compose.dev.yml";
 
 export function inspectProject() {
   const frontend = isFile("index.html");
@@ -18,6 +19,7 @@ export function inspectProject() {
       reason: backend ? "Found src/server/index.ts" : "Missing src/server/index.ts",
     },
     env: { client: existsSync("env/client"), server: existsSync("env/server") },
+    database: inspectDatabase(),
     compose: {
       enabled: compose,
       reason: `${compose ? "Found" : "Missing"} ${developmentComposeFile}`,

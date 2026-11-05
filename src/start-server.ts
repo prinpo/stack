@@ -1,5 +1,6 @@
 import type { AnyElysia } from "elysia";
 
+import { migrateProductionDatabase } from "./database/startup";
 import { injectClientEnv } from "./env/html";
 import { type ServerEnvOptions, loadServerEnv } from "./env/server";
 import { type ServeAppPluginsOptions, serveAppPlugin } from "./serve-app";
@@ -15,6 +16,7 @@ export async function startServer<App extends AnyElysia>(
 ): Promise<App> {
   const selected = process.env._SERVE_CLIENT === "0" ? { ...env, client: false as const } : env;
   const config = await loadServerEnv(selected);
+  if (config.mode === "production") await migrateProductionDatabase();
   const { app } = await loadApplication();
 
   if (config.mode === "production" && selected?.client !== false) {
