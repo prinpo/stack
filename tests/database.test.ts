@@ -1,8 +1,9 @@
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, expect, test } from "vite-plus/test";
 
 const cli = resolve("src/cli/main.ts");
@@ -73,13 +74,38 @@ test("doctor counts local migrations without executing config or resolving crede
   expect(ready.status, ready.stderr).toBe(0);
   expect(JSON.parse(ready.stdout).database).toMatchObject({ enabled: true, count: 1, ready: true });
   expect(run(cwd, ["doctor"]).stdout).toContain("1 local migration");
+  const human = run(cwd, ["doctor"]);
+  expect(human.stdout).toContain("Database\n  ✓ Drizzle\n    1 local migration in migrations/\n");
+  const colored = run(cwd, ["doctor"], { NO_COLOR: undefined, FORCE_COLOR: "1" });
+  expect(colored.stdout).toContain("\u001b[32m✓\u001b[39m Drizzle");
 });
 
 const schema = `import { sqliteTable, integer, text } from "drizzle-orm/sqlite-core";
 export const messages = sqliteTable("messages", { id: integer().primaryKey(), text: text().notNull() });`;
-const config = `import { defineConfig } from "drizzle-kit";
+const config = `import { defineConfig } from "@prinpo/stack/database";
 import { ENV } from "@prinpo/stack/env";
-export default defineConfig({ dialect: "sqlite", out: "./migrations", schema: "./schema.ts", dbCredentials: { url: ENV.DATABASE_URL } });`;
+export default defineConfig({ dialect: "sqlite", schema: "./schema.ts", dbCredentials: { url: ENV.DATABASE_URL } });`;
+
+test("Stack database config fixes the migration directory even when a spread supplies out", async () => {
+  const cwd = await project({
+    "schema.ts": schema,
+    "drizzle.config.ts": `import {defineConfig} from "@prinpo/stack/database";
+const overrides={out:"./elsewhere"};
+const config=defineConfig({...overrides,dialect:"sqlite",schema:"./schema.ts",dbCredentials:{url:"sqlite://test.sqlite"}});
+try {config.out="./changed";} catch {}
+export default config;`,
+  });
+  const generated = run(cwd, ["db", "generate", "--name", "initial"]);
+  expect(generated.status, generated.stdout + generated.stderr).toBe(0);
+  expect(JSON.parse(run(cwd, ["doctor", "--json"]).stdout).database).toMatchObject({
+    count: 1,
+    ready: true,
+  });
+  await expect(readFile(join(cwd, "elsewhere"))).rejects.toThrow();
+  const overridden = run(cwd, ["db", "generate", "--out", "./elsewhere"]);
+  expect(overridden.status).not.toBe(0);
+  expect(overridden.stderr).toContain("Stack owns the migration directory");
+});
 
 test("native generation needs no dynamic credentials and explicit migrations select the server profile", async () => {
   const cwd = await project({
@@ -126,8 +152,50 @@ function launch(cwd: string, args: string[], overrides: NodeJS.ProcessEnv, direc
   return { child, output: () => output };
 }
 
+test.each([
+  ["SIGTERM", 143, "default"],
+  ["SIGINT", 130, "callback"],
+  ["SIGTERM", 1, "failure"],
+] as const)(
+  "startServer owns %s shutdown with %s status using %s cleanup",
+  async (signal, status, kind) => {
+    const cleanup =
+      kind === "default"
+        ? ""
+        : `, onStop: async (status) => { console.log("cleanup:" + status); await app.stop(); ${kind === "failure" ? 'throw new Error("cleanup failed");' : ""} }`;
+    const cwd = await project({
+      "src/server/index.ts": `import {startServer} from "@prinpo/stack/server"; const app=await startServer(()=>import("./app"),{env:{client:false}${cleanup}});`,
+      "src/server/app.ts": `import {Elysia} from "@prinpo/stack/server"; export const app=new Elysia().get("/ready",()=>"ready");`,
+    });
+    const port = await freePort();
+    const started = launch(
+      cwd,
+      ["src/server/index.ts"],
+      { NODE_ENV: "development", PORT: String(port), NO_COLOR: undefined, FORCE_COLOR: "1" },
+      true,
+    );
+    await expect
+      .poll(async () => {
+        try {
+          return await (await fetch(`http://127.0.0.1:${port}/ready`)).text();
+        } catch {
+          return started.output();
+        }
+      })
+      .toBe("ready");
+    const exited = once(started.child, "exit");
+    started.child.kill(signal);
+    expect((await exited)[0]).toBe(status);
+    expect(started.output()).toContain("\u001b[31mStopping...\u001b[39m");
+    if (kind !== "default")
+      expect(started.output()).toContain(`cleanup:${signal === "SIGINT" ? 130 : 143}`);
+    if (kind === "failure") expect(started.output()).toContain("cleanup failed");
+    await expect(fetch(`http://127.0.0.1:${port}/ready`)).rejects.toThrow();
+  },
+);
+
 const server = {
-  "src/server/index.ts": `import { startServer } from "@prinpo/stack/server"; const app = await startServer(() => import("./app"), {env:{client:false}}); process.on("SIGTERM", async () => { await app.stop(); process.exit(143); });`,
+  "src/server/index.ts": `import { startServer } from "@prinpo/stack/server"; await startServer(() => import("./app"), {env:{client:false}});`,
   "src/server/app.ts": `import { Elysia, t } from "@prinpo/stack/server";
 import { SQL } from "bun"; import { drizzle } from "drizzle-orm/bun-sql/sqlite";
 import { ENV } from "@prinpo/stack/env"; import { messages } from "../../schema";
@@ -138,6 +206,36 @@ export const app = new Elysia().get("/api/messages", () => db.select().from(mess
 .post("/api/messages", ({body}) => db.insert(messages).values(body).returning(), {body:t.Object({text:t.String()})})
 .onStop(async () => { await client.close(); });`,
 };
+
+test("startServer finishes one asynchronous shutdown action when another signal arrives", async () => {
+  const cwd = await project({
+    "src/server/index.ts": `import{startServer}from"@prinpo/stack/server";const app=await startServer(()=>import("./app"),{env:{client:false},onStop:async()=>{await app.stop();console.log("listener stopped");await Bun.sleep(400);console.log("cleanup complete");}});`,
+    "src/server/app.ts": `import{Elysia}from"@prinpo/stack/server";export const app=new Elysia().get("/ready",()=>"ready");`,
+  });
+  const port = await freePort();
+  const started = launch(
+    cwd,
+    ["src/server/index.ts"],
+    { PORT: String(port), NODE_ENV: "development" },
+    true,
+  );
+  await expect
+    .poll(async () => {
+      try {
+        return await (await fetch(`http://127.0.0.1:${port}/ready`)).text();
+      } catch {
+        return started.output();
+      }
+    })
+    .toBe("ready");
+  const exited = once(started.child, "exit");
+  started.child.kill("SIGTERM");
+  await expect.poll(started.output).toContain("listener stopped");
+  started.child.kill("SIGINT");
+  expect((await exited)[0]).toBe(143);
+  expect(started.output()).toContain("cleanup complete");
+  expect(started.output().match(/Stopping\.\.\./g)).toHaveLength(1);
+});
 
 test("a built backend migrates before app import without source files and preserves data on direct restart", async () => {
   const cwd = await project({
@@ -447,4 +545,68 @@ test("development leaves schemas untouched while direct production startup appli
       { timeout: 10_000 },
     )
     .toEqual([{ id: 1, text: "before upgrade", category: "general" }]);
+}, 30_000);
+
+test("the full-stack example upgrades old notes and loads notebook relations in both directions", async () => {
+  const exampleApp = pathToFileURL(resolve("examples/fullstack/src/server/app.ts")).href;
+  const exampleDatabase = pathToFileURL(
+    resolve("examples/fullstack/src/server/database/index.ts"),
+  ).href;
+  const cwd = await project({
+    "drizzle.config.ts": config,
+    "env/server/.env.schema":
+      "# @redact=false @preventLeaks=false\n# ---\n# @dynamic\nDATABASE_URL=sqlite://example.sqlite\n# @public @dynamic\nLOG_DIR=.evlog/logs\n",
+    "src/server/index.ts": `import {startServer} from "@prinpo/stack/server";const app=await startServer(()=>import(${JSON.stringify(exampleApp)}),{env:{client:false},onStop:async()=>{try{await app.stop();}finally{const{client}=await import(${JSON.stringify(exampleDatabase)});await client.close();}}});`,
+    "legacy.ts": `import{SQL}from"bun";const client=new SQL("sqlite://example.sqlite");await client\`INSERT INTO notes (text) VALUES ('legacy note')\`;await client.close();`,
+  });
+  const migrationRoot = resolve("examples/fullstack/migrations");
+  const migrations = (await readdir(migrationRoot)).sort();
+  await cp(join(migrationRoot, migrations[0]), join(cwd, "migrations", migrations[0]), {
+    recursive: true,
+  });
+  const migrated = run(cwd, ["db", "migrate"]);
+  expect(migrated.status, migrated.stdout + migrated.stderr).toBe(0);
+  const seeded = spawnSync("bun", ["--no-env-file", "legacy.ts"], { cwd, encoding: "utf8" });
+  expect(seeded.status, seeded.stderr).toBe(0);
+  await cp(migrationRoot, join(cwd, "migrations"), { recursive: true });
+  const port = await freePort();
+  const origin = `http://127.0.0.1:${port}`;
+  const started = launch(
+    cwd,
+    ["src/server/index.ts"],
+    { PORT: String(port), NODE_ENV: "production" },
+    true,
+  );
+  await expect
+    .poll(
+      async () => {
+        try {
+          return await (await fetch(origin + "/api/notes")).json();
+        } catch {
+          return started.output();
+        }
+      },
+      { timeout: 10_000 },
+    )
+    .toEqual([{ id: 1, text: "legacy note", notebookId: null, notebook: null }]);
+  const post = async (path: string, body: unknown) => {
+    const response = await fetch(origin + path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    expect(response.status).toBe(200);
+    return response.json();
+  };
+  expect(await post("/api/notebooks", { name: "Work" })).toEqual([{ id: 1, name: "Work" }]);
+  expect(await post("/api/notes", { text: "related note", notebookId: 1 })).toEqual([
+    { id: 2, text: "related note", notebookId: 1 },
+  ]);
+  expect(await (await fetch(origin + "/api/notebooks")).json()).toEqual([
+    { id: 1, name: "Work", notes: [{ id: 2, text: "related note", notebookId: 1 }] },
+  ]);
+  expect(await (await fetch(origin + "/api/notes")).json()).toEqual([
+    { id: 1, text: "legacy note", notebookId: null, notebook: null },
+    { id: 2, text: "related note", notebookId: 1, notebook: { id: 1, name: "Work" } },
+  ]);
 }, 30_000);

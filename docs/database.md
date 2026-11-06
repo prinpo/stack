@@ -2,25 +2,24 @@
 
 Stack owns exact `drizzle-orm@1.0.0-rc.5` and `drizzle-kit@1.0.0-rc.5` dependencies. Root `drizzle.config.ts` enables one managed database. Developers choose the dialect, runtime driver, schema, relations, and client options using native Drizzle APIs.
 
-Initially import from `drizzle-orm/...` and `drizzle-kit` directly: a [temporary exception](adr/0017-retain-native-drizzle-import-paths-initially.md) to Stack's reexport policy. Native imports are qualified with Bun's hoisted installation; other package-manager layouts are not qualified. Install additional driver packages, such as `pg` or `mysql2`, in the application when needed.
+Import ORM APIs from `drizzle-orm/...` directly, and use Stack’s owned `defineConfig` from `@prinpo/stack/database` for Kit configuration. Native ORM imports remain a [temporary exception](adr/0017-retain-native-drizzle-import-paths-initially.md) to Stack's reexport policy. Native imports are qualified with Bun's hoisted installation; other package-manager layouts are not qualified. Install additional driver packages, such as `pg` or `mysql2`, in the application when needed.
 
 ## Setup
 
 ```ts
 // drizzle.config.ts
-import { defineConfig } from "drizzle-kit";
+import { defineConfig } from "@prinpo/stack/database";
 
 import { ENV } from "./src/env/server";
 
 export default defineConfig({
   dialect: "sqlite",
   schema: "./src/server/database/schema.ts",
-  out: "./migrations",
   dbCredentials: { url: ENV.DATABASE_URL },
 });
 ```
 
-Use exactly project-root `migrations/` and native `out: "./migrations"`. Configurable/profile-dependent migration directories are deferred. Keep config/schema modules free of connection or initialization side effects. Declare DATABASE_URL as a sensitive dynamic server setting in Varlock. Construct the runtime client in a separate application module imported after startup initialization.
+Stack always sets the output to project-root `migrations/`. The helper omits `out` from its input type, overrides spread input at runtime, and makes the returned output property immutable. Stack database commands reject `--out` overrides. Configurable/profile-dependent migration directories are deferred. Keep config/schema modules free of connection or initialization side effects. Declare DATABASE_URL as a sensitive dynamic server setting in Varlock. Construct the runtime client in a separate application module imported after startup initialization.
 
 For Bun SQL SQLite, pass a client created with `new SQL(ENV.DATABASE_URL)` to native `drizzle` from `drizzle-orm/bun-sql/sqlite`. This asynchronous adapter differs from synchronous `bun:sqlite`. A file URL such as `sqlite://app.sqlite` resolves from the application root.
 
@@ -47,7 +46,7 @@ stack db export
 stack db migrate --help
 ```
 
-Stack runs the installed Kit binary under Bun, never downloading tools. Native flags, prompts, help, output, and nonzero status pass through. Stack consumes `--env` for APP_ENV profile selection independently of NODE_ENV. Ordinary Kit drivers are auto-detected; installed external drivers can take precedence over Bun. The selectors `driver: "bun-sql"` and `driver: "bun:sqlite"` are not valid Kit configuration.
+Stack runs the installed Kit binary under Bun, never downloading tools. Native flags, prompts, help, output, and nonzero status pass through, except Stack owns the migration output directory. Stack consumes `--env` for APP_ENV profile selection independently of NODE_ENV. Ordinary Kit drivers are auto-detected; installed external drivers can take precedence over Bun. The selectors `driver: "bun-sql"` and `driver: "bun:sqlite"` are not valid Kit configuration.
 
 `generate`, `check`, `up`, and `export` load only static server configuration, without dynamic credentials. `migrate`, `push`, `pull`, and `studio` validate the selected server environment without importing the app. Help needs neither config nor environment resolution. Config modules must tolerate unresolved dynamic credentials for local operations and must not create connections eagerly.
 
@@ -69,8 +68,25 @@ Concurrent-start coordination is deferred. RC.5 has no dedicated migration lock;
 
 Doctor reports database enablement, migration directory, and local SQL migration count. It never imports config, resolves credentials, connects, or launches Kit. Missing/empty migrations for an enabled database cause a nonzero exit explaining that development may continue but production build/start cannot. JSON includes the structured finding. Local count is not pending count. Missing optional database config is informational.
 
-Applications construct and close their native clients. Stack owns only its Kit subprocess. The [full-stack example](../examples/fullstack/README.md) demonstrates persistent SQLite notes, an application-owned Bun SQL client, Elysia stop-hook cleanup, and signal handling. Stack adds no global cache or universal pool defaults.
+Applications construct and close their native clients. `startServer` owns SIGINT/SIGTERM handling, prints a red “Stopping...” message, and sets status 130/143 (or 1 on shutdown failure). With no custom callback, it stops Elysia. An optional `onStop(status)` callback replaces that default action so applications can stop the app and close owned resources in one place. Stack catches callback errors, attempts to stop a remaining listener, and removes its signal handlers after shutdown completes (or when the app is stopped directly). Repeated signals during an asynchronous shutdown do not run cleanup twice. The [full-stack example](../examples/fullstack/README.md) demonstrates notebooks with many notes, native relations in a separate module, an application-owned Bun SQL client, and cleanup through this callback. Stack adds no global cache or universal pool defaults.
 
 For PostgreSQL/Bun SQL, select Kit dialect `postgresql`, use `pg-core` schema builders, provide a PostgreSQL DATABASE_URL, and construct runtime Drizzle through `drizzle-orm/bun-sql` with your Bun SQL client. No migration callback or driver registry is needed. Other drivers use native Drizzle adapters and application-installed dependencies. Additional databases remain application-managed.
 
 Tests use SQLite through Bun SQL, not a PostgreSQL service; they qualify Stack orchestration rather than every driver/dialect. Provisioning/reset, seeding/fixtures, custom baseline/recovery, online diagnostics, live drift checks, configurable migration directories, and Docker/image utilities are deferred. Native custom SQL migrations and application scripts remain available.
+
+For example, a server entry can register cleanup without its own signal listeners:
+
+```ts
+const app = await startServer(() => import("./app"), {
+  onStop: async () => {
+    try {
+      await app.stop();
+    } finally {
+      const { client } = await import("./database");
+      await client.close();
+    }
+  },
+});
+```
+
+The example’s relation module uses native `defineRelations` to connect notebooks to many notes and each note to its optional notebook. Table foreign keys remain declared in the schema. Relational API queries load both directions with `with`; the UI creates notebooks, assigns notes, and displays nested results. The additive migration keeps existing unfiled notes intact.

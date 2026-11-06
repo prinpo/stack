@@ -1,10 +1,9 @@
-import { defineConfig } from "drizzle-kit";
+import { defineConfig } from "@prinpo/stack/database";
 
 import { ENV } from "./src/env/server";
 
 export default defineConfig({
   dialect: "sqlite",
   schema: "./src/server/database/schema.ts",
-  out: "./migrations",
   dbCredentials: { url: ENV.DATABASE_URL },
 });

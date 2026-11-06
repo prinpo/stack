@@ -144,7 +144,7 @@ async function validateDatabaseConsumer(consumer: string, cli: string, env: Node
   );
   await writeFile(
     join(consumer, "drizzle.config.ts"),
-    `import {defineConfig} from "drizzle-kit"; import {ENV} from "@prinpo/stack/env"; export default defineConfig({dialect:"sqlite",out:"./migrations",schema:"./schema.ts",dbCredentials:{url:ENV.DATABASE_URL}});`,
+    `import {defineConfig} from "@prinpo/stack/database"; import {ENV} from "@prinpo/stack/env"; export default defineConfig({dialect:"sqlite",schema:"./schema.ts",dbCredentials:{url:ENV.DATABASE_URL}});`,
   );
   await writeFile(
     join(consumer, "schema.ts"),
@@ -154,7 +154,12 @@ async function validateDatabaseConsumer(consumer: string, cli: string, env: Node
     join(consumer, "database.types.ts"),
     `import {defineRelations, type InferSelectModel} from "drizzle-orm";
 import {drizzle} from "drizzle-orm/bun-sql/sqlite";
+import {defineConfig} from "@prinpo/stack/database";
 import {notes} from "./schema";
+const config=defineConfig({dialect:"sqlite",schema:"./schema.ts"});
+const output:"./migrations"=config.out;void output;
+// @ts-expect-error Migration output belongs to Stack.
+defineConfig({dialect:"sqlite",out:"./other"});
 const db=drizzle.mock({relations:defineRelations({notes})});
 const row:InferSelectModel<typeof notes>={id:1,text:"typed"};
 const expected:{id:number;text:string}=row;

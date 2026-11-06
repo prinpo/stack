@@ -30,6 +30,7 @@ See the [CLI guide](docs/cli.md) for commands, defaults, machine output, and ins
 
 | Import                        | Provides                                                                |
 | ----------------------------- | ----------------------------------------------------------------------- |
+| `@prinpo/stack/database`      | Stack-owned Kit configuration with fixed migration output               |
 | `@prinpo/stack/server`        | Native Elysia exports, standard `startServer`, and low-level `serveApp` |
 | `@prinpo/stack/client`        | Native Eden exports, including `treaty`                                 |
 | `@prinpo/stack/logger`        | Native evlog utilities                                                  |
@@ -45,7 +46,7 @@ See the [CLI guide](docs/cli.md) for commands, defaults, machine output, and ins
 
 Import React and React DOM from their upstream packages. They are optional peers; UI applications install compatible versions themselves. Other integrated libraries are pinned regular dependencies. Backend entry points can run without React installed. Frontend-only applications still install the shared dependency set and omit the backend configuration.
 
-The initial Database Block uses native `drizzle-orm/...` and `drizzle-kit` imports as a temporary exception to reexports. Stack owns exact RC.5 versions; developers choose their dialect and driver. See the [database guide](docs/database.md).
+The initial Database Block uses native `drizzle-orm/...` imports as a temporary exception to reexports. Stack owns exact RC.5 versions; developers choose their dialect and driver. Stack owns `defineConfig` through `@prinpo/stack/database`, with no configurable migration output. See the [database guide](docs/database.md).
 
 The root [package.json](package.json) defines `@prinpo/stack`, its source exports, pinned library dependencies, optional React peers, and development tools. `src/` contains source files only. The example is a private Bun workspace whose `file:../..` dependency links directly to the root package; no separate Stack workspace or self-dependency is needed.
 

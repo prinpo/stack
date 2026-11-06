@@ -29,6 +29,10 @@ function operation(name: (typeof operations)[number]) {
       );
       const help = rest.includes("--help") || rest.includes("-h");
       if (!help) {
+        if (rest.some((arg) => arg === "--out" || arg.startsWith("--out=")))
+          throw new Error(
+            "Stack owns the migration directory. Remove --out; migrations always use ./migrations.",
+          );
         if (!isFile(databaseConfig))
           throw new Error(
             `Missing ${databaseConfig}. Add native Drizzle configuration to enable the Database Block.`,

@@ -94,7 +94,7 @@ test.each(["alias", "directory"])("doctor does not enable Compose for an %s", as
     reason: "Missing docker-compose.dev.yml",
   });
   const human = run(cwd, ["doctor"]);
-  expect(human.stdout).toContain("○ disabled");
+  expect(human.stdout).toContain("○ Docker Compose");
   expect(human.stdout).toContain("Missing docker-compose.dev.yml");
 });
 

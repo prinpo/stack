@@ -23,6 +23,7 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./database": "./src/database.ts",
     "./client": "./src/client.ts",
     "./devtools": "./src/devtools.ts",
     "./env": "./src/env.ts",

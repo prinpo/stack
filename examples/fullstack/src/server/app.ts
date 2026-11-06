@@ -1,20 +1,28 @@
 import { Elysia, t } from "@prinpo/stack/server";
 
 import { ENV } from "../env/server";
-import { client, db } from "./database";
-import { notes } from "./database/schema";
+import { db } from "./database";
+import { notebooks, notes } from "./database/schema";
 import { errors } from "./errors";
 import { logging } from "./logging";
 
 export const app = new Elysia()
   .use(logging)
   .use(errors)
-  .onStop(async () => {
-    await client.close();
+  .get("/api/notebooks", () =>
+    db.query.notebooks.findMany({ with: { notes: true }, orderBy: { id: "asc" } }),
+  )
+  .post("/api/notebooks", ({ body }) => db.insert(notebooks).values(body).returning(), {
+    body: t.Object({ name: t.String({ minLength: 1, maxLength: 100 }) }),
   })
-  .get("/api/notes", () => db.select().from(notes).orderBy(notes.id))
+  .get("/api/notes", () =>
+    db.query.notes.findMany({ with: { notebook: true }, orderBy: { id: "asc" } }),
+  )
   .post("/api/notes", ({ body }) => db.insert(notes).values(body).returning(), {
-    body: t.Object({ text: t.String({ minLength: 1, maxLength: 500 }) }),
+    body: t.Object({
+      text: t.String({ minLength: 1, maxLength: 500 }),
+      notebookId: t.Optional(t.Integer({ minimum: 1 })),
+    }),
   })
   // Teaching endpoint: these four settings contain dummy strings, including the
   // secret-classified examples. Keep real application credentials out of it.
