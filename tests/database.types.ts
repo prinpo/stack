@@ -1,8 +1,8 @@
-import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
+import type { InferInsertModel, InferSelectModel } from "@prinpo/stack/database";
 
 import { defineConfig } from "@prinpo/stack/database";
-import { defineRelations } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/bun-sql/sqlite";
+import { defineRelations } from "@prinpo/stack/database";
+import { drizzle } from "@prinpo/stack/database/bun-sql/sqlite";
 import { expectTypeOf } from "vite-plus/test";
 
 import { relations } from "../examples/fullstack/src/server/database/relations";

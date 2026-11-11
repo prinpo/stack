@@ -24,6 +24,10 @@
   "sideEffects": false,
   "exports": {
     "./database": "./src/database.ts",
+    "./database/*": {
+      "types": "./src/database/generated/*.d.ts",
+      "default": "./src/database/generated/*.js"
+    },
     "./client": "./src/client.ts",
     "./devtools": "./src/devtools.ts",
     "./env": "./src/env.ts",
@@ -47,7 +51,8 @@
     "dev": "bun run stack dev",
     "test": "vp test",
     "check": "vp check",
-    "prepare": "vp config --no-agent",
+    "prepare": "bun --no-env-file scripts/generate-database-exports.ts && vp config --no-agent",
+    "database:exports": "bun --no-env-file scripts/generate-database-exports.ts",
     "example:check": "cd examples/fullstack && bun --bun vp check",
     "research:varlock": "bun --no-env-file scripts/probe-varlock.ts",
     "stack": "cd examples/fullstack && bun run stack"

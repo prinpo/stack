@@ -1,6 +1,6 @@
 # Database Block
 
-Design confirmed by the developer; implementation follows the decisions below. [ADR 0016](../adr/0016-manage-one-database-with-mandatory-production-migrations.md) records the lifecycle boundary; [ADR 0017](../adr/0017-retain-native-drizzle-import-paths-initially.md) records the temporary native-import exception. Evidence: [reference applications](../research/database-app-patterns.md) and [exact RC.5 research](../research/drizzle-rc5.md).
+Design confirmed by the developer; implementation follows the decisions below. [ADR 0016](../adr/0016-manage-one-database-with-mandatory-production-migrations.md) records the lifecycle boundary; [ADR 0018](../adr/0018-forward-drizzle-through-database-subpaths.md) retires the temporary native-import exception. Evidence: [reference applications](../research/database-app-patterns.md) and [exact RC.5 research](../research/drizzle-rc5.md).
 
 ## Settled requirements
 
@@ -25,7 +25,7 @@ Design confirmed by the developer; implementation follows the decisions below. [
 - Applications own construction and closure of runtime Drizzle clients. Stack owns its Kit subprocess lifecycle, including interruption, and server signal handling and offers an `onStop(status)` action, defaulting to native app stop. Demonstrate application client cleanup through that callback in the full-stack example.
 - Build packages compiled Drizzle config and complete migration folders, including snapshots, under `dist/database` and records database capability/artifacts in the successful manifest. Build remains credential-free. Production requires no source config/schema files, but retains installed Kit and external driver dependencies. Credentials resolve at runtime.
 - Frontend-only production startup applies the same migration gate when database capability is enabled. Database access is not exposed to browser code.
-- Initially retain native `drizzle-orm/...` imports instead of mirroring their subpaths through Stack. Stack owns Kit’s config helper and enforces the migration output directory. This is a temporary, reluctantly accepted exception to the established reexport policy, not a change in exact dependency ownership. Qualify resolution and type inference in an independently installed Bun/Vite+ consumer.
+- Forward the native Drizzle root API and matching subpaths through `@prinpo/stack/database`. Generate thin forwarding modules for the pinned ORM’s wildcard export surface and include them in published tarballs. Preserve native identity/types and isolate optional driver/validator entry points. The temporary native-import exception is retired.
 - The full-stack example uses file-backed SQLite through Bun SQL, demonstrates persistent reads/writes and explicit native client cleanup, and requires no PostgreSQL service. Document PostgreSQL/Bun SQL configuration separately.
 - Failure/interruption of migration execution terminates startup before application import/listen. Preserve native Kit diagnostics and add migration-stage context. Add no automatic retry, repair, rollback command, or schema-push fallback. A subsequent startup invokes the native migrator again; Stack does not implement a separate recovery engine.
 - Doctor exits nonzero for enabled database capability with missing/empty migrations, explains that development may continue but production build/start cannot, and includes structured findings in `--json`. Report capability, migration directory, and local migration count. An absent optional Database Block remains informational.
@@ -36,7 +36,7 @@ Use disposable file-backed SQLite through **Bun SQL**, real Kit subprocesses, an
 
 - Optional absence: existing frontend/backend workflows operate without database imports, credential requirements, or Kit execution when no database capability is enabled.
 - Development: startup/watch/restart does not push or migrate; explicit native database commands remain available.
-- Native API: schema builders, relations, CRUD, transactions, and inferred types work through native imports in an independently installed consumer, with Stack's pinned ORM/Kit versions. Installed executable/driver resolution works without downloads.
+- Native API: schema builders, relations, CRUD, transactions, and inferred types work through Stack reexports in an independently installed consumer, with Stack's pinned ORM/Kit versions. Installed executable/driver resolution works without downloads.
 - CLI/environment: exercise all eight operation dispatches, native options/help, profile selection, meaningful exit statuses, and interruption cleanup. Local commands and help work without deployment credentials. Connected operations use the selected server environment without launching the app. Kit's `pull --init` mutates migration history; `check` checks local history rather than live drift; `up` upgrades local formats rather than applying migrations. Document these native boundaries.
 - Doctor: no config evaluation, environment resolution, database/file creation, network access, or process launch. Verify human/JSON capability/path/count/findings and nonzero missing-migration status.
 - Build: no runtime credentials or provider calls; complete config/migration artifacts and manifest are emitted only for successful builds; enabled empty/missing migrations fail early; source config modules are bundled without execution.
@@ -49,7 +49,7 @@ Run repository-required `vp check`, `vp test`, relevant example checks/builds, a
 
 ## Implementation qualification
 
-The full suite passes: 711 tests across 50 files. Sixteen public database integration tests exercise offline doctor, credential-free local commands, staging migration, source-free backend/frontend startup, repeat startup, schema upgrades, migration failure/rollback and explicit retry, subprocess interruption, and clean builds with generated environment modules. The packed-consumer test additionally verifies native Drizzle imports/types, relations, installed CLI execution, and production migration without source files in an independent Bun installation. These tests use disposable Bun SQL SQLite files; no reference application database is accessed.
+The full suite passes: 711 tests across 50 files. Sixteen public database integration tests exercise offline doctor, credential-free local commands, staging migration, source-free backend/frontend startup, repeat startup, schema upgrades, migration failure/rollback and explicit retry, subprocess interruption, and clean builds with generated environment modules. The packed-consumer test additionally verifies native Drizzle API types through Stack imports, relations, installed CLI execution, and production migration without source files in an independent Bun installation. These tests use disposable Bun SQL SQLite files; no reference application database is accessed.
 
 Repository checks, example checks, and the full-stack example build pass. An HTTP smoke test against the built full-stack example verifies note creation/readback, persistence across restart, and graceful client shutdown with a disposable SQLite file. Concurrent startup and PostgreSQL/other drivers remain outside qualification as agreed.
 
@@ -57,12 +57,28 @@ Standards review: one configuration-reuse defect and two duplication findings re
 
 ## Deferred and native responsibilities
 
-Multiple managed databases; concurrent-start coordination; a migration-disable/separate-deployment-job mode; configurable migration directories; offline executable-config analysis; online doctor and live drift checks; seeding/fixtures; provisioning/reset; custom baseline/repair/recovery machinery; automatic runtime-client ownership; Stack mirrors of Drizzle's export tree; Docker/image utilities and size optimization.
+Multiple managed databases; concurrent-start coordination; a migration-disable/separate-deployment-job mode; configurable migration directories; offline executable-config analysis; online doctor and live drift checks; seeding/fixtures; provisioning/reset; custom baseline/repair/recovery machinery; automatic runtime-client ownership; Docker/image utilities and size optimization.
 
 The initial code-first migration describes the declared schema at generation time, not existing database data. A database previously populated through schema push needs deliberate baseline enrollment using an application/native workflow; Stack does not infer or perform that enrollment. Native custom SQL migrations remain available for versioned data changes, subject to the selected dialect/migrator's transaction limitations. Application code owns query/transaction semantics and compatibility with already-running instances; SQLite qualification does not establish untested dialect/driver guarantees.
 
 ## Lifecycle and example follow-up
 
-Stack now owns `defineConfig` through its database entry point; `out` is unavailable to callers, the returned output property is immutable, and CLI output overrides are rejected. Native ORM imports remain unchanged. Server signals and red shutdown logging live inside `startServer`, with an optional `onStop(status)` action for resource cleanup. Doctor uses the same status/detail rows for every section. The example adds notebook/note foreign keys, a separate native relations module, bidirectional relational queries, UI forms, and an additive migration preserving existing notes.
+Stack now owns `defineConfig` through its database entry point; `out` is unavailable to callers, the returned output property is immutable, and CLI output overrides are rejected. Native ORM APIs now use Stack’s root/subpath reexports. Server signals and red shutdown logging live inside `startServer`, with an optional `onStop(status)` action for resource cleanup. Doctor uses the same status/detail rows for every section. The example adds notebook/note foreign keys, a separate native relations module, bidirectional relational queries, UI forms, and an additive migration preserving existing notes.
 
 Follow-up qualification: the full suite passes with 711 tests. Public tests cover the immutable Stack config helper, rejected CLI output overrides, consistent/colorized doctor rows, default/custom/failed shutdown actions, repeated signals during asynchronous cleanup, and migration of existing notes into the notebook/notes schema with bidirectional relations. Root/example checks, native migration-history checking, the example build, and a disposable built-example HTTP persistence/shutdown smoke test all pass. The packed consumer uses and typechecks the Stack-owned config entry point.
+
+## Reexport and optional Zod qualification
+
+The native-import exception is retired. The installed-consumer check resolves all 891 forwarded ORM entry points, checks core export identity against upstream, typechecks aliased schema/driver/Zod imports, and runs source-free migrations plus Zod-backed Elysia validation. The example notebook POST endpoint derives, refines, and picks its Zod body schema, while other routes retain TypeBox validation.
+
+Before and after build measurements (uncompressed bytes, external package dependencies excluded as in the standard Stack build):
+
+| Artifact           | Before forwarding | Forwarding only | Forwarding and Zod example |
+| ------------------ | ----------------: | --------------: | -------------------------: |
+| Browser output     |            449820 |          449820 |                     449820 |
+| Server entry       |              5373 |            5406 |                       5692 |
+| Database artifacts |              3852 |            3852 |                       3852 |
+
+Browser output remains unchanged. A separate minified browser bundle using SQL helpers is 13934 bytes through either direct or Stack imports, verifying that forwarding preserves tree shaking and does not import optional adapters/validators. Forwarding alone adds 33 bytes to the externalized server entry; the complete example change adds 319 bytes. No dependency/version change is needed for the built-in Zod utility.
+
+Repository preparation and release packaging generate the forwarding files; the published package contains them and runs without consumer generation scripts. `bun run database:exports --check` verifies the local generated surface. Additional native drivers/validator peers are still application-owned when used; forwarding all paths does not qualify every dialect/provider at runtime.

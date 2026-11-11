@@ -1,4 +1,4 @@
-import { defineRelations } from "drizzle-orm";
+import { defineRelations } from "@prinpo/stack/database";
 
 import * as schema from "./schema";
 

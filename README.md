@@ -30,7 +30,7 @@ See the [CLI guide](docs/cli.md) for commands, defaults, machine output, and ins
 
 | Import                        | Provides                                                                |
 | ----------------------------- | ----------------------------------------------------------------------- |
-| `@prinpo/stack/database`      | Stack-owned Kit configuration with fixed migration output               |
+| `@prinpo/stack/database`      | Native Drizzle root API and Stack-owned Kit configuration               |
 | `@prinpo/stack/server`        | Native Elysia exports, standard `startServer`, and low-level `serveApp` |
 | `@prinpo/stack/client`        | Native Eden exports, including `treaty`                                 |
 | `@prinpo/stack/logger`        | Native evlog utilities                                                  |
@@ -46,13 +46,15 @@ See the [CLI guide](docs/cli.md) for commands, defaults, machine output, and ins
 
 Import React and React DOM from their upstream packages. They are optional peers; UI applications install compatible versions themselves. Other integrated libraries are pinned regular dependencies. Backend entry points can run without React installed. Frontend-only applications still install the shared dependency set and omit the backend configuration.
 
-The initial Database Block uses native `drizzle-orm/...` imports as a temporary exception to reexports. Stack owns exact RC.5 versions; developers choose their dialect and driver. Stack owns `defineConfig` through `@prinpo/stack/database`, with no configurable migration output. See the [database guide](docs/database.md).
+The Database Block exposes native Drizzle APIs through `@prinpo/stack/database` and matching subpaths such as `@prinpo/stack/database/sqlite-core`, `@prinpo/stack/database/bun-sql/sqlite`, and optional `@prinpo/stack/database/zod`. Stack owns exact RC.5 versions; developers choose their dialect and driver. Stack owns `defineConfig` through `@prinpo/stack/database`, with no configurable migration output. See the [database guide](docs/database.md).
 
 The root [package.json](package.json) defines `@prinpo/stack`, its source exports, pinned library dependencies, optional React peers, and development tools. `src/` contains source files only. The example is a private Bun workspace whose `file:../..` dependency links directly to the root package; no separate Stack workspace or self-dependency is needed.
 
 Vite+ is application development tooling. The example's [package.json](examples/fullstack/package.json) shows the tested versions, Vite alias, and explicit Bun package-manager setting. Shared tooling versions stay aligned with the root. [bunfig.toml](bunfig.toml) selects Bun's hoisted linker so Stack and the example share the root `node_modules` and lockfile; conflicting dependency versions can require nested installations. The example also stores Vite's cache under the root `node_modules`.
 
 When migrating an existing checkout from the former `src/` workspace layout, remove the generated root, `src/`, and example `node_modules` directories, then run `bun install --frozen-lockfile`. This one-time cleanup clears stale workspace links and install metadata.
+
+Repository installation generates the thin database forwarding modules automatically. After dependency changes, `bun run database:exports --check` verifies they match the installed pinned ORM. Release packaging regenerates and ships the files; application consumers need no generation step.
 
 ## Browser tooling
 

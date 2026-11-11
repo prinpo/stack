@@ -80,7 +80,7 @@ test("doctor counts local migrations without executing config or resolving crede
   expect(colored.stdout).toContain("\u001b[32m✓\u001b[39m Drizzle");
 });
 
-const schema = `import { sqliteTable, integer, text } from "drizzle-orm/sqlite-core";
+const schema = `import { sqliteTable, integer, text } from "@prinpo/stack/database/sqlite-core";
 export const messages = sqliteTable("messages", { id: integer().primaryKey(), text: text().notNull() });`;
 const config = `import { defineConfig } from "@prinpo/stack/database";
 import { ENV } from "@prinpo/stack/env";
@@ -197,7 +197,7 @@ test.each([
 const server = {
   "src/server/index.ts": `import { startServer } from "@prinpo/stack/server"; await startServer(() => import("./app"), {env:{client:false}});`,
   "src/server/app.ts": `import { Elysia, t } from "@prinpo/stack/server";
-import { SQL } from "bun"; import { drizzle } from "drizzle-orm/bun-sql/sqlite";
+import { SQL } from "bun"; import { drizzle } from "@prinpo/stack/database/bun-sql/sqlite";
 import { ENV } from "@prinpo/stack/env"; import { messages } from "../../schema";
 await Bun.write("app-imported", "yes");
 const client = new SQL(ENV.DATABASE_URL); const db = drizzle({client});
@@ -598,7 +598,17 @@ test("the full-stack example upgrades old notes and loads notebook relations in 
     expect(response.status).toBe(200);
     return response.json();
   };
-  expect(await post("/api/notebooks", { name: "Work" })).toEqual([{ id: 1, name: "Work" }]);
+  expect(await post("/api/notebooks", { name: "  Work  ", id: 999 })).toEqual([
+    { id: 1, name: "Work" },
+  ]);
+  for (const name of ["", "   ", "x".repeat(101)]) {
+    const rejected = await fetch(origin + "/api/notebooks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    expect(rejected.status).toBe(422);
+  }
   expect(await post("/api/notes", { text: "related note", notebookId: 1 })).toEqual([
     { id: 2, text: "related note", notebookId: 1 },
   ]);

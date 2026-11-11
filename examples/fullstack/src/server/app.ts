@@ -5,6 +5,7 @@ import { db } from "./database";
 import { notebooks, notes } from "./database/schema";
 import { errors } from "./errors";
 import { logging } from "./logging";
+import { createNotebookBody } from "./validation";
 
 export const app = new Elysia()
   .use(logging)
@@ -13,7 +14,7 @@ export const app = new Elysia()
     db.query.notebooks.findMany({ with: { notes: true }, orderBy: { id: "asc" } }),
   )
   .post("/api/notebooks", ({ body }) => db.insert(notebooks).values(body).returning(), {
-    body: t.Object({ name: t.String({ minLength: 1, maxLength: 100 }) }),
+    body: createNotebookBody,
   })
   .get("/api/notes", () =>
     db.query.notes.findMany({ with: { notebook: true }, orderBy: { id: "asc" } }),

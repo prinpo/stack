@@ -20,6 +20,8 @@ From this directory, use `bun run stack dev` to run both processes, or `bun run 
 
 Vite updates browser-used Stack modules through HMR or a page reload. The client script uses `--configLoader runner` so changes to Stack's Vite preset and its helpers also restart Vite through native config dependency tracking. Bun's `--watch` mode restarts the backend when its imported application or Stack modules change. Reload the page manually when you want to fetch updated backend responses. Unused blocks do not need to trigger updates.
 
+The notebook POST endpoint demonstrates optional Zod validation in `src/server/validation.ts`: `createInsertSchema` comes from `@prinpo/stack/database/zod`, derives the table shape, trims/bounds the name, and picks only the caller-owned name field. Other endpoints retain native Elysia TypeBox schemas. Database clients are not imported by the validation module.
+
 ## Follow the connection
 
 The landing page also reads and saves persistent SQLite notes. Root `drizzle.config.ts` uses `defineConfig` from `@prinpo/stack/database` to fix the migration directory and enable the Database Block with Bun SQL SQLite and committed `migrations/`. DATABASE_URL defaults to the ignored local `example.sqlite`; override it through the server environment. Apply development migrations explicitly with `bun run stack db migrate` from the repository root. After schema changes, generate, review, commit, and apply migrations; development never does this automatically. Production build packages the config/history and startup always migrates before importing the app.

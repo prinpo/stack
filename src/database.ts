@@ -1,5 +1,7 @@
 import type { Config } from "drizzle-kit";
 
+export * from "drizzle-orm";
+
 type WithoutOutput<T> = T extends unknown ? Omit<T, "out"> & { out?: never } : never;
 export type DatabaseConfig = WithoutOutput<Config>;
 

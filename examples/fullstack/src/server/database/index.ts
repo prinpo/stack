@@ -1,5 +1,5 @@
+import { drizzle } from "@prinpo/stack/database/bun-sql/sqlite";
 import { SQL } from "bun";
-import { drizzle } from "drizzle-orm/bun-sql/sqlite";
 
 import { ENV } from "../../env/server";
 import { relations } from "./relations";
