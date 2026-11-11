@@ -1,7 +1,8 @@
 import { existsSync, statSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { type SerializedEnvGraph, internal } from "varlock";
 
+import { generatedEnvDirectory } from "../project-layout";
 import { injectedEnvironment, matchesEnvironment, originalEnvironment } from "./environment";
 import { serverEnvPaths } from "./paths";
 
@@ -15,7 +16,12 @@ export interface ServerEnvOptions {
 type Graph = Awaited<ReturnType<typeof internal.loadEnvGraph>>;
 const connectionKeys = ["HOST", "PORT", "NODE_ENV", "APP_ENV"];
 
-async function graphAt(paths: string[], values: NodeJS.ProcessEnv, profile?: string) {
+async function graphAt(
+  paths: string[],
+  values: NodeJS.ProcessEnv,
+  profile?: string,
+  root = process.cwd(),
+) {
   const selected = profile ?? values.APP_ENV ?? values.NODE_ENV ?? "development";
   const entry = paths[paths.length - 1];
   const graph = await internal.loadEnvGraph({
@@ -26,7 +32,50 @@ async function graphAt(paths: string[], values: NodeJS.ProcessEnv, profile?: str
     currentEnvFallback: selected,
   });
   internal.checkForSchemaErrors(graph);
+  validateCodegenPaths(graph, root);
   return graph;
+}
+
+/** Inspect literal generator arguments without resolving environment values or writing files. */
+function validateCodegenPaths(graph: Graph, root: string) {
+  const allowed = resolve(root, generatedEnvDirectory);
+  for (const name of Object.keys(graph.codeGeneratorsRegistry)) {
+    for (const decorator of graph.getRootDecFns(name)) {
+      const args = decorator.decValueResolver?.objArgs;
+      if (decorator.dataSource.isImport) {
+        const imported = args?.executeWhenImported;
+        if (imported && !imported.isStatic)
+          throw new Error("Environment code generation settings must be literal.");
+        if (!imported?.staticValue) continue;
+      }
+      const path = args?.path;
+      if (!path?.isStatic || typeof path.staticValue !== "string")
+        throw new Error(
+          `Environment code generation path must be a literal file inside ${generatedEnvDirectory}/.`,
+        );
+      const source = decorator.dataSource;
+      const sourceDir =
+        "fullPath" in source && typeof source.fullPath === "string"
+          ? dirname(source.fullPath)
+          : process.cwd();
+      const output = resolve(sourceDir, path.staticValue);
+      const destination = relative(allowed, output);
+      if (
+        !destination ||
+        destination === ".." ||
+        destination.startsWith(`..${sep}`) ||
+        isAbsolute(destination)
+      )
+        throw new Error(
+          `Generated environment files must be inside ${generatedEnvDirectory}/. Update @${name}(path=...) before continuing.`,
+        );
+    }
+  }
+}
+
+/** Preflight native CLI operations before they may run automatic code generation. */
+export async function validateEnvCodegenPaths(paths: string[], profile?: string) {
+  await graphAt(paths, originalEnvironment(), profile);
 }
 
 function connection(graph: SerializedEnvGraph) {
@@ -43,7 +92,12 @@ function connection(graph: SerializedEnvGraph) {
 export async function readServerConnection(
   options: { server?: string; root?: string; profile?: string } = {},
 ) {
-  const graph = await graphAt(serverEnvPaths(options), originalEnvironment(), options.profile);
+  const graph = await graphAt(
+    serverEnvPaths(options),
+    originalEnvironment(),
+    options.profile,
+    options.root,
+  );
   await graph.resolveEnvValues(connectionKeys);
   internal.checkForConfigErrors(graph);
   return connection(graph.getSerializedGraph());
@@ -89,11 +143,12 @@ async function clientSnapshot(
   clientPath: string | undefined,
   values: NodeJS.ProcessEnv,
   profile?: string,
+  root?: string,
 ) {
   let clientValues: Record<string, unknown> = {};
   let clientKeys: string[] = [];
   if (clientPath && existsSync(clientPath)) {
-    const client = await graphAt([clientPath], values, profile);
+    const client = await graphAt([clientPath], values, profile, root);
     await classifyGraph(client, true);
     clientKeys = Object.values(client.configSchema)
       .filter((item) => !item.isBuiltin && item.isDynamic)
@@ -115,7 +170,7 @@ export function readClientEnv(options: { client?: string; root?: string; profile
   const path = resolve(options.root ?? process.cwd(), options.client ?? "env/client");
   if (options.client !== undefined && !existsSync(path))
     throw new Error(`Client environment path does not exist: ${path}`);
-  return clientSnapshot(path, originalEnvironment(), options.profile);
+  return clientSnapshot(path, originalEnvironment(), options.profile, options.root);
 }
 
 /** Initialize server ENV once; production also captures client values for HTML. */
@@ -195,9 +250,19 @@ export async function validateClientEnv(paths: string[], profile?: string) {
 /** Validate static inputs without resolving runtime credentials or trusting snapshots. */
 export async function loadStaticEnv(
   paths: string[],
-  options: { profile?: string; publicOnly?: boolean; values?: NodeJS.ProcessEnv } = {},
+  options: {
+    profile?: string;
+    publicOnly?: boolean;
+    values?: NodeJS.ProcessEnv;
+    root?: string;
+  } = {},
 ) {
-  const graph = await graphAt(paths, options.values ?? originalEnvironment(), options.profile);
+  const graph = await graphAt(
+    paths,
+    options.values ?? originalEnvironment(),
+    options.profile,
+    options.root,
+  );
   await classifyGraph(graph, options.publicOnly ?? false);
   const keys = Object.values(graph.configSchema)
     .filter((item) => !item.isDynamic)

@@ -320,15 +320,15 @@ test("missing migrations fail build before config execution and invalidate a pre
 
 test("database builds generate local environment types before compiling config without runtime credentials", async () => {
   const cwd = await project({
-    "index.html": "<html><head></head><body>Clean build</body></html>",
-    "drizzle.config.ts": config.replace('"@prinpo/stack/env"', '"./src/env/server"'),
+    "src/index.html": "<html><head></head><body>Clean build</body></html>",
+    "drizzle.config.ts": config.replace('"@prinpo/stack/env"', '"./src/env-gen/server"'),
     "env/server/.env.schema":
-      "# @redact=false @preventLeaks=false\n# @generateTsTypes(path=../../src/env/server.ts,exposeEnv=local,icons=false)\n# ---\n# @dynamic @required\nDATABASE_URL=exec(`printf resolved > provider-ran; exit 97`)\n",
+      "# @redact=false @preventLeaks=false\n# @generateTsTypes(path=../../src/env-gen/server.ts,exposeEnv=local,icons=false)\n# ---\n# @dynamic @required\nDATABASE_URL=exec(`printf resolved > provider-ran; exit 97`)\n",
     "migrations/20261105000000_initial/migration.sql": "CREATE TABLE messages (id INTEGER);",
   });
   const built = run(cwd, ["build"]);
   expect(built.status, built.stdout + built.stderr).toBe(0);
-  expect(await readFile(join(cwd, "src/env/server.ts"), "utf8")).toContain("DATABASE_URL");
+  expect(await readFile(join(cwd, "src/env-gen/server.ts"), "utf8")).toContain("DATABASE_URL");
   await expect(readFile(join(cwd, "provider-ran"))).rejects.toThrow();
 });
 
@@ -376,7 +376,7 @@ test("failed production SQL prevents app import and does not hide missing built 
 
 test("frontend-only production uses packaged migrations and validates server credentials only when enabled", async () => {
   const cwd = await project({
-    "index.html": "<html><head></head><body>Database ready</body></html>",
+    "src/index.html": "<html><head></head><body>Database ready</body></html>",
     "drizzle.config.ts": config,
     "schema.ts": schema,
     "env/server/.env.schema":
@@ -385,7 +385,7 @@ test("frontend-only production uses packaged migrations and validates server cre
   expect(run(cwd, ["db", "generate"]).status).toBe(0);
   const built = run(cwd, ["build"]);
   expect(built.status, built.stdout + built.stderr).toBe(0);
-  for (const name of ["drizzle.config.ts", "schema.ts", "migrations", "index.html"])
+  for (const name of ["drizzle.config.ts", "schema.ts", "migrations", "src/index.html"])
     await rm(join(cwd, name), { recursive: true });
   const port = await freePort();
   const started = launch(cwd, ["start"], { PORT: String(port) });

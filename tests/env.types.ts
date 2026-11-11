@@ -1,7 +1,7 @@
 import { expectTypeOf } from "vite-plus/test";
 
-import { ENV as clientEnv } from "../examples/fullstack/src/env/client";
-import { ENV as serverEnv } from "../examples/fullstack/src/env/server";
+import { ENV as clientEnv } from "../examples/fullstack/src/env-gen/client";
+import { ENV as serverEnv } from "../examples/fullstack/src/env-gen/server";
 
 expectTypeOf(clientEnv.CLIENT_PUBLIC_STATIC).toEqualTypeOf<string>();
 expectTypeOf(clientEnv.CLIENT_PUBLIC_DYNAMIC).toEqualTypeOf<string>();

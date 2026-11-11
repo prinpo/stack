@@ -14,7 +14,7 @@ Run the executable and delegated JavaScript tooling with Bun, including tools wh
 
 Stack owns defaults rather than requiring a CLI configuration file or layout override flags:
 
-- Root `index.html` enables frontend development and builds.
+- `src/index.html` enables frontend development and builds.
 - `src/server/index.ts` enables backend development and builds.
 - Both enable the full-stack lifecycle; neither produces an actionable error.
 - Client and application server schemas live at `env/client` and `env/server`.
@@ -72,7 +72,7 @@ Directory precedence is explicit `--dir`, then the selected profile's LOG_DIR, t
 
 ## Doctor
 
-`stack doctor` scans project structure and reports detected capabilities with explanations, such as frontend disabled because `index.html` is missing. Include schema-directory presence. Provide readable output and `--json` for agents. It performs no network checks, starts no application processes, and resolves no environment values or credentials. Missing optional capabilities are informational; neither application entry point produces a nonzero exit status.
+`stack doctor` scans project structure and reports detected capabilities with explanations, such as frontend disabled because `src/index.html` is missing. Include schema-directory presence. Provide readable output and `--json` for agents. It performs no network checks, starts no application processes, and resolves no environment values or credentials. Missing optional capabilities are informational; neither application entry point produces a nonzero exit status.
 
 ## Validation and migration
 

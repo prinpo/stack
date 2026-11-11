@@ -27,7 +27,7 @@ export default defineConfig({
     ignorePatterns: [
       ".agents/**",
       "**/routeTree.gen.ts",
-      "examples/fullstack/src/env/**",
+      "examples/fullstack/src/env-gen/**",
       "src/database/generated/**",
     ],
     options: {
@@ -42,7 +42,7 @@ export default defineConfig({
     ignorePatterns: [
       ".agents/**",
       "**/routeTree.gen.ts",
-      "examples/fullstack/src/env/**",
+      "examples/fullstack/src/env-gen/**",
       "src/database/generated/**",
     ],
     sortImports: {

@@ -11,7 +11,7 @@ Keep native schema annotations and locally generated typed access:
 ```dotenv
 # @defaultSensitive=true
 # @redact=false @preventLeaks=false
-# @generateTsTypes(path=../../src/env/client.ts, exposeEnv=local, icons=false)
+# @generateTsTypes(path=../../src/env-gen/client.ts, exposeEnv=local, icons=false)
 # ---
 
 # @public @static @required @type=string
@@ -20,6 +20,8 @@ CLIENT_PUBLIC_STATIC=
 # @public @dynamic @required @type=string
 CLIENT_PUBLIC_DYNAMIC=
 ```
+
+Generated environment modules must live inside `src/env-gen/`. For the server schema, use `@generateTsTypes(path=../../src/env-gen/server.ts, exposeEnv=local, icons=false)`. Paths are relative to the schema file; filenames and subdirectories within `env-gen/` remain application-owned. Generation paths must be literal. Stack checks them before resolving environment values or allowing generators to write files, including native `stack env codegen`, `load`, and `run`, static builds, and runtime loading. Keep generated files out of formatting and linting; edit the schemas instead.
 
 Static public client values belong in committed `env/client/.env` files. Profile-specific values belong in `.env.development` / `.env.production`. Public local overrides stay in the client directory; developer credentials stay in `env/server/.env.development.local`, and host-provided production credentials in `env/server/.env.production.local`. Local files are ignored and may be mounted into containers. Declare credentials in the server schema before setting their values.
 

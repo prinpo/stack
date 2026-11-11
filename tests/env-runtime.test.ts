@@ -284,9 +284,9 @@ test.each(["127.0.0.1", "0.0.0.0"])(
         "env/server/.env.schema": schema + "# @required\nUNRELATED_SECRET=exec(`exit 97`)\n",
         "env/client/.env.schema": schema + "# @public @dynamic\nCLIENT_VALUE=\n",
         "env/client/.env.development": "CLIENT_VALUE=from-client-files\n",
-        "index.html":
+        "src/index.html":
           '<html><head></head><body><script type="module" src="/main.js"></script></body></html>',
-        "main.js": "export {};",
+        "src/main.js": "export {};",
         "src/routes/__root.tsx":
           'import { createRootRoute } from "@prinpo/stack/react"; export const Route = createRootRoute();',
       },

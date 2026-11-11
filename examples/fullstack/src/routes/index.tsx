@@ -3,7 +3,7 @@ import { createFileRoute } from "@prinpo/stack/react";
 import { useState } from "react";
 
 import { eden } from "../client";
-import { ENV } from "../env/client";
+import { ENV } from "../env-gen/client";
 
 export const Route = createFileRoute("/")({ component: EnvironmentSandbox });
 

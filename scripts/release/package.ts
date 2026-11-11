@@ -107,12 +107,13 @@ if (await response.text() !== "packed" || isStructuredApiError(null)) throw new 
       }),
     );
     command(["bun", "install", "--ignore-scripts"], consumer, env);
+    await mkdir(join(consumer, "src"), { recursive: true });
     await writeFile(
-      join(consumer, "index.html"),
+      join(consumer, "src/index.html"),
       '<div id="root"></div><script type="module" src="/main.tsx"></script>',
     );
     await writeFile(
-      join(consumer, "main.tsx"),
+      join(consumer, "src/main.tsx"),
       'import { createRoot } from "react-dom/client"; import { QueryClient } from "@prinpo/stack/query"; import { createRouter } from "@prinpo/stack/react"; import { treaty } from "@prinpo/stack/client"; createRoot(document.getElementById("root")!).render(<div>{[typeof QueryClient, typeof createRouter, typeof treaty].join(":")}</div>);',
     );
     await writeFile(

@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 
 import { serverEnvPaths } from "../env/paths";
+import { validateEnvCodegenPaths } from "../env/server";
 import { environment, profileArgs, takeOptions } from "./options";
 import { absolute } from "./project";
 import { runBun, tool } from "./tools";
@@ -49,6 +50,10 @@ function nativeCommand(operation: "load" | "codegen" | "run") {
           if (existsSync(`env/${area}`)) {
             if (area === "client") await validateClient();
             const paths = area === "server" ? serverEnvPaths() : [absolute("env/client")];
+            await validateEnvCodegenPaths(
+              [...paths, ...extra.filter((path) => typeof path === "string")],
+              env.APP_ENV,
+            );
             await runBun(
               [binary, operation, ...paths.flatMap((path) => ["--path", path]), ...rest],
               env,
@@ -57,6 +62,10 @@ function nativeCommand(operation: "load" | "codegen" | "run") {
       } else {
         if (selected === "client") await validateClient();
         const paths = selected === "client" ? [absolute("env/client")] : serverEnvPaths();
+        await validateEnvCodegenPaths(
+          [...paths, ...extra.filter((path) => typeof path === "string")],
+          env.APP_ENV,
+        );
         await runBun(
           [binary, operation, ...paths.flatMap((path) => ["--path", path]), ...rest],
           env,

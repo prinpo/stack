@@ -12,7 +12,7 @@ Forwarding modules are generated from the pinned ORM during repository installat
 // drizzle.config.ts
 import { defineConfig } from "@prinpo/stack/database";
 
-import { ENV } from "./src/env/server";
+import { ENV } from "./src/env-gen/server";
 
 export default defineConfig({
   dialect: "sqlite",

@@ -67,6 +67,8 @@ export default defineConfig({
 });
 ```
 
+Keep application configuration at the project root and browser HTML at `src/index.html`, with `<script type="module" src="/main.tsx"></script>`. Stack uses `src/` as Vite's root; public assets belong in `src/public/`. Generated Varlock modules belong in `src/env-gen/`, while schemas stay in root `env/` and database migrations in root `migrations/`. These entry/generation conventions are enforced; the example's server folders are a recommended architecture. See the [CLI guide](docs/cli.md) for migration steps.
+
 The preset configures React, file-route generation, automatic route splitting, shared React resolution, and the optional API proxy. `api: true` includes Varlock and reads backend connection settings for proxying and resolves client configuration locally for HTML delivery. Use an explicit `api.target` for standalone proxying to another backend. By default, requests under `/api` keep their paths when forwarded to Elysia. `/apiary` remains a frontend path. Proxying preserves the browser's origin.
 
 For a frontend-only application, use `stack()`. Configure `router.routesDirectory` and `router.generatedRouteTree` for a different layout, or pass other native Router plugin options through `router`. React plugin options go through `react`. A custom proxy namespace uses `api.prefix`, for example `/rpc`.

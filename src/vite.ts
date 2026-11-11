@@ -6,11 +6,12 @@ import {
   tanStackRouterCodeSplitter,
 } from "@tanstack/router-plugin/vite";
 import react, { type Options as ReactOptions } from "@vitejs/plugin-react";
-import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
 import { apiPrefix, escapeRegExp } from "./api-prefix";
 import { readServerConnection } from "./env/server";
 import { varlockVitePlugin } from "./env/vite";
+import { viteProjectRoot } from "./project-layout";
 import { routerGenerator } from "./router-generator";
 
 export interface StackOptions {
@@ -27,6 +28,7 @@ export function stack(options: StackOptions = {}): PluginOption[] {
   let target = api?.target;
   const managed = !!api && !target;
   let profile: string | undefined;
+  let projectRoot: string;
   const router = {
     target: "react" as const,
     autoCodeSplitting: true,
@@ -34,16 +36,44 @@ export function stack(options: StackOptions = {}): PluginOption[] {
   };
   const context = createRouterPluginContext();
   return [
-    ...(existsSync("env/client") ? [varlockVitePlugin({ profile: () => profile })] : []),
+    {
+      name: "prinpo:source-root",
+      enforce: "pre",
+      config(config) {
+        projectRoot = viteProjectRoot(config.root);
+        router.routesDirectory = resolve(
+          projectRoot,
+          options.router?.routesDirectory ?? "src/routes",
+        );
+        router.generatedRouteTree = resolve(
+          projectRoot,
+          options.router?.generatedRouteTree ?? "src/routeTree.gen.ts",
+        );
+        router.tmpDir = resolve(projectRoot, options.router?.tmpDir ?? ".tanstack/tmp");
+        return {
+          root: resolve(projectRoot, "src"),
+          cacheDir: resolve(projectRoot, config.cacheDir ?? "node_modules/.vite"),
+          publicDir:
+            config.publicDir === false
+              ? false
+              : resolve(projectRoot, config.publicDir ?? "src/public"),
+          build: {
+            outDir: resolve(projectRoot, config.build?.outDir ?? "dist/client"),
+            emptyOutDir: true,
+          },
+        };
+      },
+    },
+    varlockVitePlugin({ profile: () => profile, rootDir: () => projectRoot, optional: true }),
     routerGenerator(router, context),
     tanStackRouterCodeSplitter(router, context),
     react(options.react),
     {
       name: "prinpo:stack",
-      async config(config, environment) {
+      async config(_config, environment) {
         if (managed && environment.command === "serve") {
           const connection = await readServerConnection({
-            root: config.root,
+            root: projectRoot,
             server: api?.serverEnv,
           });
           profile = connection.profile;

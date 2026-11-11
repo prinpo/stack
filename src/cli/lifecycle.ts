@@ -3,7 +3,7 @@ import type { ChildProcess } from "node:child_process";
 import { defineCommand, showUsage } from "citty";
 import { existsSync, watch } from "node:fs";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { builtDatabase } from "../database/files";
@@ -11,10 +11,11 @@ import { serverEnvPaths } from "../env/paths";
 import { loadStaticEnv } from "../env/server";
 import { developmentCompose } from "./compose";
 import { buildDatabase } from "./database-build";
+import { frontendArguments, frontendEnvironment } from "./frontend";
 import { environment, profileArgs, takeOptions } from "./options";
 import { type Area, type BuildResult, buildSummary, heading, intro, restartNotice } from "./output";
 import { capabilities, isFile, outputs } from "./project";
-import { runBun, spawnBun, stop, tool } from "./tools";
+import { runBun, spawnBun, stop } from "./tools";
 
 function lifecycleCommand(
   name: string,
@@ -78,8 +79,8 @@ export const build = lifecycleCommand(
           publicOnly: true,
         });
       await runBun(
-        [tool("vite-plus", "vp"), "build", "--outDir", outputs.client, "--configLoader", "runner"],
-        env,
+        [...frontendArguments("build"), "--outDir", resolve(outputs.client)],
+        frontendEnvironment(env),
         "inherit",
         "frontend",
       );
@@ -187,15 +188,7 @@ export const dev = lifecycleCommand(
     if (app.frontend)
       commands.push({
         area: "frontend",
-        args: [
-          tool("vite-plus", "vp"),
-          "dev",
-          "--configLoader",
-          "runner",
-          "--strictPort",
-          "--clearScreen",
-          "false",
-        ],
+        args: [...frontendArguments("dev"), "--strictPort", "--clearScreen", "false"],
       });
     let children: ChildProcess[] = [];
     const compose = developmentCompose();
@@ -216,7 +209,12 @@ export const dev = lifecycleCommand(
     const launch = () => {
       launched = true;
       for (const command of commands) {
-        const child = spawnBun(command.args, env, "inherit", command.area);
+        const child = spawnBun(
+          command.args,
+          command.area === "frontend" ? frontendEnvironment(env) : env,
+          "inherit",
+          command.area,
+        );
         children.push(child);
         child.once("error", (error) => {
           console.error(error.message);

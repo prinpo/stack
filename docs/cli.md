@@ -21,7 +21,11 @@ stack doctor
 stack doctor --json
 ```
 
-Stack detects a frontend from root `index.html`, a backend from `src/server/index.ts`, and both for full-stack applications. It owns these conventions; no CLI config file or layout overrides are required. Keep native `vite.config.ts` for browser tooling and the normal deferred `startServer(() => import("./app"))` backend entry.
+Stack detects a frontend from `src/index.html`, a backend from `src/server/index.ts`, and both for full-stack applications. It owns these conventions; no CLI config file or layout overrides are required. Keep native `vite.config.ts` for browser tooling and the normal deferred `startServer(() => import("./app"))` backend entry.
+
+Keep `vite.config.ts` and other tool configuration at the application root. Stack's preset and frontend CLI commands use `src/` as Vite's root, so the HTML entry references `/main.tsx`, not `/src/main.tsx`. Public assets live in `src/public/`. Router paths, explicit cache/output paths, and schema discovery remain relative to the application root; build output remains `dist/client/`. Generated environment modules must live inside `src/env-gen/`; root `env/` schemas and `migrations/` stay outside `src/`.
+
+To migrate an existing app, move `index.html` to `src/index.html` and update its script URL. Change schema generation annotations to target `src/env-gen/`, regenerate with `stack env codegen`, update application imports, and remove the old generated modules. Move root public assets to `src/public/` if present.
 
 Human `dev`, `build`, and `doctor` output begins with a dimmed Prinpo Stack/version line. Chalk detects terminal color support, with `NO_COLOR` disabling colors and `FORCE_COLOR` available to force them. JSON doctor output and native env/log machine output have no decorative headers.
 
@@ -35,7 +39,7 @@ Builds validate static settings without deployment credentials, clear the previo
 
 Backend/full-stack startup hands off to Bun running `dist/server/index.js`. Frontend-only startup hands off to Stack's lightweight `Bun.serve` runtime. Both serve public dynamic configuration in prepared HTML, support HEAD and SPA navigation, and preserve missing-asset/API 404s. Public assets remain separate from server output. The CLI adds no ongoing production supervision or request handling.
 
-Doctor explains structural capability detection, schema-directory presence, and whether `docker-compose.dev.yml` enables development dependencies. It checks file presence without parsing Compose configuration or invoking Docker. It starts nothing, makes no network calls, and resolves no credentials. Missing optional capabilities are informational; missing both application entry points or enabled database migrations produces a nonzero status. `--json` is suitable for agents and includes Compose detection as `compose.enabled` and `compose.reason`.
+Doctor explains structural capability detection, schema-directory presence, and whether `docker-compose.dev.yml` enables development dependencies. It checks file presence without parsing Compose configuration or invoking Docker. It starts nothing, makes no network calls, and resolves no credentials. Missing optional capabilities are informational; an obsolete root HTML entry, missing both application entry points, or missing enabled database migrations produces a nonzero status. `--json` is suitable for agents and includes Compose detection as `compose.enabled` and `compose.reason`.
 
 ## Profiles
 

@@ -16,7 +16,12 @@ const command = defineCommand({
     else {
       intro("doctor");
       section("Application capabilities", [
-        { label: "Frontend", present: project.frontend.enabled, detail: project.frontend.reason },
+        {
+          label: "Frontend",
+          present: project.frontend.enabled,
+          error: !project.frontend.ready,
+          detail: project.frontend.reason,
+        },
         { label: "Backend", present: project.backend.enabled, detail: project.backend.reason },
       ]);
       section(
@@ -46,9 +51,15 @@ const command = defineCommand({
         },
       ]);
       if (!project.frontend.enabled && !project.backend.enabled)
-        console.log(color.red("No application detected. Add index.html or src/server/index.ts."));
+        console.log(
+          color.red("No application detected. Add src/index.html or src/server/index.ts."),
+        );
     }
-    if ((!project.frontend.enabled && !project.backend.enabled) || !project.database.ready)
+    if (
+      (!project.frontend.enabled && !project.backend.enabled) ||
+      !project.frontend.ready ||
+      !project.database.ready
+    )
       process.exitCode = 1;
   },
 });

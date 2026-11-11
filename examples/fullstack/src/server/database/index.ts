@@ -1,7 +1,7 @@
 import { drizzle } from "@prinpo/stack/database/bun-sql/sqlite";
 import { SQL } from "bun";
 
-import { ENV } from "../../env/server";
+import { ENV } from "../../env-gen/server";
 import { relations } from "./relations";
 
 // The application owns this client, including closing it when the server stops.

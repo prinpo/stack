@@ -1,6 +1,6 @@
 import { createInsertSchema } from "@prinpo/stack/database/zod";
 
-import { notebooks } from "./database/schema";
+import { notebooks } from "../database/schema";
 
 // Start from the table shape, add API rules, and allow only caller-owned fields.
 export const createNotebookBody = createInsertSchema(notebooks, {

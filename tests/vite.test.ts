@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { createServer } from "vite";
 import { afterEach, expect, test } from "vite-plus/test";
 
+import { varlockVitePlugin } from "../src/env/vite";
 import { stack } from "../src/vite";
 
 const cleanup: Array<() => Promise<unknown>> = [];
@@ -44,6 +45,42 @@ async function application() {
   );
   return root;
 }
+
+test("the Vite preset serves src/index.html at the public origin without moving project configuration", async () => {
+  const root = await application();
+  await writeFile(
+    join(root, "src/index.html"),
+    "<html><head></head><body>Source HTML entry</body></html>",
+  );
+  const server = await createServer({
+    configFile: false,
+    root,
+    plugins: [stack()],
+    server: { host: "127.0.0.1", port: 0 },
+  });
+  cleanup.push(() => server.close());
+  await server.listen();
+  const origin = server.resolvedUrls?.local[0];
+  if (!origin) throw new Error("Missing browser origin");
+  expect(await (await fetch(origin)).text()).toContain("Source HTML entry");
+  expect(server.config.root).toBe(join(root, "src"));
+});
+
+test("custom client schemas generate env modules under the explicit Vite project root", async () => {
+  const root = await application();
+  await mkdir(join(root, "config/client"), { recursive: true });
+  await writeFile(
+    join(root, "config/client/.env.schema"),
+    "# @redact=false @preventLeaks=false\n# @generateTsTypes(path=../../src/env-gen/client.ts, exposeEnv=local, icons=false)\n# ---\n# @public\nLAYOUT_NAME=example\n",
+  );
+  const server = await createServer({
+    configFile: false,
+    root,
+    plugins: [varlockVitePlugin({ client: "config/client" })],
+  });
+  cleanup.push(() => server.close());
+  expect(await readFile(join(root, "src/env-gen/client.ts"), "utf8")).toContain("LAYOUT_NAME");
+});
 
 test.each([
   { prefix: undefined, path: "/api/health?source=example" },
