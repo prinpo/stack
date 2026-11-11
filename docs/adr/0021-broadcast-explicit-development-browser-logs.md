@@ -1,0 +1,5 @@
+# Broadcast explicit development browser logs
+
+Provide `browserLog` by default in Stack development: each explicit call writes to the server console and all connected browsers. Choose live broadcast over per-tab targeting to avoid recipient registration, auth request instrumentation, and request-correlation infrastructure. This deliberately makes development OTP codes and magic links visible across connected browsers; auth logs them even when a separate sender is configured. Ordinary console calls retain their existing behavior.
+
+`stack dev` owns backend wiring and the standard browser tooling supplies the receiver without an application opt-in. Backend-only applications retain server console output without requiring Vite. Browser delivery is best-effort with no durable replay requirement. Built applications make the complete function inert regardless of runtime mode, including server console output; active development integration is excluded from browser artifacts and the built server execution graph, while development tooling may remain installed in the Stack package.
