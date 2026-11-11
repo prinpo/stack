@@ -7,24 +7,62 @@ A runnable environment sandbox using Stack's public entry points. The landing pa
 From the repository root:
 
 ```sh
-bunx --bun vp install
+bun install --frozen-lockfile
+bun run stack db migrate
 bun run stack dev
 ```
 
 Open <http://localhost:5173>. This example is a private Bun workspace. Its `file:../..` dependency links to the root `@prinpo/stack` package, whose public exports point into `src/`. Both application and Stack imports resolve to live TypeScript source through the same public `@prinpo/stack/...` paths. No library build or artifact setup is needed.
 
-The root install uses Bun's hoisted linker. Keep shared tooling versions aligned with the root manifest so dependencies stay in the root `node_modules`; Vite's cache also lives there.
+Vite+ is installed locally; a global `vp` installation is optional. Prefer `bun --bun vp` for direct tooling commands. The root install uses Bun's hoisted linker. Keep shared tooling versions aligned with the root manifest so dependencies stay in the root `node_modules`; Vite's cache also lives there.
 
 From this directory, use `bun run stack dev` to run both processes, or `bun run stack doctor` to inspect the application. The `stack` script points to the live source executable because Bun does not link the root package's own binary in this source-linked workspace; installed applications use the package's local `stack` executable directly. `bun run check` formats, lints, and typechecks the application after dependencies are installed. The generated route tree is committed so checking also works before the first dev-server run.
 
 Vite updates browser-used Stack modules through HMR or a page reload. The client script uses `--configLoader runner` so changes to Stack's Vite preset and its helpers also restart Vite through native config dependency tracking. Bun's `--watch` mode restarts the backend when its imported application or Stack modules change. Reload the page manually when you want to fetch updated backend responses. Unused blocks do not need to trigger updates.
 
+The notebook POST endpoint demonstrates optional Zod validation in `src/server/validation/notebooks.ts`: `createInsertSchema` comes from `@prinpo/stack/database/zod`, derives the table shape, trims/bounds the name, and picks only the caller-owned name field. Other endpoints retain native Elysia TypeBox schemas. Database clients are not imported by the validation module.
+
+## Application layout
+
+Keep root configuration small and put application code in `src/`. Stack requires `src/index.html` and generates Varlock modules only inside `src/env-gen/`. The HTML script uses `/main.tsx` because Vite serves `src/` as its root. Schemas remain in root `env/` and Drizzle manages root `migrations/`.
+
+```text
+fullstack/
+├── env/                         # Client/server schemas and values
+├── migrations/                  # Drizzle-managed history
+├── bunfig.toml
+├── drizzle.config.ts
+├── package.json
+├── vite.config.ts
+└── src/
+    ├── index.html
+    ├── env-gen/                 # Generated typed environment access
+    ├── routes/                  # Browser file-based routes
+    ├── client.ts
+    ├── main.tsx
+    ├── routeTree.gen.ts
+    ├── style.css
+    └── server/
+        ├── app.ts              # Compose plugins and route apps
+        ├── index.ts            # Startup and shutdown
+        ├── database/           # Client, tables, and relations
+        ├── plugins/            # Shared Elysia plugins
+        ├── routes/             # Elysia route apps by concern
+        └── validation/         # Request schemas by concern
+```
+
+The server directories are an example pattern to build on. Keep startup in `index.ts` and composition in `app.ts`; add endpoints, plugins, and validators in their respective directories as the application grows. Validation imports table definitions without initializing the database client. Stack does not enforce these server folders.
+
 ## Follow the connection
+
+The landing page also reads and saves persistent SQLite notes. Root `drizzle.config.ts` uses `defineConfig` from `@prinpo/stack/database` to fix the migration directory and enable the Database Block with Bun SQL SQLite and committed `migrations/`. DATABASE_URL defaults to the ignored local `example.sqlite`; override it through the server environment. Apply development migrations explicitly with `bun run stack db migrate` from the repository root. After schema changes, generate, review, commit, and apply migrations; development never does this automatically. Production build packages the config/history and startup always migrates before importing the app.
+
+The database module exports its native client/Drizzle instance and loads a separate relations module. Notebooks have many notes; notes optionally belong to one notebook. API queries load nested relations in both directions, and the landing page creates notebooks, assigns notes, and displays the related results. Existing notes remain unfiled through the additive migration. The server entry registers `onStop` with `startServer` to stop Elysia and close the client; Stack handles signals, red shutdown logging, and exit status. Notes survive restarts. No global cache, universal driver wrapper, or PostgreSQL service is needed. See the [database guide](../../docs/database.md) for PostgreSQL/Bun SQL setup and limitations.
 
 | File                   | Responsibility                                                                                        |
 | ---------------------- | ----------------------------------------------------------------------------------------------------- |
 | `vite.config.ts`       | One preset connects React, routing, env delivery, and proxying using backend connection settings.     |
-| `src/server/app.ts`    | Defines native Elysia routes and exports the inferred application type.                               |
+| `src/server/app.ts`    | Composes route modules and plugins and exports the inferred application type.                         |
 | `src/server/index.ts`  | Initializes configuration before importing the app, then starts the backend and production serving.   |
 | `src/client.ts`        | Creates the scoped API clients, Query cache, and Query provider.                                      |
 | `src/main.tsx`         | Creates the native router, registers its type, and mounts React with configuration already available. |
@@ -42,7 +80,7 @@ For a frontend-only application, omit the server files, API client, and `api` pr
 
 ## Optional logging and structured errors
 
-The example opts into evlog through shared `src/server/logging.ts`, registered on the main app and `src/server/errors.ts` route module. **Try a structured API error** calls a typed 409 endpoint. The same guard runs in a native `MutationCache` callback and the endpoint's mutation `onError`, retaining `orderId` inference. Native validation and ordinary statuses remain available.
+The example opts into evlog through shared `src/server/plugins/logging.ts`, registered on the main app and `src/server/routes/errors.ts` route module. **Try a structured API error** calls a typed 409 endpoint. The same guard runs in a native `MutationCache` callback and the endpoint's mutation `onError`, retaining `orderId` inference. Native validation and ordinary statuses remain available.
 
 From the repository root, use `bun run stack logs`, `bun run stack logs errors`, or `bun run stack logs --json`. Files default to this example's `.evlog/logs`; set `LOG_DIR` to share another directory between server and commands. Runtime logging needs no external account. The CLI owns its tested evlog version and disables usage telemetry. See [the logging guide](../../docs/logger.md) for options and type boundaries.
 
@@ -96,6 +134,6 @@ Fetches read the server's startup snapshot; they do not reload `.env` files. Eac
 
 The server entry calls `startServer(() => import("./app"))`: configuration initializes before application modules read `ENV`, and production startup prepares HTML with client configuration. No environment-fetch endpoint is registered. CLI development watches the entry; production startup reads the successful build manifest and hands off to Bun without an ongoing CLI parent. Stack reuses that validated server snapshot without resolving providers twice. `stack({ api: true })` handles the browser's native Varlock plugin, proxy, and local client-env resolution with no repeated addresses or ports. Browser `main.tsx` is identical in both modes. Both Bun configurations disable native dotenv loading. `bun run stack env codegen` regenerates the committed local types; generated files are excluded from formatting and linting.
 
-Backend runtime-file and connection-setting edits restart both development processes. Restart manually for external imports or newly created schema directories. Client dynamic file changes take effect on reload. Development runs the loader inside Bun, so code-triggered process restarts also resolve a fresh snapshot. Production resolves a startup snapshot: restart `bun run stack start` after changing its values. Native redaction and response scanning are disabled; applications own secret-handling discipline. See [the environment guide](../../docs/env.md) for schema rules, the required Varlock core patch, optional provider setup, and separate-origin bootstrap considerations.
+Backend runtime-file and connection-setting edits restart both development processes. Restart manually for external imports or newly created schema directories. Client dynamic file changes take effect on reload. Development runs the loader inside Bun, so code-triggered process restarts also resolve a fresh snapshot. Production resolves a startup snapshot: restart `bun run stack start` after changing its values. Native redaction and response scanning are disabled; applications own secret-handling discipline. See [the environment guide](../../docs/env.md) for schema rules, the unpatched Varlock integration, optional provider setup, and separate-origin bootstrap considerations.
 
-This milestone verifies browser and backend builds to establish reusable artifacts. Stack package builds/distribution and automated browser E2E remain deferred. The backend artifact keeps package imports external, so deployment still needs the source-linked Stack package, its pinned dependencies, schemas, and the installed root patch; it is not a standalone binary or a qualified published-package deployment.
+The backend artifact keeps package imports external, so deployment needs the installed Stack package, its dependencies, environment schemas, and the built `dist/` artifacts, including packaged migrations. It is not a standalone binary. Installed-package qualification covers browser builds and source-free database startup; automated browser E2E remains deferred.

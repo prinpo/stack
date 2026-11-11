@@ -1,30 +1,18 @@
-<!--VITE PLUS START-->
+# Tooling
 
-# Using Vite+, the Unified Toolchain for the Web
+Use Bun and the project-local Vite+ toolchain pinned in `package.json`. Prefer `bun --bun vp <command>` (the explicit Bun-runtime form of `bun vp`) for direct Vite+ commands, including when a global `vp` is installed. Global installation is optional. Run commands directly through Bun; it resolves the local executable.
 
-This project is using Vite+, a unified toolchain built on top of Vite, Rolldown, Vitest, tsdown, Oxlint, Oxfmt, and Vite Task. Vite+ wraps runtime management, package management, and frontend tooling in a single global CLI called `vp`. Vite+ is distinct from Vite, and it invokes Vite through `vp dev` and `vp build`. Run `vp help` to print a list of commands and `vp <command> --help` for information about a specific command.
+Install with `bun install --frozen-lockfile` when dependencies are missing or dependency manifests/the lockfile changed. Use `bun install` when intentionally updating dependencies. Read-only research with installed dependencies needs no install.
 
-Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.dev/guide/.
+## Commands and validation
 
-## Built-in Commands vs Scripts
+`bun --bun vp <name>` runs a Vite+ built-in; `bun --bun vp run <name>` runs a `package.json` script or `vite.config.ts` task. Check those files before choosing a command. From the root, `bun run dev` starts Stack's full-stack example; `bun --bun vp dev` starts Vite directly.
 
-`vp <name>` runs a built-in command. `vp run <name>` runs a `package.json` script or a `vite.config.ts` task. Scripts cannot overwrite built-ins, so `vp dev` and `vp run dev` may do different things. Check `package.json` and `vite.config.ts` first, and run `vp run <name>` when the project defines a script or task with that name.
+After changes, run `bun --bun vp check`, `bun --bun vp test`, and relevant project scripts/tasks such as `bun run example:check`. Package scripts can use bare `vp` because their PATH includes local binaries.
 
-## Tool Versions
+For tooling issues, inspect `bun --version`, `bun --bun vp --version`, and `bun --bun vp toolchain`. Use `bun --bun vp help` or `bun --bun vp <command> --help` for command details. Machine-management commands such as `vp env doctor` require the optional global CLI.
 
-Run `vp toolchain` to show versions and relationships in the active Vite+
-release. Add a tool name to select part of the graph. For example, run
-`vp toolchain vite`. Use `--global` to ignore the local `vite-plus` package. Use
-`vp why <package>` to show the package-manager dependency graph.
-
-## Review Checklist
-
-- [ ] Run `vp install` after pulling remote changes and before getting started.
-- [ ] Run `vp check` and `vp test` to format, lint, type check and test changes.
-- [ ] Check if there are `vite.config.ts` tasks or `package.json` scripts necessary for validation, run via `vp run <script>`.
-- [ ] If setup, runtime, or package-manager behavior looks wrong, run `vp env doctor` and include its output when asking for help.
-
-<!--VITE PLUS END-->
+Vite+ docs are in `node_modules/vite-plus/docs` and at https://viteplus.dev/guide/. This file is repository-owned; `prepare` runs `vp config --no-agent` to configure hooks while preserving these instructions.
 
 ## Coding standards
 

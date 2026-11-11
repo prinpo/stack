@@ -23,6 +23,11 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./database": "./src/database.ts",
+    "./database/*": {
+      "types": "./src/database/generated/*.d.ts",
+      "default": "./src/database/generated/*.js"
+    },
     "./client": "./src/client.ts",
     "./devtools": "./src/devtools.ts",
     "./env": "./src/env.ts",
@@ -46,8 +51,9 @@
     "dev": "bun run stack dev",
     "test": "vp test",
     "check": "vp check",
-    "prepare": "vp config",
-    "example:check": "cd examples/fullstack && bunx --bun vp check",
+    "prepare": "bun --no-env-file scripts/generate-database-exports.ts && vp config --no-agent",
+    "database:exports": "bun --no-env-file scripts/generate-database-exports.ts",
+    "example:check": "cd examples/fullstack && bun --bun vp check",
     "research:varlock": "bun --no-env-file scripts/probe-varlock.ts",
     "stack": "cd examples/fullstack && bun run stack"
   },
@@ -66,6 +72,8 @@
     "@vitejs/plugin-react": "6.1.2",
     "chalk": "6.0.1",
     "citty": "0.2.2",
+    "drizzle-kit": "1.0.0-rc.5",
+    "drizzle-orm": "1.0.0-rc.5",
     "elysia": "1.4.30",
     "evlog": "2.34.0",
     "exact-mirror": "0.2.7",

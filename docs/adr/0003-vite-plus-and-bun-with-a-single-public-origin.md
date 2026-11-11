@@ -1,6 +1,6 @@
 # Use Vite+ and Bun with a single public origin
 
-Use Vite for browser development and builds, run through Vite+ with `bunx --bun vp ...`, and Bun to run Elysia. Vite+ is the documented application toolchain, not a runtime dependency of Stack; tooling helpers may require it when that reduces integration code. A separate plain-Vite workflow is not required. Prefer TanStack Router's file-based routing while preserving its native support for code-based routes and configurable application layout.
+Use Vite for browser development and builds, run through Vite+ with `bun --bun vp ...`, and Bun to run Elysia. Install dependencies through Bun and prefer the pinned project-local Vite+ executable; a global `vp` installation is optional. This keeps contributors from needing a second globally managed tool. Vite+ is the documented application toolchain, not a runtime dependency of Stack; tooling helpers may require it when that reduces integration code. A separate plain-Vite workflow is not required. Prefer TanStack Router's file-based routing while preserving its native support for code-based routes and configurable application layout.
 
 The default full-stack setup exposes the frontend and API through one public origin, with API endpoints under `/api`. During development, Vite proxies API requests to Elysia; in production, Elysia serves the built browser application and API. Separate frontend and backend deployments remain possible through explicit client configuration.
 

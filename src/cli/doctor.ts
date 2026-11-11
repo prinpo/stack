@@ -1,6 +1,6 @@
 import { defineCommand, showUsage } from "citty";
 
-import { areaPresentation, color, intro } from "./output";
+import { color, intro } from "./output";
 import { inspectProject } from "./project";
 
 const command = defineCommand({
@@ -15,30 +15,65 @@ const command = defineCommand({
     if (args.json) console.log(JSON.stringify(project));
     else {
       intro("doctor");
-      console.log(`\n${color.bold("Application capabilities")}`);
-      for (const area of ["frontend", "backend"] as const) {
-        const item = project[area];
-        const { title, style } = areaPresentation(area);
-        const label = style(title.padEnd(10));
-        const status = item.enabled ? color.green("✓ enabled") : color.yellow("○ disabled");
-        console.log(`  ${label}${status}`);
-        console.log(color.dim(`    ${item.reason}`));
-      }
-      console.log(`\n${color.bold("Environment schemas")}`);
-      for (const area of ["client", "server"] as const)
-        console.log(
-          `  ${project.env[area] ? color.green("✓") : color.dim("○")} env/${area} ${color.dim(project.env[area] ? "found" : "absent — defaults apply")}`,
-        );
-      console.log(`\n${color.bold("Development dependencies")}`);
-      console.log(
-        `  ${project.compose.enabled ? color.green("✓ enabled") : color.dim("○ disabled")} ${color.dim(project.compose.reason)}`,
+      section("Application capabilities", [
+        {
+          label: "Frontend",
+          present: project.frontend.enabled,
+          error: !project.frontend.ready,
+          detail: project.frontend.reason,
+        },
+        { label: "Backend", present: project.backend.enabled, detail: project.backend.reason },
+      ]);
+      section(
+        "Environment schemas",
+        (["client", "server"] as const).map((area) => ({
+          label: area === "client" ? "Client" : "Server",
+          present: project.env[area],
+          detail: `env/${area}${project.env[area] ? "" : " not found; defaults apply"}`,
+        })),
       );
-      console.log();
+      section("Development dependencies", [
+        {
+          label: "Docker Compose",
+          present: project.compose.enabled,
+          detail: project.compose.reason,
+        },
+      ]);
+      section("Database", [
+        {
+          label: "Drizzle",
+          present: project.database.enabled,
+          error: !project.database.ready,
+          detail:
+            project.database.enabled && project.database.ready
+              ? `${project.database.reason} in ${project.database.directory}/`
+              : project.database.reason,
+        },
+      ]);
       if (!project.frontend.enabled && !project.backend.enabled)
-        console.log(color.red("No application detected. Add index.html or src/server/index.ts."));
+        console.log(
+          color.red("No application detected. Add src/index.html or src/server/index.ts."),
+        );
     }
-    if (!project.frontend.enabled && !project.backend.enabled) process.exitCode = 1;
+    if (
+      (!project.frontend.enabled && !project.backend.enabled) ||
+      !project.frontend.ready ||
+      !project.database.ready
+    )
+      process.exitCode = 1;
   },
 });
+
+function section(
+  title: string,
+  rows: { label: string; present: boolean; detail: string; error?: boolean }[],
+) {
+  console.log(`\n${color.bold(title)}`);
+  for (const row of rows) {
+    const mark = row.error ? color.red("!") : row.present ? color.green("✓") : color.dim("○");
+    console.log(`  ${mark} ${row.label}`);
+    console.log(color.dim(`    ${row.detail}`));
+  }
+}
 
 export default command;

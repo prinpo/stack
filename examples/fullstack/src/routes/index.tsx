@@ -1,16 +1,119 @@
-import { useQuery } from "@prinpo/stack/query";
+import { useMutation, useQuery } from "@prinpo/stack/query";
 import { createFileRoute } from "@prinpo/stack/react";
+import { useState } from "react";
 
 import { eden } from "../client";
-import { ENV } from "../env/client";
+import { ENV } from "../env-gen/client";
 
 export const Route = createFileRoute("/")({ component: EnvironmentSandbox });
 
 function EnvironmentSandbox() {
   const serverEnv = useQuery({ ...eden.env.get.queryOptions(), enabled: false });
+  const notes = useQuery(eden.notes.get.queryOptions());
+  const notebooks = useQuery(eden.notebooks.get.queryOptions());
+  const [notebookName, setNotebookName] = useState("");
+  const [notebookId, setNotebookId] = useState("");
+  const [text, setText] = useState("");
+  const addNote = useMutation(
+    eden.notes.post.mutationOptions({
+      onSuccess: async () => {
+        setText("");
+        await Promise.all([notes.refetch(), notebooks.refetch()]);
+      },
+    }),
+  );
+
+  const addNotebook = useMutation(
+    eden.notebooks.post.mutationOptions({
+      onSuccess: async (created) => {
+        setNotebookName("");
+        if (created[0]) setNotebookId(String(created[0].id));
+        await notebooks.refetch();
+      },
+    }),
+  );
 
   return (
     <>
+      <section>
+        <h2>Notebooks and notes</h2>
+        <p>
+          Create notebooks, add notes, and explore their relationships. Everything remains available
+          after the server restarts.
+        </p>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            addNotebook.mutate({ name: notebookName });
+          }}
+        >
+          <label>
+            Notebook{" "}
+            <input
+              value={notebookName}
+              maxLength={100}
+              onChange={(event) => setNotebookName(event.target.value)}
+              required
+            />
+          </label>
+          <button type="submit" disabled={addNotebook.isPending}>
+            {addNotebook.isPending ? "Creating…" : "Create notebook"}
+          </button>
+        </form>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            addNote.mutate({ text, ...(notebookId ? { notebookId: Number(notebookId) } : {}) });
+          }}
+        >
+          <label>
+            Note{" "}
+            <input
+              value={text}
+              maxLength={500}
+              onChange={(event) => setText(event.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Notebook{" "}
+            <select value={notebookId} onChange={(event) => setNotebookId(event.target.value)}>
+              <option value="">Unfiled</option>
+              {notebooks.data?.map((notebook) => (
+                <option key={notebook.id} value={notebook.id}>
+                  {notebook.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" disabled={addNote.isPending}>
+            {addNote.isPending ? "Saving…" : "Save note"}
+          </button>
+        </form>
+        {(notes.isError || notebooks.isError || addNote.isError || addNotebook.isError) && (
+          <p role="alert">Could not load or save notebooks and notes. Please try again.</p>
+        )}
+        <ul>
+          {notes.data?.map((note) => (
+            <li key={note.id}>
+              {note.text} <small>— {note.notebook?.name ?? "Unfiled"}</small>
+            </li>
+          ))}
+        </ul>
+        <h3>Notes by notebook</h3>
+        {notebooks.data?.map((notebook) => (
+          <article key={notebook.id}>
+            <h4>
+              {notebook.name} ({notebook.notes.length})
+            </h4>
+            <ul>
+              {notebook.notes.map((note) => (
+                <li key={note.id}>{note.text}</li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </section>
       <section>
         <p className="eyebrow">VARLOCK ENVIRONMENT SANDBOX</p>
         <h2>Browser environment</h2>

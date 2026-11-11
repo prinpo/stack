@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "stack": "bun --no-env-file ../../src/cli/main.ts",
-    "check": "bunx --bun vp check"
+    "check": "bun --bun vp check"
   },
   "dependencies": {
     "@prinpo/stack": "file:../..",

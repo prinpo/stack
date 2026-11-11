@@ -33,4 +33,4 @@ Stack's separately authored `src/api-client.tsx` composes the retained factories
 - Upstream `packages/eden-tanstack-query/test-utils/**` → Stack `tests/eden-query/test-utils/**`, except the Bun-only `happydom.ts` preloader.
 - Upstream `packages/eden-tanstack-query/LICENSE` → Stack `src/eden-query/LICENSE`, unchanged.
 
-Run `bunx --bun vp test --project eden-query` for the imported runtime tests and `bunx --bun vp check` for lint/type checks, including the compile-time fixtures. This is an initial connector import for review; these checks do not qualify every deployment or library combination for production.
+Run `bun --bun vp test --project eden-query` for the imported runtime tests and `bun --bun vp check` for lint/type checks, including the compile-time fixtures. This is an initial connector import for review; these checks do not qualify every deployment or library combination for production.

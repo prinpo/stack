@@ -1,13 +1,16 @@
 import { readFile, realpath, stat } from "node:fs/promises";
 import { relative, resolve, sep } from "node:path";
 
+import { hasProductionDatabase, migrateProductionDatabase } from "./database/startup";
 import { injectClientEnv } from "./env/html";
-import { readClientEnv, readServerConnection } from "./env/server";
+import { loadServerEnv, readClientEnv, readServerConnection } from "./env/server";
 import { createSpaHandler, isApiPath } from "./spa";
 
 /** Serve a built SPA with startup-only public configuration, without an Elysia app. */
 export async function startFrontend() {
-  const config = await readServerConnection();
+  const database = hasProductionDatabase();
+  const config = database ? await loadServerEnv({ client: false }) : await readServerConnection();
+  if (database) await migrateProductionDatabase();
   const snapshot = await readClientEnv({ profile: config.profile });
   const directory = await realpath(resolve("dist/client"));
   const shell = injectClientEnv(

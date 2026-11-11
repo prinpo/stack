@@ -1,8 +1,8 @@
 import { Elysia } from "@prinpo/stack/server";
 
-import { logging } from "./logging";
+import { logging } from "../plugins/logging";
 
-export const errors = new Elysia().use(logging).post("/api/error", ({ apiError }) => {
+export const errorRoutes = new Elysia().use(logging).post("/api/error", ({ apiError }) => {
   return apiError(409, {
     message: "This example order is already confirmed",
     code: "ORDER_CONFIRMED",

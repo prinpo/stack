@@ -2,18 +2,21 @@
 
 A thin application framework for Bun, Elysia, Eden, TanStack Router, and TanStack Query. Stack owns a tested set of library versions and connects their native APIs through a few utilities.
 
-The foundation includes file-based routing, router devtools, a Vite preset, a development API proxy, and an Elysia serving plugin. The Eden Query connector adds typed queries and mutations. Standard server startup integrates [Varlock configuration](docs/env.md), including typed schemas and public runtime values. Optional logging integrates evlog. Database and auth integrations follow separately. See the [original milestone boundary](docs/milestones/0001-fullstack-foundation.md) and [architectural decisions](docs/adr/).
+The foundation includes file-based routing, router devtools, a Vite preset, a development API proxy, and an Elysia serving plugin. The Eden Query connector adds typed queries and mutations. Standard server startup integrates [Varlock configuration](docs/env.md), including typed schemas and public runtime values. Optional logging integrates evlog. The optional [Database Block](docs/database.md) adds native Drizzle workflows and production startup migrations. Authentication remains deferred. See the [original milestone boundary](docs/milestones/0001-fullstack-foundation.md) and [architectural decisions](docs/adr/).
 
 ## Try the full-stack example
+
+Install the Bun version declared in `package.json`. Vite+ is pinned locally; a global `vp` installation is optional. Prefer `bun --bun vp` for direct tooling commands so they use the project version and Bun runtime.
 
 From the repository root:
 
 ```sh
-bunx --bun vp install
+bun install --frozen-lockfile
+bun run stack db migrate
 bun run stack dev
 ```
 
-Open <http://localhost:5173>. Elysia runs on port 3000. The example is a Bun workspace that imports Stack's TypeScript source directly through `@prinpo/stack/...`. Changes to the source feed into the running application without building, packing, or reinstalling Stack. `bunx --bun vp run dev` from the root starts the same example.
+Open <http://localhost:5173>. Elysia runs on port 3000. The example is a Bun workspace that imports Stack's TypeScript source directly through `@prinpo/stack/...`. Changes to the source feed into the running application without building, packing, or reinstalling Stack. `bun --bun vp run dev` from the root starts the same example.
 
 The [full-stack example](examples/fullstack/README.md) documents its files and development workflow. `examples/` is a place to try real scenarios and evaluate the DX.
 
@@ -27,6 +30,7 @@ See the [CLI guide](docs/cli.md) for commands, defaults, machine output, and ins
 
 | Import                        | Provides                                                                |
 | ----------------------------- | ----------------------------------------------------------------------- |
+| `@prinpo/stack/database`      | Native Drizzle root API and Stack-owned Kit configuration               |
 | `@prinpo/stack/server`        | Native Elysia exports, standard `startServer`, and low-level `serveApp` |
 | `@prinpo/stack/client`        | Native Eden exports, including `treaty`                                 |
 | `@prinpo/stack/logger`        | Native evlog utilities                                                  |
@@ -42,11 +46,15 @@ See the [CLI guide](docs/cli.md) for commands, defaults, machine output, and ins
 
 Import React and React DOM from their upstream packages. They are optional peers; UI applications install compatible versions themselves. Other integrated libraries are pinned regular dependencies. Backend entry points can run without React installed. Frontend-only applications still install the shared dependency set and omit the backend configuration.
 
+The Database Block exposes native Drizzle APIs through `@prinpo/stack/database` and matching subpaths such as `@prinpo/stack/database/sqlite-core`, `@prinpo/stack/database/bun-sql/sqlite`, and optional `@prinpo/stack/database/zod`. Stack owns exact RC.5 versions; developers choose their dialect and driver. Stack owns `defineConfig` through `@prinpo/stack/database`, with no configurable migration output. See the [database guide](docs/database.md).
+
 The root [package.json](package.json) defines `@prinpo/stack`, its source exports, pinned library dependencies, optional React peers, and development tools. `src/` contains source files only. The example is a private Bun workspace whose `file:../..` dependency links directly to the root package; no separate Stack workspace or self-dependency is needed.
 
 Vite+ is application development tooling. The example's [package.json](examples/fullstack/package.json) shows the tested versions, Vite alias, and explicit Bun package-manager setting. Shared tooling versions stay aligned with the root. [bunfig.toml](bunfig.toml) selects Bun's hoisted linker so Stack and the example share the root `node_modules` and lockfile; conflicting dependency versions can require nested installations. The example also stores Vite's cache under the root `node_modules`.
 
 When migrating an existing checkout from the former `src/` workspace layout, remove the generated root, `src/`, and example `node_modules` directories, then run `bun install --frozen-lockfile`. This one-time cleanup clears stale workspace links and install metadata.
+
+Repository installation generates the thin database forwarding modules automatically. After dependency changes, `bun run database:exports --check` verifies they match the installed pinned ORM. Release packaging regenerates and ships the files; application consumers need no generation step.
 
 ## Browser tooling
 
@@ -58,6 +66,8 @@ export default defineConfig({
   plugins: [stack({ api: true })],
 });
 ```
+
+Keep application configuration at the project root and browser HTML at `src/index.html`, with `<script type="module" src="/main.tsx"></script>`. Stack uses `src/` as Vite's root; public assets belong in `src/public/`. Generated Varlock modules belong in `src/env-gen/`, while schemas stay in root `env/` and database migrations in root `migrations/`. These entry/generation conventions are enforced; the example's server folders are a recommended architecture. See the [CLI guide](docs/cli.md) for migration steps.
 
 The preset configures React, file-route generation, automatic route splitting, shared React resolution, and the optional API proxy. `api: true` includes Varlock and reads backend connection settings for proxying and resolves client configuration locally for HTML delivery. Use an explicit `api.target` for standalone proxying to another backend. By default, requests under `/api` keep their paths when forwarded to Elysia. `/apiary` remains a frontend path. Proxying preserves the browser's origin.
 
@@ -133,9 +143,9 @@ CI validates the example browser/server build against source and installs a rele
 ## Working on Stack
 
 ```sh
-bunx --bun vp check
-bunx --bun vp test
-bunx --bun vp run example:check
+bun --bun vp check
+bun --bun vp test
+bun --bun vp run example:check
 bun run stack build
 bun run package:check
 ```

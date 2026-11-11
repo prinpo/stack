@@ -24,7 +24,12 @@ export default defineConfig({
     ],
   },
   lint: {
-    ignorePatterns: [".agents/**", "**/routeTree.gen.ts", "examples/fullstack/src/env/**"],
+    ignorePatterns: [
+      ".agents/**",
+      "**/routeTree.gen.ts",
+      "examples/fullstack/src/env-gen/**",
+      "src/database/generated/**",
+    ],
     options: {
       typeAware: true,
       typeCheck: true,
@@ -34,7 +39,12 @@ export default defineConfig({
     },
   },
   fmt: {
-    ignorePatterns: [".agents/**", "**/routeTree.gen.ts", "examples/fullstack/src/env/**"],
+    ignorePatterns: [
+      ".agents/**",
+      "**/routeTree.gen.ts",
+      "examples/fullstack/src/env-gen/**",
+      "src/database/generated/**",
+    ],
     sortImports: {
       groups: [
         "type-import",

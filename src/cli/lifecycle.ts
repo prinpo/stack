@@ -3,16 +3,19 @@ import type { ChildProcess } from "node:child_process";
 import { defineCommand, showUsage } from "citty";
 import { existsSync, watch } from "node:fs";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { builtDatabase } from "../database/files";
 import { serverEnvPaths } from "../env/paths";
 import { loadStaticEnv } from "../env/server";
 import { developmentCompose } from "./compose";
+import { buildDatabase } from "./database-build";
+import { frontendArguments, frontendEnvironment } from "./frontend";
 import { environment, profileArgs, takeOptions } from "./options";
 import { type Area, type BuildResult, buildSummary, heading, intro, restartNotice } from "./output";
 import { capabilities, isFile, outputs } from "./project";
-import { runBun, spawnBun, stop, tool } from "./tools";
+import { runBun, spawnBun, stop } from "./tools";
 
 function lifecycleCommand(
   name: string,
@@ -61,8 +64,11 @@ export const build = lifecycleCommand(
     const app = capabilities();
     const results: BuildResult[] = [];
     await Promise.all(
-      [outputs.client, outputs.server].map((path) => rm(path, { recursive: true, force: true })),
+      [outputs.client, outputs.server, "dist/database"].map((path) =>
+        rm(path, { recursive: true, force: true }),
+      ),
     );
+    const database = await buildDatabase(env);
     if (app.frontend) {
       const frontendStarted = performance.now();
       heading("frontend", "Building browser assets");
@@ -73,8 +79,8 @@ export const build = lifecycleCommand(
           publicOnly: true,
         });
       await runBun(
-        [tool("vite-plus", "vp"), "build", "--outDir", outputs.client, "--configLoader", "runner"],
-        env,
+        [...frontendArguments("build"), "--outDir", resolve(outputs.client)],
+        frontendEnvironment(env),
         "inherit",
         "frontend",
       );
@@ -89,7 +95,7 @@ export const build = lifecycleCommand(
     if (app.backend) {
       const backendStarted = performance.now();
       heading("backend", "Building Bun server");
-      await loadStaticEnv(serverEnvPaths(), { values: env, profile: env.APP_ENV });
+      if (!database) await loadStaticEnv(serverEnvPaths(), { values: env, profile: env.APP_ENV });
       await runBun(
         [
           "build",
@@ -97,6 +103,8 @@ export const build = lifecycleCommand(
           "bun",
           "--packages",
           "external",
+          "--banner",
+          'process.env._STACK_DATABASE_BUILT = "1";',
           "src/server/index.ts",
           "--outdir",
           outputs.server,
@@ -114,7 +122,7 @@ export const build = lifecycleCommand(
       });
     }
     await mkdir("dist", { recursive: true });
-    await writeFile(outputs.manifest, JSON.stringify({ version: 1, ...app }) + "\n");
+    await writeFile(outputs.manifest, JSON.stringify({ version: 1, ...app, database }) + "\n");
     buildSummary(results, performance.now() - started, env.APP_ENV ?? "production");
   },
 );
@@ -147,10 +155,15 @@ export const start = lifecycleCommand(
     ] as const)
       if (enabled && !isFile(path))
         throw new Error(`Build artifact missing or invalid: ${path}. Run stack build.`);
+    builtDatabase();
     const entry = manifest.backend
       ? outputs.entry
       : fileURLToPath(new URL("../start-frontend.ts", import.meta.url));
-    const startup = { ...env, _SERVE_CLIENT: manifest.frontend ? "1" : "0" };
+    const startup = {
+      ...env,
+      _SERVE_CLIENT: manifest.frontend ? "1" : "0",
+      _STACK_DATABASE_BUILT: "1",
+    };
     const inherited = Object.fromEntries(
       Object.entries(startup).filter(
         (entry): entry is [string, string] => typeof entry[1] === "string",
@@ -175,15 +188,7 @@ export const dev = lifecycleCommand(
     if (app.frontend)
       commands.push({
         area: "frontend",
-        args: [
-          tool("vite-plus", "vp"),
-          "dev",
-          "--configLoader",
-          "runner",
-          "--strictPort",
-          "--clearScreen",
-          "false",
-        ],
+        args: [...frontendArguments("dev"), "--strictPort", "--clearScreen", "false"],
       });
     let children: ChildProcess[] = [];
     const compose = developmentCompose();
@@ -204,7 +209,12 @@ export const dev = lifecycleCommand(
     const launch = () => {
       launched = true;
       for (const command of commands) {
-        const child = spawnBun(command.args, env, "inherit", command.area);
+        const child = spawnBun(
+          command.args,
+          command.area === "frontend" ? frontendEnvironment(env) : env,
+          "inherit",
+          command.area,
+        );
         children.push(child);
         child.once("error", (error) => {
           console.error(error.message);
@@ -231,7 +241,7 @@ export const dev = lifecycleCommand(
                 .then(async () => {
                   const previous = children;
                   children = [];
-                  await Promise.all(previous.map(stop));
+                  await Promise.all(previous.map((child) => stop(child)));
                   if (!closing && launched) {
                     restartNotice(changedPath, commands.length > 1);
                     launch();
@@ -261,7 +271,7 @@ export const dev = lifecycleCommand(
       clearTimeout(debounce);
       watcher?.close();
       await restarting;
-      await Promise.all(children.map(stop));
+      await Promise.all(children.map((child) => stop(child)));
       const cleanupStatus = await compose.stop();
       if (cleanupStatus !== 0) {
         console.error("Failed to stop development Compose services.");

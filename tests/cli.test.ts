@@ -49,18 +49,67 @@ function run(cwd: string, args: string[], overrides: NodeJS.ProcessEnv = {}) {
 
 test("doctor explains inferred capabilities without resolving application credentials", async () => {
   const cwd = await project({
-    "index.html": "<html><head></head></html>",
+    "src/index.html": "<html><head></head></html>",
     "env/server/.env.schema": "# @required\nCLI_SECRET=exec(`exit 97`)\n",
   });
   const result = run(cwd, ["doctor", "--json"]);
   expect(result.status, result.stderr).toBe(0);
   expect(JSON.parse(result.stdout)).toMatchObject({
-    frontend: { enabled: true, reason: "Found index.html" },
+    frontend: { enabled: true, reason: "Found src/index.html" },
     backend: { enabled: false, reason: "Missing src/server/index.ts" },
     env: { client: false, server: true },
     compose: { enabled: false, reason: "Missing docker-compose.dev.yml" },
   });
 });
+
+test.each([false, true])(
+  "frontend capability requires src/index.html with backend=%s",
+  async (backend) => {
+    const cwd = await project({
+      "index.html": "<html><head></head></html>",
+      ...(backend ? { "src/server/index.ts": "" } : {}),
+    });
+    const old = run(cwd, ["doctor", "--json"]);
+    expect(old.status).toBe(1);
+    expect(JSON.parse(old.stdout).frontend).toMatchObject({
+      enabled: false,
+      reason: expect.stringContaining("src/index.html"),
+    });
+    for (const command of ["dev", "build"]) {
+      const result = run(cwd, [command]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("move the root index.html into src/");
+    }
+    await mkdir(join(cwd, "src"), { recursive: true });
+    await writeFile(join(cwd, "src/index.html"), "<html><head></head></html>");
+    await rm(join(cwd, "index.html"));
+    const current = run(cwd, ["doctor", "--json"]);
+    expect(current.status, current.stderr).toBe(0);
+    expect(JSON.parse(current.stdout).frontend).toMatchObject({
+      enabled: true,
+      reason: "Found src/index.html",
+    });
+  },
+);
+
+test.each(["codegen", "load", "run"])(
+  "env %s rejects generation outside src/env-gen before writes or credential resolution",
+  async (operation) => {
+    const cwd = await project({
+      "env/server/.env.schema":
+        "# @redact=false @preventLeaks=false\n# @generateTsTypes(path=../../src/env/server.ts,exposeEnv=local,icons=false)\n# ---\n# @dynamic @required\nTOKEN=exec(`printf resolved > provider-ran; exit 97`)\n",
+    });
+    const result = run(cwd, [
+      "env",
+      operation,
+      ...(operation === "run" ? ["--", "bun", "--eval", "console.log('unexpected')"] : []),
+    ]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("src/env-gen");
+    await expect(readFile(join(cwd, "src/env/server.ts"))).rejects.toThrow();
+    await expect(readFile(join(cwd, "provider-ran"))).rejects.toThrow();
+  },
+);
 
 test("doctor reports development Compose presence without invoking Docker or parsing configuration", async () => {
   const cwd = await project({
@@ -85,7 +134,7 @@ test("doctor reports development Compose presence without invoking Docker or par
 });
 
 test.each(["alias", "directory"])("doctor does not enable Compose for an %s", async (kind) => {
-  const cwd = await project({ "index.html": "", "compose.dev.yml": "services: {}\n" });
+  const cwd = await project({ "src/index.html": "", "compose.dev.yml": "services: {}\n" });
   if (kind === "directory") await mkdir(join(cwd, "docker-compose.dev.yml"));
   const result = run(cwd, ["doctor", "--json"]);
   expect(result.status, result.stderr).toBe(0);
@@ -94,7 +143,7 @@ test.each(["alias", "directory"])("doctor does not enable Compose for an %s", as
     reason: "Missing docker-compose.dev.yml",
   });
   const human = run(cwd, ["doctor"]);
-  expect(human.stdout).toContain("○ disabled");
+  expect(human.stdout).toContain("○ Docker Compose");
   expect(human.stdout).toContain("Missing docker-compose.dev.yml");
 });
 
@@ -250,8 +299,8 @@ function launch(cwd: string, args: string[], env: NodeJS.ProcessEnv) {
 
 test("frontend-only production startup hydrates staging values without backend credentials or sources", async () => {
   const cwd = await project({
-    "index.html": "<html><head></head><body>Built frontend</body></html>",
-    "public/asset.txt": "static asset",
+    "src/index.html": "<html><head></head><body>Built frontend</body></html>",
+    "src/public/asset.txt": "static asset",
     "env/server/.env.schema":
       "# @redact=false @preventLeaks=false\n# ---\nCLI_SECRET=exec(`exit 97`)\n",
     "env/client/.env.schema":
@@ -260,7 +309,7 @@ test("frontend-only production startup hydrates staging values without backend c
   });
   const result = run(cwd, ["build"]);
   expect(result.status, result.stdout + result.stderr).toBe(0);
-  await rm(join(cwd, "index.html"));
+  await rm(join(cwd, "src/index.html"));
   const port = await freePort();
   const app = launch(cwd, ["start", "--env", "staging"], { PORT: String(port) });
   const origin = `http://127.0.0.1:${port}`;
@@ -293,9 +342,9 @@ test("frontend-only production startup hydrates staging values without backend c
 
 test("client compilation uses APP_ENV independently of Vite mode and stays on Bun", async () => {
   const cwd = await project({
-    "index.html":
+    "src/index.html":
       '<html><head></head><body><script type="module" src="/main.ts"></script></body></html>',
-    "main.ts":
+    "src/main.ts":
       'import { ENV } from "@prinpo/stack/env"; document.body.textContent = ENV.CLI_STATIC + ":" + import.meta.env.MODE;',
     "vite.config.ts":
       'import { defineConfig } from "vite-plus"; import { varlockVitePlugin } from "@prinpo/stack/env/vite"; if (!process.versions.bun) throw new Error("Tooling ran on Node"); export default defineConfig({ mode: "review", plugins: [varlockVitePlugin()], build: { minify: false } });',
@@ -324,7 +373,7 @@ test("development restarts frontend and backend on server env changes and cleans
   const backendPort = await freePort();
   const frontendPort = await freePort();
   const cwd = await project({
-    "index.html": "<html><head></head><body>Development</body></html>",
+    "src/index.html": "<html><head></head><body>Development</body></html>",
     "package.json": '{"type":"module"}',
     "src/routes/__root.tsx":
       'import { createRootRoute } from "@prinpo/stack/react"; export const Route = createRootRoute();',
@@ -369,7 +418,7 @@ test("development restarts frontend and backend on server env changes and cleans
 
 test("frontend builds validate client schemas even when native Vite configuration omits env plugins", async () => {
   const cwd = await project({
-    "index.html": "<html><head></head><body>Frontend</body></html>",
+    "src/index.html": "<html><head></head><body>Frontend</body></html>",
     "env/client/.env.schema":
       "# @defaultSensitive=true\n# ---\nCLI_SECRET=exec(`printf exposed > resolver-ran; printf secret`)\n",
   });
@@ -393,11 +442,11 @@ test("client inspection rejects secrets before executing their value resolvers",
 test("codegen skips missing optional schemas but fails explicit missing selections without resolving values", async () => {
   const cwd = await project({
     "env/client/.env.schema":
-      "# @redact=false @preventLeaks=false\n# @generateTsTypes(path=../../client-env.ts,exposeEnv=local,icons=false)\n# ---\n# @public @dynamic @required\nCLI_PUBLIC=exec(`printf resolved > resolver-ran; printf value`)\n",
+      "# @redact=false @preventLeaks=false\n# @generateTsTypes(path=../../src/env-gen/client.ts,exposeEnv=local,icons=false)\n# ---\n# @public @dynamic @required\nCLI_PUBLIC=exec(`printf resolved > resolver-ran; printf value`)\n",
   });
   const result = run(cwd, ["env", "codegen"]);
   expect(result.status, result.stderr).toBe(0);
-  expect(await readFile(join(cwd, "client-env.ts"), "utf8")).toContain("CLI_PUBLIC");
+  expect(await readFile(join(cwd, "src/env-gen/client.ts"), "utf8")).toContain("CLI_PUBLIC");
   await expect(readFile(join(cwd, "resolver-ran"))).rejects.toThrow();
   const missing = run(cwd, ["env", "codegen", "--server"]);
   expect(missing.status).not.toBe(0);
@@ -438,16 +487,16 @@ test("server codegen includes Stack settings and stays stable across builds", as
   const cwd = await project({
     "src/server/index.ts": 'console.log("backend");',
     "env/server/.env.schema":
-      "# @redact=false @preventLeaks=false\n# @generateTsTypes(path=../../server-env.ts,exposeEnv=local,icons=false)\n# ---\n# @public\nAPP_NAME=fixture\n",
+      "# @redact=false @preventLeaks=false\n# @generateTsTypes(path=../../src/env-gen/server.ts,exposeEnv=local,icons=false)\n# ---\n# @public\nAPP_NAME=fixture\n",
   });
   const generated = run(cwd, ["env", "codegen", "--server"]);
   expect(generated.status, generated.stderr).toBe(0);
-  const before = await readFile(join(cwd, "server-env.ts"), "utf8");
+  const before = await readFile(join(cwd, "src/env-gen/server.ts"), "utf8");
   expect(before).toContain("APP_ENV: string");
   expect(before).toContain("HOST: string");
   const built = run(cwd, ["build"]);
   expect(built.status, built.stderr).toBe(0);
-  expect(await readFile(join(cwd, "server-env.ts"), "utf8")).toBe(before);
+  expect(await readFile(join(cwd, "src/env-gen/server.ts"), "utf8")).toBe(before);
 });
 
 test("command help includes Stack selectors and native options without loading schemas", async () => {
@@ -469,7 +518,7 @@ test("an unexpected frontend exit fails development and stops the backend watche
   const backendPort = await freePort();
   const frontendPort = await freePort();
   const cwd = await project({
-    "index.html": "<html><head></head><body>Fixture</body></html>",
+    "src/index.html": "<html><head></head><body>Fixture</body></html>",
     "src/server/index.ts": `Bun.serve({ hostname: "127.0.0.1", port: ${backendPort}, fetch: () => new Response("backend") }); console.log("BACKEND_READY");`,
     "vite.config.ts": `export default { plugins: [{ name: "fixture-exit", configureServer() { setTimeout(() => process.exit(9), 300); } }], server: { host: "127.0.0.1", port: ${frontendPort} } };`,
   });

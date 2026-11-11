@@ -1,3 +1,12 @@
 import { startServer } from "@prinpo/stack/server";
 
-await startServer(() => import("./app"));
+const app = await startServer(() => import("./app"), {
+  onStop: async () => {
+    try {
+      await app.stop();
+    } finally {
+      const { client } = await import("./database");
+      await client.close();
+    }
+  },
+});
