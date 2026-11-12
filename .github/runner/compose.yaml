@@ -6,6 +6,8 @@ services:
     container_name: prinpo-stack-runner
     init: true
     restart: unless-stopped
+    dns:
+      - 100.100.100.100
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     environment:
