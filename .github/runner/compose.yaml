@@ -6,8 +6,10 @@ services:
     container_name: prinpo-stack-runner
     init: true
     restart: unless-stopped
+    # Keep GitHub DNS independent of the host's VPN and Wi-Fi DNS changes.
     dns:
-      - 100.100.100.100
+      - 1.1.1.1
+      - 1.0.0.1
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     environment:
