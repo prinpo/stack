@@ -4,7 +4,16 @@ Stack owns Better Auth 1.7.21 and its matching relations-v2 Drizzle adapter. Aut
 
 ## Native configuration and offline schema
 
-Keep schema configuration independent from runtime database clients and credentials. The recommended `src/auth.ts` exports native options:
+The example keeps each auth responsibility in its corresponding runtime area:
+
+| File                                    | Purpose                                                                                        |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `src/client/auth.ts`                    | Browser Better Auth client, plugins, hooks and actions.                                        |
+| `src/server/auth/config.ts`             | Connection-free native options used by schema generation and the running server.               |
+| `src/server/auth/instance.ts`           | Running auth instance and bound helpers, using runtime credentials and the app-owned database. |
+| `src/server/database/auth.generated.ts` | Generated tables and relations beside the application's handwritten database schema.           |
+
+Keep schema configuration independent from runtime database clients and credentials. The recommended `src/server/auth/config.ts` exports native options:
 
 ```ts
 import type { BetterAuthOptions } from "@prinpo/stack/auth";
@@ -19,7 +28,7 @@ export const authOptions = {
 } satisfies BetterAuthOptions;
 ```
 
-The adapter above supplies native schema metadata, not a live connection. Runtime code creates `betterAuth({ ...authOptions, secret, baseURL, database: drizzleAdapter(db, { provider: "sqlite", schema }) })` using the app-owned database. The example's [runtime module](../examples/fullstack/src/server/auth.ts) demonstrates this split. Normal runtime code must supply a real Drizzle instance.
+The adapter above supplies native schema metadata, not a live connection. Runtime code creates `betterAuth({ ...authOptions, secret, baseURL, database: drizzleAdapter(db, { provider: "sqlite", schema }) })` using the app-owned database. The example's [runtime module](../examples/fullstack/src/server/auth/instance.ts) demonstrates this split. Normal runtime code must supply a real Drizzle instance.
 
 ```sh
 stack auth generate
@@ -30,7 +39,7 @@ stack db generate --name auth
 stack db migrate
 ```
 
-Generation defaults to `src/auth.ts` and `src/db/auth.generated.ts`. It accepts `authOptions`, a native `auth` instance, or a default export of either options or an auth instance. `--config`, `--output`, and `--env` override paths/profile. An existing output requires `--yes` before replacement. The first generation supports an absent output module; config must not eagerly dereference missing generated tables or initialize a runtime database. The static Varlock graph is available without resolving dynamic production credentials, and the auth CLI does not independently load dotenv files.
+Generation defaults to `src/server/auth/config.ts` and `src/server/database/auth.generated.ts`. It accepts `authOptions`, a native `auth` instance, or a default export of either options or an auth instance. `--config`, `--output`, and `--env` override paths/profile. An existing output requires `--yes` before replacement. The first generation supports an absent output module; config must not eagerly dereference missing generated tables or initialize a runtime database. The static Varlock graph is available without resolving dynamic production credentials, and the auth CLI does not independently load dotenv files.
 
 The native relations-v2 adapter generates tables, relations, indexes and foreign keys. Stack only forwards generated Drizzle import paths through its Database Block. Extend auth tables through native additional fields, regenerate, and generate SQL migrations. Keep application tables/relations outside generated files and exclude generated output from formatting. SQL history, build packaging and production migrations remain Database Block responsibilities. Generation never applies SQL.
 
@@ -42,7 +51,7 @@ Doctor reports conventional auth config/schema presence and fails when detected 
 
 Stack's `magicLink` and `emailOTP` adapters preserve native plugin options and API types while making the sender optional for development. Their dedicated imports are `@prinpo/stack/auth/plugins/magic-link` and `@prinpo/stack/auth/plugins/email-otp`; the aggregate plugins entry exposes the same wrappers. `organization` similarly wraps invitations while preserving native option overloads, including teams/dynamic permissions when an app enables them.
 
-During development, payloads always appear in the server console and every connected browser, even when a sender such as Mailpit is configured. No extra Vite option is needed. Native callback context and options are passed unchanged to app senders. Sender failures retain native Better Auth behavior; console output does not imply successful email transport.
+During development, readable delivery messages always appear in the server console and every connected browser, even when a sender such as Mailpit is configured. No extra Vite option is needed. Codes have a labeled line; URLs have their own unquoted line so browser DevTools links remain clickable. Native callback context and options are passed unchanged to app senders. Sender failures retain native Better Auth behavior; console output does not imply successful email transport.
 
 Core native callbacks have small composition helpers:
 
@@ -97,4 +106,4 @@ bun run stack db migrate
 bun run dev
 ```
 
-Visit `/auth`, `/organizations`, and `/organizations/<slug>`. Minimal forms cover signup/password login, OTP, magic links, verification/reset, membership and invitations. Routes contain routing concerns; feature directories contain views. Production deployment must configure runtime secret/base URL and real delivery callbacks; the teaching example intentionally does not ship an email provider.
+Visit `/auth`, `/organizations`, and `/organizations/<slug>`. Minimal forms cover signup/password login, OTP, magic links, verification/reset, membership and invitations. Sign in to an unverified account to request a verification link; the session view shows verification status. Native verification requests for unknown or already-verified addresses intentionally do not send email. Routes contain routing concerns; feature directories contain views. Production deployment must configure runtime secret/base URL and real delivery callbacks; the teaching example intentionally does not ship an email provider.

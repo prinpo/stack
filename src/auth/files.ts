@@ -1,7 +1,7 @@
 import { isFile } from "../files";
 
-export const authConfig = "src/auth.ts";
-export const authSchema = "src/db/auth.generated.ts";
+export const authConfig = "src/server/auth/config.ts";
+export const authSchema = "src/server/database/auth.generated.ts";
 export function inspectAuth(config = authConfig, schema = authSchema) {
   const enabled = isFile(config);
   const ready = !enabled || isFile(schema);

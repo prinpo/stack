@@ -17,7 +17,7 @@ import { drizzleAdapter } from "@prinpo/stack/auth/adapters/drizzle";
 import { emailOTP, magicLink, lastLoginMethod } from "@prinpo/stack/auth/plugins";
 import { organization } from "@prinpo/stack/auth/plugins/organization";
 import { Elysia, ElysiaCustomStatusResponse } from "elysia";
-import * as schema from "./examples/fullstack/src/db/auth.generated";
+import * as schema from "./examples/fullstack/src/server/database/auth.generated";
 const client = new SQL("sqlite://:memory:");
 try {
   const migration = readFileSync("./examples/fullstack/migrations/20261112082425_auth/migration.sql", "utf8");

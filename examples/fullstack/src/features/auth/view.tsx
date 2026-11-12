@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { authClient } from "../../auth-client";
+import { authClient } from "../../client/auth";
 
 export function AuthView() {
   const { data: session, isPending } = authClient.useSession();
@@ -10,13 +10,13 @@ export function AuthView() {
   const [otp, setOtp] = useState("");
   const [message, setMessage] = useState("");
   const last = authClient.getLastUsedLoginMethod();
-  async function action(work: () => Promise<{ error?: { message?: string } | null }>) {
+  async function action(
+    work: () => Promise<{ error?: { message?: string } | null }>,
+    success = "Done. Check the browser or server console for development email delivery.",
+  ) {
     try {
       const result = await work();
-      setMessage(
-        result.error?.message ??
-          "Done. Check the browser or server console for development email delivery.",
-      );
+      setMessage(result.error?.message ?? success);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     }
@@ -27,6 +27,22 @@ export function AuthView() {
       <section>
         <h2>Session</h2>
         <p>Signed in as {session.user.email}</p>
+        <p>Email status: {session.user.emailVerified ? "Verified" : "Not verified"}</p>
+        {!session.user.emailVerified && (
+          <button
+            type="button"
+            onClick={() =>
+              void action(() =>
+                authClient.sendVerificationEmail({
+                  email: session.user.email,
+                  callbackURL: "/auth",
+                }),
+              )
+            }
+          >
+            Verify email
+          </button>
+        )}
         <p>
           <a href="/organizations">Organizations</a>
         </p>
@@ -114,11 +130,15 @@ export function AuthView() {
         <p>
           <button
             type="button"
+            disabled={!email}
             onClick={() =>
-              void action(() => authClient.sendVerificationEmail({ email, callbackURL: "/auth" }))
+              void action(
+                () => authClient.sendVerificationEmail({ email, callbackURL: "/auth" }),
+                "If this address belongs to an unverified account, check its email or development consoles for a link. Sign in to check your verification status.",
+              )
             }
           >
-            Verify email
+            Resend verification
           </button>{" "}
           <button
             type="button"

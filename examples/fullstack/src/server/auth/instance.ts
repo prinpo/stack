@@ -1,10 +1,10 @@
 import { betterAuth, createAuthHelpers } from "@prinpo/stack/auth";
 import { drizzleAdapter } from "@prinpo/stack/auth/adapters/drizzle";
 
-import { authOptions } from "../auth";
-import * as schema from "../db/auth.generated";
-import { ENV } from "../env-gen/server";
-import { db } from "./database";
+import { ENV } from "../../env-gen/server";
+import { db } from "../database";
+import * as schema from "../database/auth.generated";
+import { authOptions } from "./config";
 
 export const auth = betterAuth({
   ...authOptions,

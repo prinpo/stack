@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { authClient } from "../../auth-client";
+import { authClient } from "../../client/auth";
 
 export function ResetPasswordView() {
   const [password, setPassword] = useState("");

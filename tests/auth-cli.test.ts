@@ -19,21 +19,21 @@ function run(cwd: string, ...args: string[]) {
 test("auth schema generation bootstraps offline and detects plugin schema drift", async () => {
   const root = await mkdtemp(join(process.cwd(), ".stack-test-auth-"));
   roots.push(root);
-  await mkdir(join(root, "src"));
+  await mkdir(join(root, "src/server/auth"), { recursive: true });
   await writeFile(
-    join(root, "src/auth.ts"),
+    join(root, "src/server/auth/config.ts"),
     `import { drizzleAdapter } from "@prinpo/stack/auth/adapters/drizzle";\nimport { organization } from "@prinpo/stack/auth/plugins/organization";\nexport const authOptions = { database: drizzleAdapter({}, { provider: "sqlite" }), plugins: [organization()], user: { additionalFields: { source: { type: "string", defaultValue: "drizzle-orm" } } } };`,
   );
   const generated = run(root, "auth", "generate");
   expect(generated.status, generated.stdout + generated.stderr).toBe(0);
-  const output = await readFile(join(root, "src/db/auth.generated.ts"), "utf8");
+  const output = await readFile(join(root, "src/server/database/auth.generated.ts"), "utf8");
   expect(output).toContain("defineRelationsPart");
   expect(output).toContain("organization");
   expect(output).toContain("references");
   expect(output).toContain("index(");
   expect(output).toContain('.default("drizzle-orm")');
   expect(run(root, "auth", "check").status).toBe(0);
-  await writeFile(join(root, "src/db/auth.generated.ts"), output + "\n// changed\n");
+  await writeFile(join(root, "src/server/database/auth.generated.ts"), output + "\n// changed\n");
   expect(run(root, "auth", "check").status).toBe(1);
   expect(run(root, "auth", "generate").status).toBe(1);
   expect(run(root, "auth", "generate", "--yes").status).toBe(0);
@@ -42,9 +42,12 @@ test("auth schema generation bootstraps offline and detects plugin schema drift"
 test("doctor inspects auth files without evaluating config and accepts custom paths", async () => {
   const root = await mkdtemp(join(process.cwd(), ".stack-test-auth-doctor-"));
   roots.push(root);
-  await mkdir(join(root, "src/server"), { recursive: true });
+  await mkdir(join(root, "src/server/auth"), { recursive: true });
   await writeFile(join(root, "src/server/index.ts"), "");
-  await writeFile(join(root, "src/auth.ts"), 'throw new Error("doctor must not execute this")');
+  await writeFile(
+    join(root, "src/server/auth/config.ts"),
+    'throw new Error("doctor must not execute this")',
+  );
   const missing = run(root, "doctor", "--json");
   expect(missing.status).toBe(1);
   expect(JSON.parse(missing.stdout).auth).toMatchObject({ enabled: true, ready: false });

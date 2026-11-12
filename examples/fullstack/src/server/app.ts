@@ -1,6 +1,6 @@
 import { Elysia } from "@prinpo/stack/server";
 
-import { authHelpers } from "./auth";
+import { authHelpers } from "./auth/instance";
 import { logging } from "./plugins/logging";
 import { environmentRoutes } from "./routes/environment";
 import { errorRoutes } from "./routes/errors";

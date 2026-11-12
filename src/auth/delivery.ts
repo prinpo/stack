@@ -6,10 +6,33 @@ import { developmentLogging, logState } from "../browser-log/state";
 const requirement = Symbol.for("prinpo.stack.auth.delivery");
 type Sender<Args extends unknown[]> = (...args: Args) => void | Promise<void>;
 
+/** Auth links are plain text on their own line so DevTools never includes object quotes. */
+function logDelivery(flow: string, data: unknown) {
+  if (!data || typeof data !== "object") {
+    browserLog(`[auth:${flow}]`, data);
+    return;
+  }
+  const payload = data as Record<string, unknown>;
+  const user =
+    payload.user && typeof payload.user === "object"
+      ? (payload.user as Record<string, unknown>)
+      : undefined;
+  const email = typeof payload.email === "string" ? payload.email : user?.email;
+  const lines = [`[auth:${flow}]`];
+  if (typeof email === "string") lines.push(`To: ${email}`);
+  if (typeof payload.type === "string") lines.push(`Purpose: ${payload.type}`);
+  if (typeof payload.otp === "string") lines.push(`Code: ${payload.otp}`);
+  if (typeof payload.url === "string") lines.push("Open this link:", payload.url);
+  if (flow === "invitation" && typeof payload.id === "string")
+    lines.push(`Invitation ID: ${payload.id}`);
+  if (lines.length === 1) browserLog(lines[0], data);
+  else browserLog(lines.join("\n"));
+}
+
 /** Compose native senders with automatic development output; no delivery side effects on import. */
 export function authDelivery<Args extends unknown[]>(flow: string, sender?: Sender<Args>) {
   const callback = async (...args: Args) => {
-    if (developmentLogging()) browserLog(`[auth:${flow}]`, args[0]);
+    if (developmentLogging()) logDelivery(flow, args[0]);
     if (sender) await sender(...args);
     else if (!developmentLogging())
       throw new Error(`Auth ${flow} requires an application sender in production.`);

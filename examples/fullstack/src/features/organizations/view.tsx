@@ -4,7 +4,7 @@ import type { Member } from "@prinpo/stack/auth/plugins/organization";
 import { useOrganizationBySlug } from "@prinpo/stack/auth/react";
 import { useState } from "react";
 
-import { authClient } from "../../auth-client";
+import { authClient } from "../../client/auth";
 
 export function OrganizationsView() {
   const { data: session } = authClient.useSession();
