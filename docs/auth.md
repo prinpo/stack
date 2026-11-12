@@ -60,7 +60,7 @@ const emailVerification = {
 
 Omit helper arguments during initial development. Invitation delivery is handled by the wrapped organization plugin; `sendInvitationEmail` is also available from its dedicated entry. Invitation callback data includes its native ID; the app chooses its invitation URL and acceptance route. The example accepts `/invitation?id=<id>` and requires signing in with the invited email.
 
-Builds do not evaluate delivery or require senders. Registering the Elysia integration validates required application senders before serving in production/built apps. A configured wrapped flow without a sender fails startup with an actionable message. For standalone native hosting, call `validateAuthDelivery(auth.options)` at the equivalent pre-listen boundary. Direct native plugins/callbacks retain native behavior; Stack can validate only its own delivery helpers. Supplying an app sender does not itself enable an auth method.
+Builds do not evaluate delivery or require senders. Registering the Elysia integration adds a validation gate that `startServer` awaits after native auth/plugin initialization and before listening in production/built apps. A configured wrapped flow without a sender fails startup with an actionable message. For standalone native hosting, await `helpers.validate()` at the equivalent pre-listen boundary; it checks plugin-composed native options. Direct native plugins/callbacks retain native behavior; Stack can validate only its own delivery helpers. Supplying an app sender does not itself enable an auth method.
 
 ## Server helpers
 
@@ -84,7 +84,7 @@ const app = new Elysia()
 
 Use `createAuthClient` from `@prinpo/stack/auth/react` or `/auth/client`, with native plugins from `/auth/client/plugins`. Native session, organization, invitation and last-login hooks/actions stay available. Use `inferAdditionalFields<typeof auth>()` and `inferOrgAdditionalFields<typeof auth>()` with type-only server imports for custom fields; no runtime server import belongs in a browser bundle.
 
-`organizationBySlug(client, slug)` calls the native authorized organization endpoint. React's `useOrganizationBySlug(client, slug)` provides a URL-scoped view with pending/error state and explicit `refetch`, without selecting an active organization or creating a shared session cache. Native errors remain native client results. Apps decide when to refetch after their own mutations. Last login uses native browser-cookie behavior by default, retaining native database-persistence options.
+`organizationBySlug(client, slug)` calls the native authorized organization endpoint. React's `useOrganizationBySlug(client, slug)` provides a URL-scoped view that follows native session changes, clears results on logout/account changes, and exposes pending/error state and explicit `refetch`, without selecting an active organization or creating a shared session cache. Native errors remain native client results. Apps decide when to refetch after their own mutations. Last login uses native browser-cookie behavior by default, retaining native database-persistence options.
 
 Social sign-on is native configuration: supply, for example, `socialProviders.google: { clientId, clientSecret }`, configure the provider callback URL, and call `authClient.signIn.social({ provider: "google", callbackURL })`. Any native social provider remains selectable. The runnable example requires no OAuth credentials; add providers through app-owned runtime configuration rather than putting secrets in browser code or schema-generation options.
 

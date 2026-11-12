@@ -47,7 +47,9 @@ test("production integration rejects missing senders without executing them", as
     secret: "a-strong-production-test-secret-more-than-32-chars",
     plugins: [magicLink()],
   });
-  expect(() => createAuthHelpers(auth).elysia()).toThrow("requires an application sender");
+  await expect(createAuthHelpers(auth).validate()).rejects.toThrow(
+    "requires an application sender",
+  );
   vi.unstubAllEnvs();
 });
 
@@ -67,11 +69,26 @@ test("a production sender works without development console output", async () =>
     ],
   });
   const { createAuthHelpers } = await import("../src/auth/helpers");
-  expect(() => createAuthHelpers(auth).elysia()).not.toThrow();
+  await expect(createAuthHelpers(auth).validate()).resolves.toBeUndefined();
   await auth.api.sendVerificationOTP({
     body: { email: "production@example.com", type: "sign-in" },
   });
   expect(delivered).toHaveLength(1);
   expect(output).not.toHaveBeenCalled();
+  vi.unstubAllEnvs();
+});
+
+test("native OTP verification overrides remain valid in production", async () => {
+  vi.stubEnv("NODE_ENV", "production");
+  const { createAuthHelpers } = await import("../src/auth/helpers");
+  const auth = betterAuth({
+    baseURL: "https://example.com",
+    secret: "a-strong-production-test-secret-more-than-32-chars",
+    emailAndPassword: { enabled: true, requireEmailVerification: true },
+    plugins: [
+      emailOTP({ overrideDefaultEmailVerification: true, sendVerificationOTP: async () => {} }),
+    ],
+  });
+  await expect(createAuthHelpers(auth).validate()).resolves.toBeUndefined();
   vi.unstubAllEnvs();
 });

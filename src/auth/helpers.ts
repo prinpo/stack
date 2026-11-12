@@ -6,6 +6,7 @@ import { Elysia, ElysiaCustomStatusResponse, status } from "elysia";
 import type { apiError as requestApiError } from "../logger/errors";
 
 import { validateAuthDelivery } from "./delivery";
+import { authStartup } from "./startup";
 
 interface SessionData {
   user: { id: string };
@@ -14,6 +15,7 @@ interface SessionData {
 interface AuthInstance {
   handler: (request: Request) => Promise<Response>;
   options: BetterAuthOptions;
+  $context: Promise<{ options: BetterAuthOptions }>;
   $Infer: { Session: SessionData };
   api: {
     getSession: (input: {
@@ -41,6 +43,15 @@ type OrgResult<A> = A extends { api: { getFullOrganization: (...args: never[]) =
 function failure<const Code extends 401 | 404>(input: Input, code: Code, message: string) {
   if (!(input instanceof Request) && input.apiError) return input.apiError(code, { message });
   return status(code, { status: code, message });
+}
+
+function isHiddenOrganizationError(error: unknown) {
+  return (
+    error instanceof APIError &&
+    (error.statusCode === 403 ||
+      error.statusCode === 404 ||
+      error.body?.code === "ORGANIZATION_NOT_FOUND")
+  );
 }
 
 /** Bind once to the native auth instance. Request caching and cookie refresh stay request-local. */
@@ -86,13 +97,7 @@ export function createAuthHelpers<A extends AuthInstance>(auth: A) {
         query: { organizationSlug: slug },
       })) as OrgResult<A>;
     } catch (error) {
-      if (
-        error instanceof APIError &&
-        (error.statusCode === 403 ||
-          error.statusCode === 404 ||
-          error.body?.code === "ORGANIZATION_NOT_FOUND")
-      )
-        return null;
+      if (isHiddenOrganizationError(error)) return null;
       throw error;
     }
   }
@@ -123,13 +128,7 @@ export function createAuthHelpers<A extends AuthInstance>(auth: A) {
       });
       return result.members[0] ?? null;
     } catch (error) {
-      if (
-        error instanceof APIError &&
-        (error.statusCode === 403 ||
-          error.statusCode === 404 ||
-          error.body?.code === "ORGANIZATION_NOT_FOUND")
-      )
-        return null;
+      if (isHiddenOrganizationError(error)) return null;
       throw error;
     }
   }
@@ -137,20 +136,25 @@ export function createAuthHelpers<A extends AuthInstance>(auth: A) {
     if (!(await getUser(input))) return failure(input, 401, "Authentication required");
     return (await getMembership(input, slug)) ?? failure(input, 404, "Organization not found");
   }
+  async function validate() {
+    validateAuthDelivery((await auth.$context).options);
+  }
   function elysia() {
-    validateAuthDelivery(auth.options);
-    return new Elysia({ name: "prinpo:auth", seed: auth }).mount(auth.handler).macro({
-      auth: {
-        async resolve(context) {
-          const session = await requireSession(context);
-          if (session instanceof ElysiaCustomStatusResponse) return session;
-          return {
-            user: session.user as Session["user"],
-            session: session.session as Session["session"],
-          };
+    return new Elysia({ name: "prinpo:auth", seed: auth })
+      .decorate(authStartup, validate)
+      .mount(auth.handler)
+      .macro({
+        auth: {
+          async resolve(context) {
+            const session = await requireSession(context);
+            if (session instanceof ElysiaCustomStatusResponse) return session;
+            return {
+              user: session.user as Session["user"],
+              session: session.session as Session["session"],
+            };
+          },
         },
-      },
-    });
+      });
   }
   return {
     getSession,
@@ -161,5 +165,6 @@ export function createAuthHelpers<A extends AuthInstance>(auth: A) {
     getMembership,
     requireMembership,
     elysia,
+    validate,
   };
 }

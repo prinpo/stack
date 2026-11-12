@@ -1,5 +1,6 @@
 import type { BetterAuthOptions } from "better-auth";
 
+import { parse } from "@babel/parser";
 import { generateSchema } from "auth/api";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -33,10 +34,20 @@ async function run() {
       );
     const result = await generateSchema({ adapter, options, file: output });
     if (!result.code) throw new Error("The native adapter returned no generated schema.");
-    // Follow Stack's owned-library import paths without modifying the native schema structure.
-    const code = result.code
-      .replaceAll('"drizzle-orm', '"@prinpo/stack/database')
-      .replaceAll("'drizzle-orm", "'@prinpo/stack/database");
+    // Rewrite module specifiers only: user field defaults and other strings are native output.
+    let code = result.code;
+    const tree = parse(code, { sourceType: "module", plugins: ["typescript"] });
+    for (const node of tree.program.body.toReversed()) {
+      if (node.type !== "ImportDeclaration") continue;
+      const source = node.source;
+      if (source.value !== "drizzle-orm" && !source.value.startsWith("drizzle-orm/")) continue;
+      if (source.start == null || source.end == null)
+        throw new Error("Generated import is missing source positions.");
+      code =
+        code.slice(0, source.start) +
+        JSON.stringify("@prinpo/stack/database" + source.value.slice("drizzle-orm".length)) +
+        code.slice(source.end);
+    }
     if (operation === "info") {
       console.log(
         JSON.stringify({

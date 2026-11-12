@@ -22,7 +22,7 @@ test("auth schema generation bootstraps offline and detects plugin schema drift"
   await mkdir(join(root, "src"));
   await writeFile(
     join(root, "src/auth.ts"),
-    `import { drizzleAdapter } from "@prinpo/stack/auth/adapters/drizzle";\nimport { organization } from "@prinpo/stack/auth/plugins/organization";\nexport const authOptions = { database: drizzleAdapter({}, { provider: "sqlite" }), plugins: [organization()] };`,
+    `import { drizzleAdapter } from "@prinpo/stack/auth/adapters/drizzle";\nimport { organization } from "@prinpo/stack/auth/plugins/organization";\nexport const authOptions = { database: drizzleAdapter({}, { provider: "sqlite" }), plugins: [organization()], user: { additionalFields: { source: { type: "string", defaultValue: "drizzle-orm" } } } };`,
   );
   const generated = run(root, "auth", "generate");
   expect(generated.status, generated.stdout + generated.stderr).toBe(0);
@@ -31,6 +31,7 @@ test("auth schema generation bootstraps offline and detects plugin schema drift"
   expect(output).toContain("organization");
   expect(output).toContain("references");
   expect(output).toContain("index(");
+  expect(output).toContain('.default("drizzle-orm")');
   expect(run(root, "auth", "check").status).toBe(0);
   await writeFile(join(root, "src/db/auth.generated.ts"), output + "\n// changed\n");
   expect(run(root, "auth", "check").status).toBe(1);
