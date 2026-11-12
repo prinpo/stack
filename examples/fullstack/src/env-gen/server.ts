@@ -51,9 +51,18 @@ export type CoercedEnvSchema = {
    */
   SERVER_SECRET_DYNAMIC: string;
   
+  /**
+   * **BETTER_AUTH_SECRET** 🔐 _sensitive_  
+   * Auth deployment settings: never resolved by schema generation or builds.  
+   */
+  BETTER_AUTH_SECRET: string;
+  
+  /** **BETTER_AUTH_URL** */
+  BETTER_AUTH_URL: string;
+  
 };
 
-type _CoercedEnvSchema_348864c5 = CoercedEnvSchema;
+type _CoercedEnvSchema_7ffe10c0 = CoercedEnvSchema;
 
 export type EnvSchemaAsStrings = {
   [Property in keyof CoercedEnvSchema]:
@@ -61,9 +70,9 @@ export type EnvSchemaAsStrings = {
       : (NonNullable<CoercedEnvSchema[Property]> extends boolean ? ('true' | 'false') : string)
 };
 
-type _EnvSchemaAsStrings_348864c5 = EnvSchemaAsStrings;
+type _EnvSchemaAsStrings_7ffe10c0 = EnvSchemaAsStrings;
 
-export type PublicCoercedEnvSchema = Readonly<Pick<CoercedEnvSchema, 'HOST' | 'PORT' | 'NODE_ENV' | 'APP_ENV' | 'LOG_DIR' | 'SERVER_PUBLIC_STATIC' | 'SERVER_PUBLIC_DYNAMIC'>>;
+export type PublicCoercedEnvSchema = Readonly<Pick<CoercedEnvSchema, 'HOST' | 'PORT' | 'NODE_ENV' | 'APP_ENV' | 'LOG_DIR' | 'SERVER_PUBLIC_STATIC' | 'SERVER_PUBLIC_DYNAMIC' | 'BETTER_AUTH_URL'>>;
 
 // re-export of the runtime ENV proxy, typed to this package's schema
 export const ENV = _ENV as unknown as Readonly<CoercedEnvSchema>;

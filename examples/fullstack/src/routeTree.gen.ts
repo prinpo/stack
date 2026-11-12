@@ -11,7 +11,14 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as InvitationRouteImport } from './routes/invitation'
+import { Route as OrganizationsRouteImport } from './routes/organizations'
 import { Route as QueriesRouteImport } from './routes/queries'
+import { Route as AuthIndexRouteImport } from './routes/auth.index'
+import { Route as AuthResetRouteImport } from './routes/auth.reset'
+import { Route as OrganizationsIndexRouteImport } from './routes/organizations.index'
+import { Route as OrganizationsSlugRouteImport } from './routes/organizations.$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,39 +30,125 @@ const AboutRoute = AboutRouteImport.update({
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InvitationRoute = InvitationRouteImport.update({
+  id: '/invitation',
+  path: '/invitation',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrganizationsRoute = OrganizationsRouteImport.update({
+  id: '/organizations',
+  path: '/organizations',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const QueriesRoute = QueriesRouteImport.update({
   id: '/queries',
   path: '/queries',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthIndexRoute = AuthIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthResetRoute = AuthResetRouteImport.update({
+  id: '/reset',
+  path: '/reset',
+  getParentRoute: () => AuthRoute,
+} as any)
+const OrganizationsIndexRoute = OrganizationsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => OrganizationsRoute,
+} as any)
+const OrganizationsSlugRoute = OrganizationsSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => OrganizationsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/auth': typeof AuthRouteWithChildren
+  '/invitation': typeof InvitationRoute
+  '/organizations': typeof OrganizationsRouteWithChildren
   '/queries': typeof QueriesRoute
+  '/auth/reset': typeof AuthResetRoute
+  '/organizations/$slug': typeof OrganizationsSlugRoute
+  '/auth/': typeof AuthIndexRoute
+  '/organizations/': typeof OrganizationsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/invitation': typeof InvitationRoute
   '/queries': typeof QueriesRoute
+  '/auth/reset': typeof AuthResetRoute
+  '/organizations/$slug': typeof OrganizationsSlugRoute
+  '/auth': typeof AuthIndexRoute
+  '/organizations': typeof OrganizationsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/auth': typeof AuthRouteWithChildren
+  '/invitation': typeof InvitationRoute
+  '/organizations': typeof OrganizationsRouteWithChildren
   '/queries': typeof QueriesRoute
+  '/auth/reset': typeof AuthResetRoute
+  '/organizations/$slug': typeof OrganizationsSlugRoute
+  '/auth/': typeof AuthIndexRoute
+  '/organizations/': typeof OrganizationsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about' | '/queries'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/auth'
+    | '/invitation'
+    | '/organizations'
+    | '/queries'
+    | '/auth/reset'
+    | '/organizations/$slug'
+    | '/auth/'
+    | '/organizations/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/queries'
-  id: '__root__' | '/' | '/about' | '/queries'
+  to:
+    | '/'
+    | '/about'
+    | '/invitation'
+    | '/queries'
+    | '/auth/reset'
+    | '/organizations/$slug'
+    | '/auth'
+    | '/organizations'
+  id:
+    | '__root__'
+    | '/'
+    | '/about'
+    | '/auth'
+    | '/invitation'
+    | '/organizations'
+    | '/queries'
+    | '/auth/reset'
+    | '/organizations/$slug'
+    | '/auth/'
+    | '/organizations/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  AuthRoute: typeof AuthRouteWithChildren
+  InvitationRoute: typeof InvitationRoute
+  OrganizationsRoute: typeof OrganizationsRouteWithChildren
   QueriesRoute: typeof QueriesRoute
 }
 
@@ -75,6 +168,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invitation': {
+      id: '/invitation'
+      path: '/invitation'
+      fullPath: '/invitation'
+      preLoaderRoute: typeof InvitationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/organizations': {
+      id: '/organizations'
+      path: '/organizations'
+      fullPath: '/organizations'
+      preLoaderRoute: typeof OrganizationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/queries': {
       id: '/queries'
       path: '/queries'
@@ -82,12 +196,69 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof QueriesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/': {
+      id: '/auth/'
+      path: '/'
+      fullPath: '/auth/'
+      preLoaderRoute: typeof AuthIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/auth/reset': {
+      id: '/auth/reset'
+      path: '/reset'
+      fullPath: '/auth/reset'
+      preLoaderRoute: typeof AuthResetRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/organizations/': {
+      id: '/organizations/'
+      path: '/'
+      fullPath: '/organizations/'
+      preLoaderRoute: typeof OrganizationsIndexRouteImport
+      parentRoute: typeof OrganizationsRoute
+    }
+    '/organizations/$slug': {
+      id: '/organizations/$slug'
+      path: '/$slug'
+      fullPath: '/organizations/$slug'
+      preLoaderRoute: typeof OrganizationsSlugRouteImport
+      parentRoute: typeof OrganizationsRoute
+    }
   }
 }
+
+interface AuthRouteChildren {
+  AuthResetRoute: typeof AuthResetRoute
+  AuthIndexRoute: typeof AuthIndexRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthResetRoute: AuthResetRoute,
+  AuthIndexRoute: AuthIndexRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
+interface OrganizationsRouteChildren {
+  OrganizationsSlugRoute: typeof OrganizationsSlugRoute
+  OrganizationsIndexRoute: typeof OrganizationsIndexRoute
+}
+
+const OrganizationsRouteChildren: OrganizationsRouteChildren = {
+  OrganizationsSlugRoute: OrganizationsSlugRoute,
+  OrganizationsIndexRoute: OrganizationsIndexRoute,
+}
+
+const OrganizationsRouteWithChildren = OrganizationsRoute._addFileChildren(
+  OrganizationsRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  AuthRoute: AuthRouteWithChildren,
+  InvitationRoute: InvitationRoute,
+  OrganizationsRoute: OrganizationsRouteWithChildren,
   QueriesRoute: QueriesRoute,
 }
 export const routeTree = rootRouteImport

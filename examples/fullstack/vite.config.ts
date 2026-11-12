@@ -6,8 +6,8 @@ export default defineConfig({
   plugins: [stack({ api: true })],
   server: { port: 5173, strictPort: true },
   lint: {
-    ignorePatterns: ["src/routeTree.gen.ts", "src/env-gen/**"],
+    ignorePatterns: ["src/routeTree.gen.ts", "src/env-gen/**", "src/db/auth.generated.ts"],
     options: { typeAware: true, typeCheck: true },
   },
-  fmt: { ignorePatterns: ["src/routeTree.gen.ts", "src/env-gen/**"] },
+  fmt: { ignorePatterns: ["src/routeTree.gen.ts", "src/env-gen/**", "src/db/auth.generated.ts"] },
 });

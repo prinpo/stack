@@ -18,6 +18,8 @@ function Layout() {
               Environment sandbox
             </Link>
             <Link to="/queries">Queries and mutations</Link>
+            <Link to="/auth">Authentication</Link>
+            <Link to="/organizations">Organizations</Link>
             <Link to="/about">How it connects</Link>
           </nav>
         </header>

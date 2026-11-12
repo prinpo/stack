@@ -21,7 +21,9 @@
     "src"
   ],
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/browser-log/built.ts"
+  ],
   "exports": {
     "./database": "./src/database.ts",
     "./database/*": {
@@ -41,7 +43,18 @@
     "./react": "./src/react.tsx",
     "./server": "./src/server.ts",
     "./vite": "./src/vite.ts",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./browser-log": "./src/browser-log.ts",
+    "./browser-log/built": "./src/browser-log/built.ts",
+    "./auth": "./src/auth.ts",
+    "./auth/client": "./src/auth/client.ts",
+    "./auth/react": "./src/auth/react.ts",
+    "./auth/client/plugins": "./src/auth/client-plugins.ts",
+    "./auth/plugins": "./src/auth/plugins.ts",
+    "./auth/plugins/organization": "./src/auth/organization.ts",
+    "./auth/adapters/drizzle": "./src/auth/drizzle.ts",
+    "./auth/plugins/magic-link": "./src/auth/magic-link.ts",
+    "./auth/plugins/email-otp": "./src/auth/email-otp.ts"
   },
   "publishConfig": {
     "access": "public"
@@ -59,6 +72,7 @@
   },
   "dependencies": {
     "@babel/parser": "7.29.9",
+    "@better-auth/drizzle-adapter": "1.7.21",
     "@elysiajs/eden": "1.4.9",
     "@elysiajs/static": "1.4.10",
     "@evlog/cli": "0.11.1",
@@ -70,6 +84,8 @@
     "@tanstack/router-generator": "1.167.44",
     "@tanstack/router-plugin": "1.168.46",
     "@vitejs/plugin-react": "6.1.2",
+    "auth": "1.7.21",
+    "better-auth": "1.7.21",
     "chalk": "6.0.1",
     "citty": "0.2.2",
     "drizzle-kit": "1.0.0-rc.5",

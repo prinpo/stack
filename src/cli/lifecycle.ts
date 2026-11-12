@@ -104,7 +104,7 @@ export const build = lifecycleCommand(
           "--packages",
           "external",
           "--banner",
-          'process.env._STACK_DATABASE_BUILT = "1";',
+          'import "@prinpo/stack/browser-log/built"; process.env._STACK_DATABASE_BUILT = "1";',
           "src/server/index.ts",
           "--outdir",
           outputs.server,
@@ -183,7 +183,13 @@ export const dev = lifecycleCommand(
     if (app.backend)
       commands.push({
         area: "backend",
-        args: ["--watch", "--no-clear-screen", "src/server/index.ts"],
+        args: [
+          "--watch",
+          "--no-clear-screen",
+          "--preload",
+          fileURLToPath(new URL("../browser-log/preload.ts", import.meta.url)),
+          "src/server/index.ts",
+        ],
       });
     if (app.frontend)
       commands.push({
@@ -208,14 +214,26 @@ export const dev = lifecycleCommand(
     };
     const launch = () => {
       launched = true;
+      const developmentEnv = { ...env, _STACK_BROWSER_LOG_IPC: "1" };
       for (const command of commands) {
         const child = spawnBun(
           command.args,
-          command.area === "frontend" ? frontendEnvironment(env) : env,
+          command.area === "frontend" ? frontendEnvironment(developmentEnv) : developmentEnv,
           "inherit",
           command.area,
         );
         children.push(child);
+        if (command.area === "backend")
+          child.on("message", (message) => {
+            if (
+              message &&
+              typeof message === "object" &&
+              "type" in message &&
+              message.type === "stack:browser-log"
+            )
+              for (const receiver of children)
+                if (receiver !== child && receiver.connected) receiver.send(message, () => {});
+          });
         child.once("error", (error) => {
           console.error(error.message);
           close(1);

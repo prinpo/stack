@@ -26,6 +26,7 @@ export default defineConfig({
   lint: {
     ignorePatterns: [
       ".agents/**",
+      "**/auth.generated.ts",
       "**/routeTree.gen.ts",
       "examples/fullstack/src/env-gen/**",
       "src/database/generated/**",
@@ -41,6 +42,7 @@ export default defineConfig({
   fmt: {
     ignorePatterns: [
       ".agents/**",
+      "**/auth.generated.ts",
       "**/routeTree.gen.ts",
       "examples/fullstack/src/env-gen/**",
       "src/database/generated/**",

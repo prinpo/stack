@@ -25,7 +25,12 @@ test("example profiles load committed defaults and keep personal and production 
       schemaPath,
       (await readFile(schemaPath, "utf8")) + "\n# @optional @type=string\nSTACK_ENV_FILE_SECRET=\n",
     );
-    const env: NodeJS.ProcessEnv = { ...process.env, VARLOCK_TELEMETRY_DISABLED: "1" };
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      VARLOCK_TELEMETRY_DISABLED: "1",
+      BETTER_AUTH_SECRET: "synthetic-test-secret-at-least-thirty-two-characters",
+      BETTER_AUTH_URL: "http://localhost:5173",
+    };
     for (const key of Object.keys(env)) {
       if (
         ["NODE_ENV", "APP_ENV", "PORT", "LOG_DIR", "CLIENT_PUBLIC_DYNAMIC"].includes(key) ||
@@ -44,7 +49,9 @@ test("example profiles load committed defaults and keep personal and production 
           `import { loadServerEnv } from "@prinpo/stack/env/server";
 const config = await loadServerEnv({ server: ${JSON.stringify(path)} });
 const { ENV } = await import("@prinpo/stack/env");
-const { app } = await import(${JSON.stringify(resolve("examples/fullstack/src/server/app.ts"))});
+const { environmentRoutes } = await import(${JSON.stringify(resolve("examples/fullstack/src/server/routes/environment.ts"))});
+const { Elysia } = await import("@prinpo/stack/server");
+const app = new Elysia().use(environmentRoutes);
 await app.modules;
 const response = await app.handle(new Request("http://localhost/api/env"));
 const sandbox = await response.json();

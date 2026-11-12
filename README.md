@@ -157,3 +157,5 @@ The example uses Vite's native config runner (`--configLoader runner`) to track 
 Stack maintainers update vulnerable dependencies and publish new Stack versions. Applications can use temporary package-manager overrides while an update is prepared; those versions fall outside the tested dependency set.
 
 See the [release runbook](docs/releases.md) for manual nightly publication, promotion to `latest`, npm trusted-publisher setup, and recovery.
+
+Authentication uses the headless [Auth Block](docs/auth.md), with native Better Auth options, typed Elysia/organization helpers, offline Drizzle generation, and default development console delivery. The full-stack example includes minimal auth and organization views.

@@ -91,4 +91,10 @@ Root `drizzle.config.ts` enables one managed database using project-root `migrat
 
 Doctor also reports database capability, migration directory, and local migration count without importing config, resolving credentials, or connecting. Enabled database support with missing/empty migrations causes a nonzero status and a structured JSON finding; it blocks production build/start but not development. An absent optional database is informational.
 
-Interactive menus, auth commands, scaffolding, production Docker workflows, broad import watching, and Windows support are deferred.
+Interactive menus, scaffolding, production Docker workflows, broad import watching, and Windows support are deferred.
+
+## Auth utilities
+
+`stack auth generate`, `check`, `info`, and `secret` provide offline native Drizzle schema generation, generated-output checks, configuration diagnostics and secret generation. Use `--config`, `--output`, `--env`, and explicit `--yes` for replacing generated output. Doctor checks conventional auth files structurally and accepts `--auth-config`/`--auth-schema` overrides without executing configuration. See the [Auth Block](auth.md).
+
+Explicit `browserLog` output reaches the server and every browser automatically under full-stack `stack dev`. No delivery plugin option is required. Built apps make these calls inert regardless of runtime mode; backend-only development needs no browser tooling. See [development logging](logger.md#explicit-server-to-browser-development-logs).
