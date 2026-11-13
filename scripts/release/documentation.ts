@@ -32,7 +32,10 @@ function headingIds(markdown: string) {
 async function validateDocumentation(packageRoot: string) {
   const manifest = JSON.parse(await readFile(resolve(packageRoot, "package.json"), "utf8"));
   const files: string[] = manifest.files.filter((file: string) => file.startsWith("docs/"));
-  if (!files.includes("docs/README.md") || !files.includes("docs/capabilities.md"))
+  if (
+    !files.includes("docs/consumer/README.md") ||
+    !files.includes("docs/consumer/capabilities.md")
+  )
     throw new Error(
       "Installed package must declare its documentation entry point and capability map",
     );
@@ -46,11 +49,14 @@ async function validateDocumentation(packageRoot: string) {
     const path = resolve(packageRoot, file);
     const markdown = await readFile(path, "utf8");
     const links: string[] = [];
-    const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(markdown);
-    if (!frontmatter) throw new Error(`Missing YAML metadata in ${file}`);
-    const metadata = metadataSchema.parse(Bun.YAML.parse(frontmatter[1]!));
-    links.push(...metadata.related.links);
-    const body = markdown.slice(frontmatter[0].length);
+    let body = markdown;
+    if (file !== "README.md") {
+      const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(markdown);
+      if (!frontmatter) throw new Error(`Missing YAML metadata in ${file}`);
+      const metadata = metadataSchema.parse(Bun.YAML.parse(frontmatter[1]!));
+      links.push(...metadata.related.links);
+      body = markdown.slice(frontmatter[0].length);
+    }
     for (const match of withoutCode(body).matchAll(/\[[^\]]*\]\(([^\s)]+)\)/g)) {
       links.push(match[1]!);
     }

@@ -10,8 +10,12 @@ test("a packed Stack release works outside the workspace, including its CLI and 
   try {
     const tarball = await preparePackage(resolve("."), output, "0.1.0-nightly.20261101.42");
     const files = command(["tar", "-tzf", tarball], output).split("\n");
-    expect(files).toContain("package/docs/README.md");
-    expect(files).toContain("package/docs/capabilities.md");
+    expect(files).toContain("package/docs/consumer/README.md");
+    expect(files).toContain("package/docs/consumer/capabilities.md");
+    expect(files).not.toContain("package/docs/README.md");
+    expect(command(["tar", "-xOf", tarball, "package/README.md"], output)).toMatch(
+      /^# @prinpo\/stack\n/,
+    );
     expect(
       files.some((file) => /^package\/docs\/(?:agents|adr|milestones|research)\//.test(file)),
     ).toBe(false);

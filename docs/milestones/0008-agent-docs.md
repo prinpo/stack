@@ -12,7 +12,7 @@ Design confirmed. Documentation, packaging, integrated validation, and review co
 - Target an agent starting from an empty directory and producing a working frontend, typed API queries, database, authentication, validated environment, and local development services.
 - The developer will inspect the initial documentation and manually evaluate it with different prompts and agents. Automated agent trials are not required for this initial delivery.
 - Organize navigation into Blocks, utilities and helpers, application patterns, development tooling, CLI, and build and production. Give each capability one authoritative explanation and cross-link overlapping groups.
-- Use a short `docs/README.md` entry point with a capability map, essential conventions, task-specific reading pointers, and a copyable consuming-application `AGENTS.md` snippet.
+- Use a short `docs/consumer/README.md` entry point with a capability map, essential conventions, task-specific reading pointers, and a copyable consuming-application `AGENTS.md` snippet.
 - Make CLI documentation operational for agents: retrieving logs, generating migrations, running doctor, and interpreting diagnostic results, rather than only listing commands.
 - Ship consumer documentation only. Keep release procedures, repository issue workflows, research, milestones, and architectural history repository-only. Installed guides must contain the context needed to use Stack.
 - Revise existing consumer guides into the new structure rather than maintaining competing copies.
@@ -22,6 +22,7 @@ Design confirmed. Documentation, packaging, integrated validation, and review co
 - Map every Stack-owned public helper, integration, CLI command, and supported workflow to its documentation. Group native reexports by library and public import path instead of duplicating upstream API references. In particular, document Stack's database utilities and integration differences, with import-path guidance and upstream Drizzle documentation for native APIs.
 - Validate release-tarball inclusion of consumer docs, exclusion of maintainer docs, and local documentation links. Verify standalone setup instructions against the installed package to catch workspace-specific paths. Run the repository's required checks; prompt-based agent evaluation remains the developer's responsibility.
 - Give every shipped consumer document YAML metadata: title, description, document type, topics, and related-document links, suitable for retrieval and indexing.
+- Keep application-facing agent documentation together under `docs/consumer/`, separate from Stack-maintainer documentation. The repository README is primarily for humans and has no YAML frontmatter; it links to the consumer entry point.
 
 ## Repository constraints
 

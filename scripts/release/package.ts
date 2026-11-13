@@ -52,7 +52,7 @@ async function documentedExample(
   heading: string,
   language: string,
 ) {
-  const markdown = await readFile(join(packageRoot, "docs", file), "utf8");
+  const markdown = await readFile(join(packageRoot, "docs", "consumer", file), "utf8");
   const section = markdown.split(`## ${heading}\n`)[1]?.split("\n## ")[0];
   const example = section?.split(`\`\`\`${language}\n`)[1]?.split("\n```")[0];
   if (!example) throw new Error(`Missing documented ${heading} example in ${file}`);

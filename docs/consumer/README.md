@@ -19,7 +19,7 @@ Copy this into the consuming application's `AGENTS.md`:
 ```md
 Before creating or changing application structure, frontend, backend, API queries,
 environment, database, authentication, logging, or development/build workflows,
-read node_modules/@prinpo/stack/docs/README.md and follow its task-specific links.
+read node_modules/@prinpo/stack/docs/consumer/README.md and follow its task-specific links.
 Use Stack's applicable Blocks, helpers, and CLI before implementing custom integration.
 ```
 
