@@ -1,10 +1,30 @@
-# Eden Query connector
+---
+title: Typed API queries and mutations
+description: Connect Elysia's inferred API to TanStack Query through Stack's Eden client factory, options proxies, cache keys, filters, and React contexts.
+type: reference
+topics:
+  - query
+  - eden
+  - api-client
+  - mutations
+  - pagination
+related:
+  title: Related
+  links:
+    - backend.md
+    - frontend.md
+    - application-patterns.md
+    - logger.md
+    - auth.md
+---
 
-`@prinpo/stack/query` exports native TanStack React Query and all functions/types adapted from eden-tanstack-react-query. Stack pins Query 5.102.8 as a regular dependency; applications continue to own compatible React and React DOM instances. The existing `@prinpo/stack/client` exports native Eden independently.
+# Typed API queries and mutations
 
-This is an initial import for review. The source lives in [src/eden-query](../src/eden-query/), with original module boundaries and algorithms preserved. Credit belongs to **Ilya Zhidkov and contributors**; the source remains **Apache-2.0**. See [provenance and modifications](../src/eden-query/README.md) and [the preserved license](../src/eden-query/LICENSE).
+`@prinpo/stack/query` exports native TanStack React Query and Stack's maintained Eden connector. Use it for API queries, mutations, cache invalidation, and Router loader integration. Native Eden remains separately available through `@prinpo/stack/client` for requests without Query.
 
-## Create the client and provider
+## Shared client and provider
+
+Create one factory result in the browser application's `src/client.ts`:
 
 ```tsx
 import { createApiClient } from "@prinpo/stack/query";
@@ -17,11 +37,18 @@ export const { api, eden, queryClient, ApiProvider } = createApiClient<App>(
 );
 ```
 
-The factory creates a native Treaty client, QueryClient, standalone options proxy, and Query provider. Create it once per browser application and export the result from your client module. Components and loaders import the same `eden`, `api`, and `queryClient` instances. Wrap the root route's content in `<ApiProvider>…</ApiProvider>`; it supplies QueryClientProvider with the factory's cache, with no client props or Eden context. The [fullstack root route](../examples/fullstack/src/routes/__root.tsx) shows this with Stack's existing Router renderer.
+The inferred `App` contract comes from the assembled Elysia app; see [backend composition](backend.md). `createApiClient` returns:
 
-With `prefix: "/api"`, write `eden.hello.get` and `api.hello.get` for `/api/hello`. The prefix selects a branch of the full clients: requests still use `/api/hello`, and generated keys retain `api`. Both the `eden` proxy and raw `api` client use this scope. Omitting `prefix` preserves the complete native route tree.
+| Member        | Purpose                                                                               |
+| ------------- | ------------------------------------------------------------------------------------- |
+| `api`         | Native Treaty client, optionally scoped to a static route prefix.                     |
+| `eden`        | Standalone typed route-options proxy for Query hooks and imperative cache operations. |
+| `queryClient` | The native QueryClient owned by this factory call.                                    |
+| `ApiProvider` | A component accepting `children`, supplying QueryClientProvider with that same cache. |
 
-Pass native options through `treaty` and `query`:
+Wrap the root route content in `<ApiProvider>…</ApiProvider>` as shown in [frontend providers](frontend.md). Import the same `eden` and `queryClient` into components and route loaders. The factory does not create an Eden React context or return `useEden` hooks.
+
+Factory configuration passes through native options:
 
 ```ts
 const client = createApiClient<App>(window.location.origin, {
@@ -31,117 +58,179 @@ const client = createApiClient<App>(window.location.origin, {
 });
 ```
 
-For custom or nested prefixes, supply the prefix literal as a second generic so TypeScript can select the exact route branch:
+`CreateApiClientOptions<App, Prefix>` describes `prefix`, native Treaty `treaty` configuration, and native QueryClient `query` configuration. `ApiClient<App, Prefix>` describes the returned members. Each call creates an independent cache.
 
-```ts
-// For an app whose routes include /rpc/v1/hello:
-const client = createApiClient<RpcApp, "/rpc/v1">(window.location.origin, {
-  prefix: "/rpc/v1",
-});
-```
+`prefix: "/api"` selects the route branch for both returned clients: `/api/hello` becomes `eden.hello.get` or `api.hello.get`, while request URLs and generated keys retain `api`. Omitting the prefix retains the complete route tree. Prefixes are checked against the app's routes; custom/nested prefixes require a second literal generic, for example `createApiClient<RpcApp, "/rpc/v1">(origin, { prefix: "/rpc/v1" })` for an app containing that branch.
 
-The `/api` overload needs only the app generic. Prefixes are checked against the app's route tree. Each factory owns its QueryClient; separate factory calls have separate caches. The existing low-level `createEdenOptionsProxy`, `createEdenContext`, `createEdenTanStackQuery`, and QueryClientProvider APIs remain available for explicit composition. The upstream context factories still return EdenProvider, useEden, and useEdenClient separately; `createApiClient` does not create or return an Eden context or hooks.
+## Queries and Router loaders
 
-## Queries, loaders, and keys
-
-For the example's `GET /api/hello?name=Stack` endpoint:
+For an Elysia endpoint `GET /api/hello` whose query schema requires `name` and whose response is `{ message: string }`:
 
 ```tsx
 import { useQuery } from "@prinpo/stack/query";
 
-import { eden, queryClient } from "./client";
+import { eden } from "./client";
 
-function Greeting() {
+export function Greeting() {
   const greeting = useQuery(eden.hello.get.queryOptions({ name: "Stack" }));
-  return <p>{greeting.data?.message}</p>;
+  return <p>{greeting.data?.message ?? "Loading…"}</p>;
 }
+```
 
-// A Router loader can prefetch using the standalone proxy and shared cache.
-await queryClient.query({
-  ...eden.hello.get.queryOptions({ name: "Stack" }),
-  staleTime: "static",
+Query methods (`get`, `head`, `options`) expose `queryOptions(input?, options?)`, `queryKey(input?)`, and `queryFilter(input?, filters?)`. Options accept native Query fields such as `staleTime`, `select`, and `retry`; the connector owns the generated query function and key.
+
+A Router loader can populate the same cache, without a React context:
+
+```ts
+import { createFileRoute } from "@prinpo/stack/react";
+
+import { eden, queryClient } from "../client";
+import { Greeting } from "../features/greeting/view";
+
+export const Route = createFileRoute("/greeting")({
+  loader: () =>
+    queryClient.query({
+      ...eden.hello.get.queryOptions({ name: "Stack" }),
+      staleTime: "static",
+    }),
+  component: Greeting,
 });
+```
 
-// Invalidate a key without manually reproducing its structure.
+This snippet assumes the view is in the named feature module and route generation has registered `/greeting`. Dynamic segments retain Treaty calling style: `/users/:id` becomes `eden.users({ id: "123" }).get.queryOptions()`; with `/api` scoping, the server route is `/api/users/:id`.
+
+The proxy unwraps successful Treaty responses and throws failed response envelopes for Query, preserving `error.status` and `error.value`. Use `isStructuredApiError` from `@prinpo/stack/logger/client` for Stack's structured failure contract inside native callbacks; see [logging](logger.md). A status alone does not prove that an error came from your backend.
+
+## Mutations
+
+Mutation methods (`post`, `put`, `patch`, `delete`) expose `mutationOptions(options?)` and `mutationKey()`. For `POST /api/echo` accepting `{ message: string }`:
+
+```tsx
+import { useMutation } from "@prinpo/stack/query";
+
+import { eden } from "./client";
+
+export function EchoButton() {
+  const echo = useMutation(eden.echo.post.mutationOptions());
+  return (
+    <button onClick={() => echo.mutate({ message: "Hello" })} disabled={echo.isPending}>
+      Send
+    </button>
+  );
+}
+```
+
+Variables are the body by default. For per-invocation request query or headers, use `mutationOptions({ request: true })` and pass the typed `{ body, query, headers }` request shape required by the route. Optional/bodyless inputs preserve their inferred invocation shape.
+
+Use native `MutationCache` callbacks in the factory's `query` configuration for client-wide behavior. Reusable route `mutationOptions` can carry application-defined `meta` and endpoint callbacks. Applications own feedback, translation, redirects, and actions; Stack adds no second mutation policy layer. [Application patterns](application-patterns.md) describes this ownership boundary.
+
+## Cache keys and filters
+
+Generate identities from the route rather than reproducing key arrays:
+
+```ts
 await queryClient.invalidateQueries({
   queryKey: eden.hello.get.queryKey({ name: "Stack" }),
 });
-```
 
-Dynamic paths retain Eden's calling style: a route `/users/:id` becomes `eden.users({ id: "123" }).get.queryOptions()`. Queries expose `queryOptions`, `queryKey`, and `queryFilter`. The proxy unwraps successful Eden responses and throws their error envelope on failure, preserving `error.status` and `error.value` for Query consumers.
-
-## Mutations and infinite queries
-
-```tsx
-import { useInfiniteQuery, useMutation } from "@prinpo/stack/query";
-
-const echo = useMutation(eden.echo.post.mutationOptions());
-echo.mutate({ message: "Hello from Stack" });
-
-const messages = useInfiniteQuery(
-  eden.messages.get.infiniteQueryOptions(
-    {},
-    { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
-  ),
-);
-// Trigger from an event handler.
-void messages.fetchNextPage();
-```
-
-The snippet's hooks belong inside a component; the [example route](../examples/fullstack/src/routes/index.tsx) shows the complete implementation. Mutation methods also expose `mutationKey()`. Body-only variables are the default. Use `mutationOptions({ request: true })` when each invocation needs `{ body, query, headers }` variables.
-
-Infinite helpers are exposed for supported top-level cursor schemas. Optional cursors default to a null initial cursor; required cursors need an explicit `initialCursor` in the options. `infiniteQueryKey(input, { initialCursor })` matches the infinite options' identity. The cursor schema determines page-parameter types.
-
-## Query filters
-
-A native Query filter is an object describing which cached queries an operation should match. The connector's helpers construct that object using its own key conventions:
-
-```ts
-// A broad filter matches ordinary and infinite queries for this route/input.
 await queryClient.invalidateQueries(eden.messages.get.queryFilter());
-
-// Match infinite queries for the route.
 await queryClient.invalidateQueries(eden.messages.get.infiniteQueryFilter());
 ```
 
-You can also pass native filter fields such as `exact`, `type`, and `predicate` as the second argument. `queryFilter(input, { exact: true })` targets the ordinary query identity; `infiniteQueryFilter` selects infinite identities, with optional initial-cursor filtering. Keys and native `invalidateQueries({ queryKey })` remain available if you prefer them. The initial import retains both styles.
+A broad `queryFilter()` matches ordinary and infinite queries for its route/input. `queryFilter(input, { exact: true })` selects the ordinary query identity. `infiniteQueryFilter` selects infinite identities and supports initial-cursor selection. Native fields such as `type`, `exact`, and `predicate` remain usable as filter options.
 
-## Retained API and boundaries
+Keys include route/input/path-parameter identity, not backend origin or client-level credentials. Separate caches for different backends whose paths overlap, and clear or invalidate user-specific data when authentication changes. Use generated filters for route families and keys for specific ordinary/infinite identities.
 
-The public entry point also retains `createEdenContext`, low-level `edenQueryOptions`, `edenMutationOptions`, `edenInfiniteQueryOptions`, `getQueryKey`, `getMutationKey`, and every upstream exported type. [The connector index](../src/eden-query/index.ts) lists them. Deprecated `queryClient` arguments on the original low-level factories are still accepted and unused; use `ApiProvider` for the unified factory or native QueryClientProvider for explicit composition.
+## Infinite queries and cancellation
 
-Preserved upstream behaviors to consider during review:
+For `GET /api/messages` with a supported top-level `cursor` query field, returning `{ items, nextCursor }`:
 
-- Keys omit backend identity and client-level credentials. Use separate QueryClients for backends with overlapping routes and handle cache clearing when authentication changes.
-- Query cancellation is forwarded to Treaty when `eden: { abortOnUnmount: true }` is set in query options.
-- Wrapped query input requires an explicit `headers` field, for example `{ query: input, headers: undefined }`; fields named `query` or `headers` have disambiguation rules.
-- Some child paths after method-named segments collide with reserved proxy helpers. Raw Treaty remains available for these routes.
-- `skipToken` from `@prinpo/stack/query` is supported by the options factories. Ordinary and infinite queries use separate cache identities.
+```tsx
+import { useInfiniteQuery } from "@prinpo/stack/query";
 
-SSR, new pagination conventions, and changes to these contracts are deferred for further connector work.
+import { eden } from "./client";
 
-## Deferred backend errors and mutation feedback
-
-The optional [logger Block](logger.md) now integrates Elysia with evlog and provides a structured-error guard inside native client-wide and endpoint-specific callbacks. HTTP and type checks verify its error contract through Eden and this connector. Structural recognition does not prove provenance, and status 503 alone cannot distinguish backend and transport failures.
-
-Follow-up work, in order:
-
-1. Associate an application-defined action with an error. The action interface remains deferred; basic structured-error identification is already available.
-2. Revisit a mutation feedback example using native MutationCache callbacks and reusable `.mutationOptions({ meta: … })` definitions. Applications can interpret their own metadata to show notifications, translate messages, log outcomes, or perform other actions.
-
-Stack supplies headless integration logic; applications own presentation, translation, and action behavior. No toaster, i18n dependency, required feedback policy, or additional mutation lifecycle abstraction is planned for this example. Start with mutations; query feedback can be considered later. The [logging guide](logger.md) documents the implemented structured-error guard; application actions and the feedback example remain deferred.
-
-## Validation
-
-```sh
-bun --bun vp check
-bun --bun vp test
-bun --bun vp test --project eden-query
-bun --bun vp run example:check
+export function Messages() {
+  const messages = useInfiniteQuery(
+    eden.messages.get.infiniteQueryOptions(
+      {},
+      { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
+    ),
+  );
+  return (
+    <button
+      disabled={!messages.hasNextPage || messages.isFetchingNextPage}
+      onClick={() => void messages.fetchNextPage()}
+    >
+      Load more
+    </button>
+  );
+}
 ```
 
-The imported tests cover runtime routing, real Treaty requests, errors, cache identity, pagination, React context/hooks, and compile-time input/output/cache inference. Test helpers use Vite+ and a dedicated happy-dom environment. The fullstack example is the starting point for browser verification.
+Infinite helpers are exposed when the route's inferred query supports cursor pagination. Optional cursors default to a null initial cursor; required cursors require an explicit `initialCursor` in options. `infiniteQueryKey(input, { initialCursor })` produces the matching identity. Ordinary and infinite identities remain separate; initial cursors distinguish infinite sequences.
 
-The initial import passes 551 connector tests and the existing 18 Stack tests, plus repository and example format/lint/type checks. Browser verification exercised the greeting query, key invalidation/refetch, echo mutation, and all three cursor pages through the development proxy without console errors. The 12 connector module bodies and exported declarations were compared against the baseline after normalizing import paths, comments, and formatting; no algorithm or type-contract changes were introduced. Production qualification remains deferred.
+Query options support `eden: { abortOnUnmount: true }` to pass the Query cancellation signal into Treaty. `skipToken` from `@prinpo/stack/query` disables conditional queries through the options factories; a skipped query's generated function is absent and it is disabled.
 
-The API client factory has additional coverage for prefix routing/key identity, scoped raw calls, native Query hooks using the standalone proxy, the Query provider, independent caches, native options, and the current loader query method.
+For per-request query headers, wrapped input uses an explicit `headers` field, for example `{ query: { name: "Stack" }, headers: undefined }`. Inputs containing literal fields named `query` or `headers` can require this disambiguation. Some route segments collide with reserved proxy helpers; use the raw returned `api` Treaty client for those endpoints.
+
+## Explicit composition APIs
+
+Use `createApiClient` for standard assembly. The retained lower-level exports support custom composition:
+
+| Export                                                                     | Contract                                                                                                                                      |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createEdenOptionsProxy<App>({ client })`                                  | Decorates an existing native Treaty client with route options, keys, and filters. Works outside React.                                        |
+| `createEdenContext<App>()`                                                 | Returns `EdenProvider`, `useEden`, and `useEdenClient`. The provider accepts a native Treaty `client`; consumer hooks require it.             |
+| `createEdenTanStackQuery<App>()`                                           | Returns the same context/provider/hooks contract as `createEdenContext`.                                                                      |
+| `edenQueryOptions({ path, input, fetch, opts? })`                          | Low-level query factory when providing request execution yourself. `fetch(input, signal?)` must resolve successful data or throw failures.    |
+| `edenMutationOptions({ path, mutate, opts? })`                             | Low-level mutation factory; `mutate(input)` resolves successful data or throws failures.                                                      |
+| `edenInfiniteQueryOptions({ path, input, fetch, initialPageParam, opts })` | Low-level infinite factory with explicit starting page and required options including `getNextPageParam`; `fetch` receives input with cursor. |
+| `getQueryKey({ path, input?, pathParams?, type?, initialPageParam? })`     | Creates a connector key; `type` is `query`, `infinite`, or `any`. Use proxy helpers where possible to retain route typing.                    |
+| `getMutationKey({ path })`                                                 | Creates a connector mutation key from route/method path segments.                                                                             |
+
+`path` includes the HTTP method, for example `["api", "hello", "get"]`. Low-level query/infinite factories also accept `inputForKey` for skipped queries and ordered `pathParams` for dynamic-route identity. Their native Query options remain under `opts`; connector-owned fields such as query functions/keys are reserved.
+
+For explicit React context composition, provide both the Query cache and Eden client:
+
+```tsx
+import type { ReactNode } from "react";
+
+import { treaty } from "@prinpo/stack/client";
+import { QueryClient, QueryClientProvider, createEdenContext } from "@prinpo/stack/query";
+
+import type { App } from "./server/app";
+
+const client = treaty<App>(window.location.origin);
+const queryClient = new QueryClient();
+export const { EdenProvider, useEden, useEdenClient } = createEdenContext<App>();
+
+export function Providers({ children }: { children: ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <EdenProvider client={client}>{children}</EdenProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
+Deprecated `queryClient` arguments on Eden's provider/proxy remain accepted but unused. The native QueryClientProvider owns the cache in this explicit pattern.
+
+## Exported type families
+
+All of these connector types are exported through `@prinpo/stack/query`:
+
+| Purpose                        | Types                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Factory and provider contracts | `CreateEdenOptionsProxyOptions`, `CreateEdenContextResult`, `EdenProviderProps`, `CreateEdenTanStackQueryResult`.                                                                                                                                                                                                                                                                                                                               |
+| Query keys                     | `GetQueryKeyOptions`, `GetMutationKeyOptions`, `EdenQueryKey`, `EdenMutationKey`, `EdenQueryKeyMeta`, `EdenQueryKeyPathParam`, `QueryType`.                                                                                                                                                                                                                                                                                                     |
+| Options/results                | `EdenQueryBaseOptions`, `EdenQueryOptions`, `EdenQueryOptionsResult`, `EdenMutationOptions`, `EdenMutationOptionsArgs`, `EdenMutationOptionsIn`, `EdenMutationOptionsOut`, `EdenMutationOptionsResult`, `EdenInfiniteQueryOptions`, `EdenInfiniteQueryOptionsArgs`, `EdenInfiniteQueryOptionsResult`.                                                                                                                                           |
+| Proxy and procedure decorators | `EdenOptionsProxy`, `DecoratedRouteMethods`, `DecorateRoute`, `DecorateRoutes`, `DecorateQueryProcedure`, `DecorateMutationProcedure`, `DecorateInfiniteQueryProcedure`, `ExtractRouteDef`, `ExtractCursorType`, `HasCursorInput`, `inferInput`, `inferOutput`, `inferError`.                                                                                                                                                                   |
+| Route/request inference        | `ExtractRoutes`, `GetRoute`, `RouteDefinition`, `ExtractPathParams`, `PathParamsToObject`, `HttpMethod`, `HttpQueryMethod`, `HttpMutationMethod`, `IsQueryMethod`, `IsMutationMethod`, `InferRouteInput`, `InferRouteMutationInput`, `InferRouteOutput`, `InferRouteOutputAll`, `InferRouteError`, `InferRouteBody`, `InferRouteHeaders`, `InferRouteOptions`, `InferRouteParams`, `InferRouteQuery`, `MutationRequestInput`, `EdenFetchError`. |
+| Generic type utilities         | `DeepPartial`, `Simplify`, `IsAny`, `IsNever`, `IsUnknown`.                                                                                                                                                                                                                                                                                                                                                                                     |
+
+Use inferred proxy option types for ordinary feature code; explicit types are useful when building reusable application helpers.
+
+## Native references and attribution
+
+Use native [TanStack Query documentation](https://tanstack.com/query/latest/docs/framework/react/overview) for hooks, QueryClient, cache callbacks, retry policy, and lifecycle options; import those APIs through `@prinpo/stack/query`. Stack owns the Eden integration described here. This connector is adapted from eden-tanstack-react-query v0.5.0 by Ilya Zhidkov and contributors under Apache-2.0, with attribution and modification records retained in the installed package's `src/eden-query/` directory. SSR is outside Stack's documented application lifecycle.

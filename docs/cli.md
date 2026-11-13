@@ -1,100 +1,147 @@
-# Stack CLI
+---
+title: Stack CLI for agents
+description: Select Stack commands to inspect application structure, retrieve logs, validate configuration, generate schemas and migrations, and run application lifecycles.
+type: workflow
+topics: [cli, diagnostics, logs, migrations, authentication, environment]
+related:
+  title: Related
+  links: [development.md, production.md, env.md, logger.md, database.md, auth.md]
+---
 
-Stack includes a Linux/Bun CLI in `@prinpo/stack`. After installing Stack and application development tooling, use its local `stack` executable from package scripts or `bunx --no-install stack`. The executable and delegated JavaScript tools run on Bun. Keep `env = false` in application `bunfig.toml` so Bun package runners also leave dotenv precedence to Varlock. Vite+ remains application-owned development tooling; commands never download missing tools.
+# Stack CLI for agents
+
+Run commands from the consuming application's root. Stack's CLI supports Linux and Bun. Use the installed executable from a package script, or `bunx --no-install stack <command>`; the commands below use that explicit form. Missing tooling is an installation problem: Stack never downloads tools implicitly. Vite+ is application-owned development tooling.
+
+Keep this application `bunfig.toml` setting so Varlock owns dotenv precedence even when Bun runs package scripts:
+
+```toml
+env = false
+```
+
+For direct execution, `bun --no-env-file` also disables Bun dotenv loading.
+
+## Choose a command by evidence needed
+
+| Task                                       | Command                                               | What the result establishes                                                             |
+| ------------------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Inspect a new or unfamiliar application    | `bunx --no-install stack doctor --json`               | Detected entry points, schema directories, Compose, database migrations, and auth files |
+| Inspect recent request failures            | `bunx --no-install stack logs errors --json`          | Persisted local error events                                                            |
+| Trace one request                          | `bunx --no-install stack logs <request-id> --json`    | Persisted events selected by the native request selector                                |
+| Watch a reproduction                       | `bunx --no-install stack logs --follow --json`        | New local events as newline-delimited JSON                                              |
+| Inspect configuration                      | `bunx --no-install stack env load --agent`            | The native effective server configuration report                                        |
+| Check auth generation drift                | `bunx --no-install stack auth check`                  | Generated auth schema matches current configuration                                     |
+| Inspect auth configuration                 | `bunx --no-install stack auth info`                   | JSON config/schema paths, adapter, and enabled plugin IDs                               |
+| Generate SQL after schema changes          | `bunx --no-install stack db generate --name <change>` | New native Drizzle migration artifacts                                                  |
+| Check migration history                    | `bunx --no-install stack db check`                    | Native Drizzle migration consistency checks                                             |
+| Apply migrations to a development database | `bunx --no-install stack db migrate`                  | Native migrator completed against the selected database                                 |
+
+Use the actual command exit status when deciding whether a step succeeded. Stack preserves native tool output and failure statuses; its own diagnostics go to stderr. Use leaf-command `--help` to discover native flags rather than guessing them.
+
+## Structural diagnosis with doctor
+
+```sh
+bunx --no-install stack doctor --json
+bunx --no-install stack doctor --auth-config src/server/auth/options.ts --auth-schema src/server/database/auth.generated.ts --json
+```
+
+Doctor is offline and structural: it imports no application configuration, starts no services, resolves no credentials, and connects to no database. Its JSON has `frontend`, `backend`, `env`, `database`, `auth`, and `compose` sections. Inspect each section's `enabled`, `ready`, and `reason` fields where present. `env.client` and `env.server` are directory-presence booleans. `compose.enabled` and `compose.reason` explain exact-file detection.
+
+Respond to findings at their actual boundary:
+
+- No application detected: add the intended entry at `src/index.html` and/or `src/server/index.ts`.
+- Legacy root `index.html`: move it into `src/` and update its module URL and public assets; see [application patterns](application-patterns.md).
+- Enabled database has no migrations: inspect the schema/config, generate and review a migration, then rerun doctor. Development can run before migrations exist; production build/start require them.
+- Auth files missing: inspect the configured paths and use `auth info`, `auth generate`, and `auth check`; see [authentication](auth.md).
+- Optional capability absent: treat it as informational unless the requested feature needs that capability.
+
+Doctor returns nonzero for an absent application, obsolete frontend entry, or enabled database/auth capability that is not structurally ready. A green doctor result does not prove schema validity, credential validity, database connectivity, applied migrations, or successful auth delivery. Use the narrower commands below and runtime logs for those questions.
+
+## Retrieve logs before changing code
+
+```sh
+bunx --no-install stack logs --json
+bunx --no-install stack logs errors --json
+bunx --no-install stack logs <request-id> --json
+bunx --no-install stack logs --follow --json
+bunx --no-install stack logs --env staging --json
+bunx --no-install stack logs --dir ./saved-logs --json
+bunx --no-install stack logs --help
+```
+
+One-shot `--json` returns the native result object; `--follow --json` emits one JSON event per line. Capture a bounded one-shot report first, correlate request IDs and fields, then follow while reproducing when necessary. Stop following after obtaining the evidence needed.
+
+Directory precedence is explicit `--dir`, then selected-profile `LOG_DIR`, then `.evlog/logs`. `--dir` skips environment loading; otherwise Stack resolves only `LOG_DIR` and its dependencies, so unrelated missing application credentials need not block diagnosis. Native evlog selectors and filters pass through. Usage telemetry is disabled.
+
+Empty results do not prove the request succeeded: verify the selected directory/profile, that the request occurred, and [logger persistence and filtering](logger.md). Production uses native JSON stdout; this command reads local files and supplies no hosted log aggregation.
+
+## Configuration inspection and generation
+
+```sh
+bunx --no-install stack env load --agent
+bunx --no-install stack env load --client --agent
+bunx --no-install stack env load --env staging --format json
+bunx --no-install stack env codegen
+bunx --no-install stack env codegen --client
+bunx --no-install stack env codegen --server
+bunx --no-install stack env run --env staging -- bun scripts/job.ts
+```
+
+`load` and `run` default to the effective server graph, including Stack-owned connection settings. `--client` selects the independent public client graph. `--client` and `--server` are mutually exclusive. Codegen without a selector processes both existing conventional schema directories; absent optional directories are skipped, but an explicitly selected missing directory fails. Existing invalid schemas and missing generation annotations fail normally.
+
+Use native Varlock options and output for these operations. Help before `env run --` describes the environment operation; arguments after `--`, including help flags, belong to the executed program. Server codegen includes Stack's owned declarations. Generated destinations must be literal paths inside `src/env-gen/`. See [environment](env.md) for exposure, profiles, and resolver behavior. Configuration reports may contain application data: keep credentials out of checked-in diagnosis artifacts.
+
+## Database changes
+
+Root `drizzle.config.ts` enables Stack's one managed database. Use native schema definitions through Stack's [database import paths](database.md).
+
+```sh
+bunx --no-install stack db generate --name add_notes
+bunx --no-install stack db check
+bunx --no-install stack db migrate
+bunx --no-install stack doctor --json
+```
+
+After changing schema, generate SQL, inspect the resulting files under root `migrations/`, and check the migration history. Apply reviewed migrations to the intended development database explicitly. Commit complete native migration folders, including snapshots. Development does not mutate schemas automatically. Production startup migrates automatically before importing the app or listening.
+
+| Command       | Use and configuration boundary                                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `db generate` | Generate migration artifacts from schema; static configuration only                                                            |
+| `db check`    | Check native migration consistency; static configuration only                                                                  |
+| `db up`       | Upgrade migration snapshots using the native operation; static configuration only                                              |
+| `db export`   | Export schema SQL using the native operation; static configuration only                                                        |
+| `db migrate`  | Apply migrations; resolves runtime server configuration and connects                                                           |
+| `db push`     | Push schema directly; resolves runtime configuration and changes the target database without producing reviewed SQL migrations |
+| `db pull`     | Introspect the target; resolves runtime configuration and connects                                                             |
+| `db studio`   | Open native Studio; resolves runtime configuration and connects                                                                |
+
+Each command accepts Stack's `--env <profile>` plus native Drizzle flags. `--out` is rejected because Stack owns `./migrations`. Leaf help works without config or credentials, for example `bunx --no-install stack db generate --help`. Keep normal application development on reviewed migrations; select direct `push` intentionally for a disposable or otherwise appropriate target.
+
+Migration-generation success does not prove migrations were applied. Doctor reports local artifacts only, and auth check reports generated schema only. Diagnose a runtime migration failure from its native output and the selected database settings; see [production startup](production.md).
+
+## Authentication configuration
+
+```sh
+bunx --no-install stack auth info
+bunx --no-install stack auth generate
+bunx --no-install stack auth check
+bunx --no-install stack auth secret
+```
+
+`info`, `generate`, and `check` support `--config`, `--output`, and `--env`. They load static settings and execute the chosen configuration in a separate Bun process without connecting to a database. Keep that module free of live database initialization, using the [auth configuration/runtime separation](auth.md).
+
+`generate` creates native Drizzle auth schema; replacing an existing output requires explicit `--yes`. When auth options change, inspect the change, regenerate with `auth generate --yes`, then run `db generate` and review the SQL migration. `check` returns nonzero for missing or stale generated schema; it does not verify applied database migrations. `info` prints JSON with config/schema paths, adapter, and plugin IDs. `secret` produces a random secret without loading application configuration; store it using the application's server-secret mechanism.
+
+## Lifecycle and profiles
 
 ```sh
 bunx --no-install stack dev
 bunx --no-install stack build
 bunx --no-install stack start
+bunx --no-install stack start --env staging
+bunx --no-install stack --help
+bunx --no-install stack --version
 ```
 
-The source-linked repository example has one `stack` script pointing at the live source executable: Bun does not link the root package's own binary in this workspace. From the repository root, `bun run stack <command>` targets that example. The example keeps only this source shim and its `check` script; lifecycle and utility script aliases are unnecessary. An independently installed package exposes its ordinary local executable.
+`dev` uses `NODE_ENV=development`; `build` and `start` use `production`. All three accept `--env` and reject extra arguments. Profile precedence is explicit `--env`, inherited `APP_ENV`, then command mode. `APP_ENV` chooses `.env.<profile>` files independently of Vite's mode. Utility commands retain the inherited `NODE_ENV`, defaulting to development, and accept `--env` where documented. Doctor and secret generation need no profile.
 
-## Application commands
-
-```sh
-stack dev
-stack build
-stack start
-stack start --env staging
-stack doctor
-stack doctor --json
-```
-
-Stack detects a frontend from `src/index.html`, a backend from `src/server/index.ts`, and both for full-stack applications. It owns these conventions; no CLI config file or layout overrides are required. Keep native `vite.config.ts` for browser tooling and the normal deferred `startServer(() => import("./app"))` backend entry.
-
-Keep `vite.config.ts` and other tool configuration at the application root. Stack's preset and frontend CLI commands use `src/` as Vite's root, so the HTML entry references `/main.tsx`, not `/src/main.tsx`. Public assets live in `src/public/`. Router paths, explicit cache/output paths, and schema discovery remain relative to the application root; build output remains `dist/client/`. Generated environment modules must live inside `src/env-gen/`; root `env/` schemas and `migrations/` stay outside `src/`.
-
-To migrate an existing app, move `index.html` to `src/index.html` and update its script URL. Change schema generation annotations to target `src/env-gen/`, regenerate with `stack env codegen`, update application imports, and remove the old generated modules. Move root public assets to `src/public/` if present.
-
-Human `dev`, `build`, and `doctor` output begins with a dimmed Prinpo Stack/version line. Chalk detects terminal color support, with `NO_COLOR` disabling colors and `FORCE_COLOR` available to force them. JSON doctor output and native env/log machine output have no decorative headers.
-
-Development runs Vite+ and Bun's code watcher as one session. Frontend and backend terminal lines carry distinct colored labels, including stderr, while native tool colors are preserved in terminals. Screen clearing is disabled so one process cannot erase another's output. Ctrl+C stops the session; an unexpected process exit stops its siblings and fails the command. Any file change under an existing `env/server` restarts both processes so Vite refreshes proxy settings too. Native Vite integration handles client changes. Restart manually after creating schema directories or editing external schema imports.
-
-If the application root contains `docker-compose.dev.yml`, development first checks Docker CLI, Compose, and daemon access, then starts the whole Compose project using native service/profile selection. Application processes launch only after Compose reports readiness, with a 120-second readiness timeout in addition to image pulls and builds. Define healthchecks for dependencies that must be ready to accept connections; without one, Compose only waits for the container to be running. Compose output and launch errors print directly. Developers manage Compose environment configuration through Docker's native mechanisms; Stack does not load application environment files for Compose or pass additional environment-file flags. Without this exact development filename, no Docker operations run.
-
-The session stops application processes before stopping the whole Compose project, including services that were already running. Containers and volumes are preserved. Failed or interrupted Compose startup also triggers a stop attempt; prerequisite failures do not. Cleanup makes one bounded attempt and reports errors without hiding an earlier failure or interruption. Only one Stack development session may manage a given Docker daemon/Compose project at a time; its lock is released automatically on process exit. Dependencies stay running across application restarts. Restart development to apply Compose-file changes; ongoing container supervision and recovery of manually paused containers remain Docker-owned.
-
-Builds validate static settings without deployment credentials, clear the previous manifest and owned outputs, and write `dist/manifest.json` only on success. Browser files are in `dist/client`; backend code is in `dist/server`. Startup requires a valid manifest and its advertised artifacts. It does not guess from stale files and does not require source entries to detect the built application. Schemas, dependencies, and other runtime assets remain required. Builds show separate frontend/backend sections and label native compiler output. The final summary reports Stack version, selected profile, uncompressed output bytes per enabled area, per-area validation/build time, and total elapsed time. Sizes exclude external dependencies; failed builds do not print a success summary.
-
-Backend/full-stack startup hands off to Bun running `dist/server/index.js`. Frontend-only startup hands off to Stack's lightweight `Bun.serve` runtime. Both serve public dynamic configuration in prepared HTML, support HEAD and SPA navigation, and preserve missing-asset/API 404s. Public assets remain separate from server output. The CLI adds no ongoing production supervision or request handling.
-
-Doctor explains structural capability detection, schema-directory presence, and whether `docker-compose.dev.yml` enables development dependencies. It checks file presence without parsing Compose configuration or invoking Docker. It starts nothing, makes no network calls, and resolves no credentials. Missing optional capabilities are informational; an obsolete root HTML entry, missing both application entry points, or missing enabled database migrations produces a nonzero status. `--json` is suitable for agents and includes Compose detection as `compose.enabled` and `compose.reason`.
-
-## Profiles
-
-Stack owns HOST, PORT, NODE_ENV, and APP_ENV. Defaults are `127.0.0.1`, `3000`, and development; APP_ENV defaults to NODE_ENV. NODE_ENV controls runtime behavior. APP_ENV selects configuration profiles independently of Vite's native mode.
-
-`dev` fixes NODE_ENV to development. `build` and `start` fix it to production. Applicable commands accept `--env`; profile precedence is the explicit flag, inherited APP_ENV, then the runtime mode. For example, `stack start --env staging` loads `.env.staging` and `.env.staging.local` while retaining production serving and logging behavior. Static browser settings remain the values compiled during the build. Changing mode/profile discards incompatible inherited Varlock snapshots and their injected values while preserving genuine process overrides; compatible startup snapshots still resolve providers only once.
-
-Use `env/client` and `env/server` for independent schemas. See [environment loading and classification](env.md) for schema annotations, public-only enforcement, local overrides, and credential-free build rules. Lower-level runtime helpers and direct Bun server startup remain available.
-
-## Environment utilities
-
-```sh
-stack env load
-stack env load --client --agent
-stack env load --env staging --format json
-stack env codegen
-stack env codegen --client
-stack env codegen --server
-stack env run --env staging -- bun scripts/example.ts
-```
-
-Loading and execution default to the effective server graph, including Stack's owned declarations. `--client` selects the independent client schema. Server codegen includes Stack-owned declarations so generated types agree with build-time generation. Codegen defaults to both existing schemas, skipping absent optional directories; an explicitly selected missing directory fails. Existing invalid schemas or missing native code-generation annotations fail normally.
-
-Native Varlock options and output pass through for these three operations. Use `--help` on the leaf command for native help. Arguments after `env run --` belong to the executed command, including its help flags. Additional Varlock operations are deferred.
-
-## Local logs
-
-```sh
-stack logs
-stack logs errors
-stack logs request-id
-stack logs --json
-stack logs --follow --json
-stack logs --env staging
-stack logs --dir ./saved-logs --json
-```
-
-Native evlog selectors and filters pass through. One-shot JSON returns the native result object; following emits one JSON event per line. Stack keeps diagnostics on stderr and preserves tool exit statuses. CLI telemetry stays disabled.
-
-Directory precedence is explicit `--dir`, then the selected profile's LOG_DIR, then `.evlog/logs`. Explicit directories skip environment loading. Otherwise only LOG_DIR and its dependencies resolve, without unrelated credentials. Runtime logger persistence also respects LOG_DIR unless explicitly configured. Production logs still use native JSON stdout; this command does not provide hosted production aggregation.
-
-## Installation qualification
-
-No dependency patches or consumer patch configuration are required. Stack owns static build validation and client exposure checks through its [unpatched Varlock integration](env.md#unpatched-varlock-integration).
-
-## Database utilities
-
-Root `drizzle.config.ts` enables one managed database using project-root `migrations/`. `stack db` delegates native `generate`, `migrate`, `push`, `pull`, `studio`, `check`, `up`, and `export`, preserving native flags/help and adding Stack's `--env`. Development never automatically changes schemas. Production always migrates before app import/listening, including frontend-only applications with database config. Build packages config and complete migration folders under `dist/database` and fails early when no migrations exist. Kit remains a production dependency. See the [database guide](database.md).
-
-Doctor also reports database capability, migration directory, and local migration count without importing config, resolving credentials, or connecting. Enabled database support with missing/empty migrations causes a nonzero status and a structured JSON finding; it blocks production build/start but not development. An absent optional database is informational.
-
-Interactive menus, scaffolding, production Docker workflows, broad import watching, and Windows support are deferred.
-
-## Auth utilities
-
-`stack auth generate`, `check`, `info`, and `secret` provide offline native Drizzle schema generation, generated-output checks, configuration diagnostics and secret generation. Use `--config`, `--output`, `--env`, and explicit `--yes` for replacing generated output. Doctor checks conventional auth files structurally and accepts `--auth-config`/`--auth-schema` overrides without executing configuration. See the [Auth Block](auth.md).
-
-Explicit `browserLog` output reaches the server and every browser automatically under full-stack `stack dev`. No delivery plugin option is required. Built apps make these calls inert regardless of runtime mode; backend-only development needs no browser tooling. See [development logging](logger.md#explicit-server-to-browser-development-logs).
+Read [development](development.md) for process/watch/Compose behavior and [production](production.md) for build artifacts, startup, migrations, and shutdown. Interactive scaffolding, production Docker orchestration, and Windows CLI support are outside the supported command surface.
