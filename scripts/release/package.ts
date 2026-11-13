@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { devDependencies } from "../../package.json";
 import { generateDatabaseExports } from "../generate-database-exports";
@@ -29,7 +30,7 @@ export async function preparePackage(source: string, output: string, version: st
     for (const field of ["scripts", "workspaces", "devDependencies", "devEngines", "overrides"])
       delete manifest[field];
     await writeFile(join(stage, "package.json"), JSON.stringify(manifest, null, 2) + "\n");
-    for (const file of ["src", "README.md", "LICENSE"])
+    for (const file of [...manifest.files, "README.md", "LICENSE"])
       await cp(join(source, file), join(stage, file), { recursive: true });
     await generateDatabaseExports(join(stage, "src/database/generated"));
     const tarball = join(output, `prinpo-stack-${version}.tgz`);
@@ -42,6 +43,20 @@ export async function preparePackage(source: string, output: string, version: st
   } finally {
     await rm(stage, { recursive: true, force: true });
   }
+}
+
+/** Extract the configuration example from the documentation installed with this release. */
+async function documentedExample(
+  packageRoot: string,
+  file: string,
+  heading: string,
+  language: string,
+) {
+  const markdown = await readFile(join(packageRoot, "docs", "consumer", file), "utf8");
+  const section = markdown.split(`## ${heading}\n`)[1]?.split("\n## ")[0];
+  const example = section?.split(`\`\`\`${language}\n`)[1]?.split("\n```")[0];
+  if (!example) throw new Error(`Missing documented ${heading} example in ${file}`);
+  return example;
 }
 
 /** Exercise an installed tarball, never a workspace link or a parent node_modules. */
@@ -57,6 +72,16 @@ export async function validatePackage(tarball: string, version: string) {
     };
     await writeFile(join(consumer, "package.json"), JSON.stringify(manifest));
     command(["bun", "install", "--ignore-scripts", "--omit", "peer"], consumer, env);
+    command(
+      [
+        "bun",
+        "--no-env-file",
+        fileURLToPath(new URL("./documentation.ts", import.meta.url)),
+        join(consumer, "node_modules/@prinpo/stack"),
+      ],
+      consumer,
+      env,
+    );
     await writeFile(
       join(consumer, "backend.ts"),
       `import { Elysia } from "@prinpo/stack/server";
@@ -91,26 +116,25 @@ if (await response.text() !== "packed" || isStructuredApiError(null)) throw new 
       throw new Error("Installed CLI reports the wrong version");
 
     // Add the application's UI peers and toolchain only after backend-only validation.
-    const sourceManifest = JSON.parse(
-      await readFile(join(consumer, "node_modules/@prinpo/stack/package.json"), "utf8"),
+    const packageRoot = join(consumer, "node_modules/@prinpo/stack");
+    const documentedManifest = JSON.parse(
+      await documentedExample(packageRoot, "application-patterns.md", "package.json", "json"),
+    );
+    documentedManifest.dependencies["@prinpo/stack"] = resolve(tarball);
+    await writeFile(join(consumer, "package.json"), JSON.stringify(documentedManifest));
+    await writeFile(
+      join(consumer, "bunfig.toml"),
+      await documentedExample(packageRoot, "application-patterns.md", "bunfig.toml", "toml"),
     );
     await writeFile(
-      join(consumer, "package.json"),
-      JSON.stringify({
-        ...manifest,
-        dependencies: {
-          ...manifest.dependencies,
-          react: sourceManifest.peerDependencies.react,
-          "react-dom": sourceManifest.peerDependencies["react-dom"],
-          "vite-plus": devDependencies["vite-plus"],
-        },
-      }),
+      join(consumer, "tsconfig.json"),
+      await documentedExample(packageRoot, "application-patterns.md", "tsconfig.json", "json"),
     );
     command(["bun", "install", "--ignore-scripts"], consumer, env);
     await mkdir(join(consumer, "src"), { recursive: true });
     await writeFile(
       join(consumer, "src/index.html"),
-      '<div id="root"></div><script type="module" src="/main.tsx"></script>',
+      await documentedExample(packageRoot, "frontend.md", "Browser entry and mounting", "html"),
     );
     await writeFile(
       join(consumer, "src/main.tsx"),
@@ -118,7 +142,7 @@ if (await response.text() !== "packed" || isStructuredApiError(null)) throw new 
     );
     await writeFile(
       join(consumer, "vite.config.ts"),
-      'import { defineConfig } from "vite-plus"; import { stack } from "@prinpo/stack/vite"; export default defineConfig({ plugins: [stack()] });',
+      await documentedExample(packageRoot, "frontend.md", "Vite configuration", "ts"),
     );
     await mkdir(join(consumer, "src/routes"), { recursive: true });
     await writeFile(
@@ -127,6 +151,7 @@ if (await response.text() !== "packed" || isStructuredApiError(null)) throw new 
     );
     command([cli, "build"], consumer, env);
     await readFile(join(consumer, "dist/client/index.html"));
+    command([join(consumer, "node_modules/.bin/tsc"), "--noEmit"], consumer, env);
     await validateDatabaseConsumer(consumer, cli, env);
   } finally {
     await rm(consumer, { recursive: true, force: true });
@@ -141,6 +166,7 @@ async function validateDatabaseConsumer(consumer: string, cli: string, env: Node
     JSON.stringify({
       ...manifest,
       devDependencies: {
+        ...manifest.devDependencies,
         "@types/bun": devDependencies["@types/bun"],
         typescript: devDependencies.typescript,
       },
@@ -186,6 +212,7 @@ db.insert(notes).values({text:42});
   command(
     [
       join(consumer, "node_modules/.bin/tsc"),
+      "--ignoreConfig",
       "--noEmit",
       "--strict",
       "--skipLibCheck",

@@ -18,7 +18,20 @@
     "examples/*"
   ],
   "files": [
-    "src"
+    "src",
+    "docs/consumer/README.md",
+    "docs/consumer/capabilities.md",
+    "docs/consumer/application-patterns.md",
+    "docs/consumer/frontend.md",
+    "docs/consumer/backend.md",
+    "docs/consumer/eden-query.md",
+    "docs/consumer/env.md",
+    "docs/consumer/database.md",
+    "docs/consumer/auth.md",
+    "docs/consumer/logger.md",
+    "docs/consumer/cli.md",
+    "docs/consumer/development.md",
+    "docs/consumer/production.md"
   ],
   "type": "module",
   "sideEffects": [

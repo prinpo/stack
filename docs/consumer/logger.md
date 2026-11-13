@@ -1,6 +1,28 @@
-# Optional logging
+---
+title: Logging Block and development browser logs
+description: Configure evlog request logging, declare typed public API failures, recognize client error envelopes, and use development persistence and browserLog.
+type: reference
+topics: [logging, evlog, errors, diagnosis, browser-logs]
+related:
+  title: Related
+  links: [cli.md, backend.md, eden-query.md, development.md, auth.md]
+---
 
-The logger Block integrates evlog with Bun/Elysia. Elysia, Eden, and Query remain independently usable; ordinary server imports do not enable logging. Stack pins evlog 2.34.0 and Zod 4.6.7 as regular dependencies. Stack pins the separately versioned evlog CLI 0.11.1 for its isolated CLI commands; importing runtime logging does not load the CLI.
+# Logging Block and development browser logs
+
+The logger Block integrates evlog with Bun/Elysia. Elysia, Eden, and Query remain independently usable; ordinary server imports do not enable logging. Stack owns the compatible evlog version and the separately versioned CLI dependency; importing runtime logging does not load the CLI.
+
+## Public import paths
+
+| Import path                       | Public surface                                                                                                       |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `@prinpo/stack/logger`            | Native evlog named/default exports, plus `browserLog`                                                                |
+| `@prinpo/stack/logger/elysia`     | Stack's `logger(options?: LoggerOptions)` Elysia plugin and `LoggerOptions`                                          |
+| `@prinpo/stack/logger/client`     | Browser-safe `isStructuredApiError` and `StructuredApiError`                                                         |
+| `@prinpo/stack/browser-log`       | `browserLog(...values: unknown[]): void` without evlog initialization                                                |
+| `@prinpo/stack/browser-log/built` | Side-effect built-application guard inserted by Stack builds; ordinary application modules use the helper path above |
+
+Use the Elysia context's `apiError`; it is installed by `logger()` rather than exported as a standalone public helper. Native evlog options/types remain available through the root logging path. See [evlog documentation](https://evlog.dev/) for the native API.
 
 ## Configure once
 
@@ -35,7 +57,7 @@ export const app = new Elysia().use(logging).use(orders);
 
 Global scope propagates hooks, and Elysia deduplicates the shared plugin. Local registration supplies module TypeScript visibility. Configure one instance per application: independently constructing same-name plugins with different options reinitializes evlog's process-wide settings.
 
-`logger()` initializes evlog and installs request logging and HTTP error handling. No configuration file or external service is required. Pass native evlog configuration, including `include`, `exclude`, `routes`, `sampling`, `redact`, `enrich`, `drain`, and `extends`. All requests are logged by default. Context `log` is the native request logger; accumulate fields with `log.set()` instead of emitting a second request event.
+`logger()` initializes evlog and installs request logging and HTTP error handling. No configuration file or external service is required. `LoggerOptions` extends native `EvlogConfig` with `persistence` and an `errors` map for `NOT_FOUND`, `PARSE`, and `UNKNOWN`. Pass native evlog configuration, including `include`, `exclude`, `routes`, `sampling`, `redact`, `enrich`, `drain`, and `extends`. All requests are logged by default. Context `log` is the native request logger; accumulate fields with `log.set()` instead of emitting a second request event.
 
 Native utilities for scripts, jobs, and immediate logging remain available from `@prinpo/stack/logger`, including `initLogger`, `log`, `createLogger`, `createError`, and `parseError`. This Elysia adapter provides its request logger through context; upstream framework-specific async accessors are not bound to it.
 
@@ -115,17 +137,16 @@ The toolkit adapter emits one event with the final ordinary HTTP response status
 
 Development uses native readable terminal output and compact files in `.evlog/logs`. Defaults retain five files and rotate at approximately 10 MiB per file. Configure `persistence: { dir, maxFiles, maxSizePerFile }`, or disable it with `persistence: false`. Production (`NODE_ENV=production`) uses native JSON stdout and disables development persistence.
 
-Evlog 2.34.0's native cleanup can delete the latest event when it reuses a removed rotation suffix. Stack retains the native writer/format and serializes local writes with retention based on modification time. Limits count files, not days; one event can exceed the size threshold.
+Stack retains the native writer/format and serializes local writes with retention based on modification time. Limits count files, not days; one event can exceed the size threshold.
 
-From the repository root:
+Inspect persisted events using [CLI log retrieval](cli.md):
 
 ```sh
-bun run stack logs
-bun run stack logs errors
-bun run stack logs --json
+bunx --no-install stack logs errors --json
+bunx --no-install stack logs <request-id> --json
 ```
 
-The example shares `LOG_DIR` between its logger and commands. Installed applications use `stack logs`, `stack logs errors`, or `stack logs <requestId>`, with native filters, `--json`, and `--follow`. One-shot JSON is a native result object; following emits newline-delimited events. Directory precedence is `--dir`, selected-profile LOG_DIR, then `.evlog/logs`. Explicit directories skip environment loading; otherwise only LOG_DIR is resolved, without unrelated credentials. Use `--env staging` to inspect that profile's directory. Runtime logging needs no CLI. Stack CLI disables usage telemetry. The CLI declares Node 22+ support; its Elysia `map`/`init` integration is not supported in this pinned version.
+Use a shared declared `LOG_DIR` for runtime persistence and commands, or set an explicit native `persistence.dir`. An explicit logger directory overrides `LOG_DIR`; the CLI's `--dir` must match when diagnosing those files. A custom `drain` still runs after the development file drain. Runtime logging needs no CLI. Production uses native JSON stdout and the Stack CLI supplies no remote aggregation.
 
 Streaming integration, stream completion/cancellation diagnostics, browser log collection, external services, validation rewriting, and application feedback/actions remain deferred. Stream bodies retain native Elysia handling and are not intercepted.
 
