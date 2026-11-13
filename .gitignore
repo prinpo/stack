@@ -2,7 +2,7 @@ node_modules
 src/database/generated/
 dist
 .tanstack
-.stack-test-*
+/.stack-tests/
 *.tgz
 *.log
 .evlog

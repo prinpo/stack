@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { inspectAuth } from "../auth/files";
 import { inspectDatabase } from "../database/files";
 import { isFile } from "../files";
 import { frontendEntry } from "../project-layout";
@@ -9,7 +10,7 @@ export { isFile } from "../files";
 
 export const developmentComposeFile = "docker-compose.dev.yml";
 
-export function inspectProject() {
+export function inspectProject(auth: { config?: string; schema?: string } = {}) {
   const frontend = isFile(frontendEntry);
   const legacyFrontend = !frontend && isFile("index.html");
   const backend = isFile("src/server/index.ts");
@@ -26,6 +27,7 @@ export function inspectProject() {
     },
     env: { client: existsSync("env/client"), server: existsSync("env/server") },
     database: inspectDatabase(),
+    auth: inspectAuth(auth.config, auth.schema),
     compose: {
       enabled: compose,
       reason: `${compose ? "Found" : "Missing"} ${developmentComposeFile}`,

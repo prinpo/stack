@@ -1,8 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { expect, test } from "vite-plus/test";
+
+import { createTestDirectory } from "./test-utils/directory";
 
 test.each([
   { channel: "nightly", workflowChanged: false, versionOverride: "" },
@@ -12,7 +13,7 @@ test.each([
 ] as const)(
   "channel $channel selects source and version (workflows changed: $workflowChanged, override: $versionOverride)",
   async ({ channel, workflowChanged, versionOverride }) => {
-    const directory = await mkdtemp(join(tmpdir(), "stack-release-selection-"));
+    const directory = await createTestDirectory("release-selection");
     const git = (...args: string[]) => {
       const result = spawnSync("git", args, { cwd: directory, encoding: "utf8" });
       if (result.status !== 0) throw new Error(result.stderr);

@@ -4,6 +4,6 @@ import { ENV } from "./src/env-gen/server";
 
 export default defineConfig({
   dialect: "sqlite",
-  schema: "./src/server/database/schema.ts",
+  schema: ["./src/server/database/schema.ts", "./src/server/database/auth.generated.ts"],
   dbCredentials: { url: ENV.DATABASE_URL },
 });

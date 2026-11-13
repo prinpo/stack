@@ -9,6 +9,7 @@ import react, { type Options as ReactOptions } from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 
 import { apiPrefix, escapeRegExp } from "./api-prefix";
+import { browserLogPlugin } from "./browser-log/vite";
 import { readServerConnection } from "./env/server";
 import { varlockVitePlugin } from "./env/vite";
 import { viteProjectRoot } from "./project-layout";
@@ -68,6 +69,7 @@ export function stack(options: StackOptions = {}): PluginOption[] {
     routerGenerator(router, context),
     tanStackRouterCodeSplitter(router, context),
     react(options.react),
+    browserLogPlugin(),
     {
       name: "prinpo:stack",
       async config(_config, environment) {

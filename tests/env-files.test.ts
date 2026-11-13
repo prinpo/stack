@@ -1,10 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { expect, test } from "vite-plus/test";
 
+import { createTestDirectory } from "./test-utils/directory";
+
 test("example profiles load committed defaults and keep personal and production overrides separate", async () => {
-  const cwd = await mkdtemp(join(process.cwd(), ".stack-test-env-files-"));
+  const cwd = await createTestDirectory("env-files");
   try {
     for (const file of [
       "client/.env",
@@ -25,7 +27,12 @@ test("example profiles load committed defaults and keep personal and production 
       schemaPath,
       (await readFile(schemaPath, "utf8")) + "\n# @optional @type=string\nSTACK_ENV_FILE_SECRET=\n",
     );
-    const env: NodeJS.ProcessEnv = { ...process.env, VARLOCK_TELEMETRY_DISABLED: "1" };
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      VARLOCK_TELEMETRY_DISABLED: "1",
+      BETTER_AUTH_SECRET: "synthetic-test-secret-at-least-thirty-two-characters",
+      BETTER_AUTH_URL: "http://localhost:5173",
+    };
     for (const key of Object.keys(env)) {
       if (
         ["NODE_ENV", "APP_ENV", "PORT", "LOG_DIR", "CLIENT_PUBLIC_DYNAMIC"].includes(key) ||
@@ -44,7 +51,9 @@ test("example profiles load committed defaults and keep personal and production 
           `import { loadServerEnv } from "@prinpo/stack/env/server";
 const config = await loadServerEnv({ server: ${JSON.stringify(path)} });
 const { ENV } = await import("@prinpo/stack/env");
-const { app } = await import(${JSON.stringify(resolve("examples/fullstack/src/server/app.ts"))});
+const { environmentRoutes } = await import(${JSON.stringify(resolve("examples/fullstack/src/server/routes/environment.ts"))});
+const { Elysia } = await import("@prinpo/stack/server");
+const app = new Elysia().use(environmentRoutes);
 await app.modules;
 const response = await app.handle(new Request("http://localhost/api/env"));
 const sandbox = await response.json();

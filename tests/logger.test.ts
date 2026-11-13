@@ -2,10 +2,11 @@ import { treaty } from "@prinpo/stack/client";
 import { type DrainContext, createError } from "@prinpo/stack/logger";
 import { logger } from "@prinpo/stack/logger/elysia";
 import { Elysia, serveApp, t } from "@prinpo/stack/server";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test, vi } from "vite-plus/test";
+
+import { createTestDirectory } from "./test-utils/directory";
 
 test("the optional logger returns typed structured failures through Eden", async () => {
   const events: DrainContext[] = [];
@@ -143,7 +144,7 @@ test("optional public payloads and guidance overrides match their declared possi
 });
 
 test("SPA navigation logs success while API misses and application failures stay errors", async () => {
-  const assets = await mkdtemp(join(tmpdir(), "stack-logger-spa-"));
+  const assets = await createTestDirectory("logger-spa");
   const events: DrainContext[] = [];
   const app = new Elysia()
     .use(

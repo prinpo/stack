@@ -2,6 +2,7 @@ import type { AnyElysia } from "elysia";
 
 import { chalkStderr } from "chalk";
 
+import { validateApplicationAuth } from "./auth/startup";
 import { migrateProductionDatabase } from "./database/startup";
 import { injectClientEnv } from "./env/html";
 import { type ServerEnvOptions, loadServerEnv } from "./env/server";
@@ -74,6 +75,7 @@ export async function startServer<App extends AnyElysia>(
     if (!stopping) removeSignals();
   });
   await app.modules;
+  await validateApplicationAuth(app);
 
   app.listen({ hostname: config.host, port: config.port });
   process.on("SIGINT", interrupt);

@@ -1,11 +1,12 @@
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { version } from "../package.json";
+import { createTestDirectory } from "./test-utils/directory";
 
 const cli = resolve("src/cli/main.ts");
 const directories: string[] = [];
@@ -21,7 +22,7 @@ afterEach(async () => {
 });
 
 async function project(files: Record<string, string> = {}) {
-  const cwd = await mkdtemp(join(process.cwd(), ".stack-test-cli-"));
+  const cwd = await createTestDirectory("cli");
   directories.push(cwd);
   for (const [path, content] of Object.entries(files)) {
     await mkdir(join(cwd, path, ".."), { recursive: true });

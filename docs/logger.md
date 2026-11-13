@@ -128,3 +128,17 @@ bun run stack logs --json
 The example shares `LOG_DIR` between its logger and commands. Installed applications use `stack logs`, `stack logs errors`, or `stack logs <requestId>`, with native filters, `--json`, and `--follow`. One-shot JSON is a native result object; following emits newline-delimited events. Directory precedence is `--dir`, selected-profile LOG_DIR, then `.evlog/logs`. Explicit directories skip environment loading; otherwise only LOG_DIR is resolved, without unrelated credentials. Use `--env staging` to inspect that profile's directory. Runtime logging needs no CLI. Stack CLI disables usage telemetry. The CLI declares Node 22+ support; its Elysia `map`/`init` integration is not supported in this pinned version.
 
 Streaming integration, stream completion/cancellation diagnostics, browser log collection, external services, validation rewriting, and application feedback/actions remain deferred. Stream bodies retain native Elysia handling and are not intercepted.
+
+## Explicit server-to-browser development logs
+
+```ts
+import { browserLog } from "@prinpo/stack/browser-log";
+// Also exported by @prinpo/stack/logger; no logger initialization is required.
+browserLog("Loaded order", { id: order.id });
+```
+
+Standard `stack dev` automatically preloads the backend forwarding adapter and enables the receiver through the standard Stack Vite preset. An explicit call writes to the server console and all connected browser consoles, prefixed `[server]` in the browser. Ordinary console methods are unchanged. No tab correlation, plugin option or durable replay is added. Backend-only apps retain server output with no Vite dependency. Standalone source startup retains server output; automatic browser forwarding belongs to the CLI-managed development lifecycle.
+
+Values are inspected into bounded text snapshots for browser forwarding; circular objects and errors do not require JSON-safe app arguments. The browser does not retain live object references. Output is best-effort: disconnected clients miss messages, and restart/reload does not replay history. The function is separate from evlog request fields/drains.
+
+`stack build` inserts an early built-app guard, and production browser builds include no receiver. In built applications the entire function is a no-op, including server output, even if launched directly with `NODE_ENV=development` or an inherited development preload. Normal JavaScript argument evaluation still occurs. Development tooling files can remain installed with Stack without becoming part of the built app's active integration.

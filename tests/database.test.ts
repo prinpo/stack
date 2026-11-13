@@ -1,10 +1,12 @@
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, expect, test } from "vite-plus/test";
+
+import { createTestDirectory } from "./test-utils/directory";
 
 const cli = resolve("src/cli/main.ts");
 const directories: string[] = [];
@@ -28,7 +30,7 @@ async function files(cwd: string, entries: Record<string, string>) {
 }
 
 async function project(entries: Record<string, string>) {
-  const cwd = await mkdtemp(join(process.cwd(), ".stack-test-db-"));
+  const cwd = await createTestDirectory("db");
   directories.push(cwd);
   await files(cwd, entries);
   return cwd;
@@ -548,7 +550,10 @@ test("development leaves schemas untouched while direct production startup appli
 }, 30_000);
 
 test("the full-stack example upgrades old notes and loads notebook relations in both directions", async () => {
-  const exampleApp = pathToFileURL(resolve("examples/fullstack/src/server/app.ts")).href;
+  const exampleNotebooks = pathToFileURL(
+    resolve("examples/fullstack/src/server/routes/notebooks.ts"),
+  ).href;
+  const exampleNotes = pathToFileURL(resolve("examples/fullstack/src/server/routes/notes.ts")).href;
   const exampleDatabase = pathToFileURL(
     resolve("examples/fullstack/src/server/database/index.ts"),
   ).href;
@@ -556,7 +561,8 @@ test("the full-stack example upgrades old notes and loads notebook relations in 
     "drizzle.config.ts": config,
     "env/server/.env.schema":
       "# @redact=false @preventLeaks=false\n# ---\n# @dynamic\nDATABASE_URL=sqlite://example.sqlite\n# @public @dynamic\nLOG_DIR=.evlog/logs\n",
-    "src/server/index.ts": `import {startServer} from "@prinpo/stack/server";const app=await startServer(()=>import(${JSON.stringify(exampleApp)}),{env:{client:false},onStop:async()=>{try{await app.stop();}finally{const{client}=await import(${JSON.stringify(exampleDatabase)});await client.close();}}});`,
+    "src/server/app.ts": `import {Elysia} from "@prinpo/stack/server";import {notebookRoutes} from ${JSON.stringify(exampleNotebooks)};import {noteRoutes} from ${JSON.stringify(exampleNotes)};export const app=new Elysia().use(notebookRoutes).use(noteRoutes);`,
+    "src/server/index.ts": `import {startServer} from "@prinpo/stack/server";const app=await startServer(()=>import("./app"),{env:{client:false},onStop:async()=>{try{await app.stop();}finally{const{client}=await import(${JSON.stringify(exampleDatabase)});await client.close();}}});`,
     "legacy.ts": `import{SQL}from"bun";const client=new SQL("sqlite://example.sqlite");await client\`INSERT INTO notes (text) VALUES ('legacy note')\`;await client.close();`,
   });
   const migrationRoot = resolve("examples/fullstack/migrations");

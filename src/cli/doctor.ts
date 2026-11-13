@@ -5,13 +5,17 @@ import { inspectProject } from "./project";
 
 const command = defineCommand({
   meta: { description: "Explain the detected application structure" },
-  args: { json: { type: "boolean", description: "Output JSON for agents" } },
+  args: {
+    json: { type: "boolean", description: "Output JSON for agents" },
+    "auth-config": { type: "string", description: "Custom auth config path" },
+    "auth-schema": { type: "string", description: "Custom generated auth schema path" },
+  },
   async run({ args, rawArgs }) {
     if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
       await showUsage(command, { meta: { name: "stack" } });
       return;
     }
-    const project = inspectProject();
+    const project = inspectProject({ config: args["auth-config"], schema: args["auth-schema"] });
     if (args.json) console.log(JSON.stringify(project));
     else {
       intro("doctor");
@@ -50,6 +54,14 @@ const command = defineCommand({
               : project.database.reason,
         },
       ]);
+      section("Authentication", [
+        {
+          label: "Better Auth",
+          present: project.auth.enabled,
+          error: !project.auth.ready,
+          detail: project.auth.reason,
+        },
+      ]);
       if (!project.frontend.enabled && !project.backend.enabled)
         console.log(
           color.red("No application detected. Add src/index.html or src/server/index.ts."),
@@ -58,7 +70,8 @@ const command = defineCommand({
     if (
       (!project.frontend.enabled && !project.backend.enabled) ||
       !project.frontend.ready ||
-      !project.database.ready
+      !project.database.ready ||
+      !project.auth.ready
     )
       process.exitCode = 1;
   },

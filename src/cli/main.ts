@@ -17,6 +17,7 @@ const main = defineCommand({
     logs: () => import("./logs").then((module) => module.default),
     env: () => import("./env").then((module) => module.default),
     doctor: () => import("./doctor").then((module) => module.default),
+    auth: () => import("./auth").then((module) => module.default),
     db: () => import("./database").then((module) => module.default),
   },
 });

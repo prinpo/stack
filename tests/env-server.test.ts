@@ -1,10 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { expect, test } from "vite-plus/test";
 
+import { createTestDirectory } from "./test-utils/directory";
+
 async function server(source: string, credential: string | undefined = "synthetic-secret") {
-  const cwd = await mkdtemp(join(process.cwd(), ".stack-test-env-server-"));
+  const cwd = await createTestDirectory("env-server");
   try {
     await mkdir(join(cwd, "client"));
     await writeFile(

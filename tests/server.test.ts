@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { Elysia, serveApp } from "../src/server";
+import { createTestDirectory } from "./test-utils/directory";
 
 const directories: string[] = [];
 beforeEach(() => {
@@ -29,7 +29,7 @@ async function application({
   port?: number;
   transformIndexHtml?: (html: string) => string | Promise<string>;
 } = {}) {
-  const assets = await mkdtemp(join(tmpdir(), "prinpo-assets-"));
+  const assets = await createTestDirectory("assets");
   directories.push(assets);
   for (const [name, content] of Object.entries({
     "index.html": "<!doctype html><h1>Stack application</h1>",
@@ -179,7 +179,7 @@ test("serveApp keeps API routes available without serving browser assets in deve
 });
 
 test("serveApp starts without a browser build in development", async () => {
-  const assets = await mkdtemp(join(tmpdir(), "prinpo-no-assets-"));
+  const assets = await createTestDirectory("no-assets");
   directories.push(assets);
   const app = new Elysia().get("/api/health", () => ({ ok: true }));
   vi.spyOn(app, "listen").mockReturnValue(app);
