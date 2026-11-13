@@ -11,14 +11,14 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
-import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthRouteRouteImport } from './routes/auth/route'
 import { Route as InvitationRouteImport } from './routes/invitation'
-import { Route as OrganizationsRouteImport } from './routes/organizations'
+import { Route as OrganizationsRouteRouteImport } from './routes/organizations/route'
 import { Route as QueriesRouteImport } from './routes/queries'
-import { Route as AuthIndexRouteImport } from './routes/auth.index'
-import { Route as AuthResetRouteImport } from './routes/auth.reset'
-import { Route as OrganizationsIndexRouteImport } from './routes/organizations.index'
-import { Route as OrganizationsSlugRouteImport } from './routes/organizations.$slug'
+import { Route as AuthIndexRouteImport } from './routes/auth/index'
+import { Route as AuthResetRouteImport } from './routes/auth/reset'
+import { Route as OrganizationsIndexRouteImport } from './routes/organizations/index'
+import { Route as OrganizationsSlugRouteImport } from './routes/organizations/$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -30,7 +30,7 @@ const AboutRoute = AboutRouteImport.update({
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthRoute = AuthRouteImport.update({
+const AuthRouteRoute = AuthRouteRouteImport.update({
   id: '/auth',
   path: '/auth',
   getParentRoute: () => rootRouteImport,
@@ -40,7 +40,7 @@ const InvitationRoute = InvitationRouteImport.update({
   path: '/invitation',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OrganizationsRoute = OrganizationsRouteImport.update({
+const OrganizationsRouteRoute = OrganizationsRouteRouteImport.update({
   id: '/organizations',
   path: '/organizations',
   getParentRoute: () => rootRouteImport,
@@ -53,30 +53,30 @@ const QueriesRoute = QueriesRouteImport.update({
 const AuthIndexRoute = AuthIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AuthRoute,
+  getParentRoute: () => AuthRouteRoute,
 } as any)
 const AuthResetRoute = AuthResetRouteImport.update({
   id: '/reset',
   path: '/reset',
-  getParentRoute: () => AuthRoute,
+  getParentRoute: () => AuthRouteRoute,
 } as any)
 const OrganizationsIndexRoute = OrganizationsIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => OrganizationsRoute,
+  getParentRoute: () => OrganizationsRouteRoute,
 } as any)
 const OrganizationsSlugRoute = OrganizationsSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
-  getParentRoute: () => OrganizationsRoute,
+  getParentRoute: () => OrganizationsRouteRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRouteRouteWithChildren
+  '/organizations': typeof OrganizationsRouteRouteWithChildren
   '/about': typeof AboutRoute
-  '/auth': typeof AuthRouteWithChildren
   '/invitation': typeof InvitationRoute
-  '/organizations': typeof OrganizationsRouteWithChildren
   '/queries': typeof QueriesRoute
   '/auth/reset': typeof AuthResetRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
@@ -96,10 +96,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/auth': typeof AuthRouteRouteWithChildren
+  '/organizations': typeof OrganizationsRouteRouteWithChildren
   '/about': typeof AboutRoute
-  '/auth': typeof AuthRouteWithChildren
   '/invitation': typeof InvitationRoute
-  '/organizations': typeof OrganizationsRouteWithChildren
   '/queries': typeof QueriesRoute
   '/auth/reset': typeof AuthResetRoute
   '/organizations/$slug': typeof OrganizationsSlugRoute
@@ -110,10 +110,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/about'
     | '/auth'
-    | '/invitation'
     | '/organizations'
+    | '/about'
+    | '/invitation'
     | '/queries'
     | '/auth/reset'
     | '/organizations/$slug'
@@ -132,10 +132,10 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/about'
     | '/auth'
-    | '/invitation'
     | '/organizations'
+    | '/about'
+    | '/invitation'
     | '/queries'
     | '/auth/reset'
     | '/organizations/$slug'
@@ -145,10 +145,10 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthRouteRoute: typeof AuthRouteRouteWithChildren
+  OrganizationsRouteRoute: typeof OrganizationsRouteRouteWithChildren
   AboutRoute: typeof AboutRoute
-  AuthRoute: typeof AuthRouteWithChildren
   InvitationRoute: typeof InvitationRoute
-  OrganizationsRoute: typeof OrganizationsRouteWithChildren
   QueriesRoute: typeof QueriesRoute
 }
 
@@ -172,7 +172,7 @@ declare module '@tanstack/react-router' {
       id: '/auth'
       path: '/auth'
       fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
+      preLoaderRoute: typeof AuthRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/invitation': {
@@ -186,7 +186,7 @@ declare module '@tanstack/react-router' {
       id: '/organizations'
       path: '/organizations'
       fullPath: '/organizations'
-      preLoaderRoute: typeof OrganizationsRouteImport
+      preLoaderRoute: typeof OrganizationsRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/queries': {
@@ -201,64 +201,65 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/auth/'
       preLoaderRoute: typeof AuthIndexRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof AuthRouteRoute
     }
     '/auth/reset': {
       id: '/auth/reset'
       path: '/reset'
       fullPath: '/auth/reset'
       preLoaderRoute: typeof AuthResetRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof AuthRouteRoute
     }
     '/organizations/': {
       id: '/organizations/'
       path: '/'
       fullPath: '/organizations/'
       preLoaderRoute: typeof OrganizationsIndexRouteImport
-      parentRoute: typeof OrganizationsRoute
+      parentRoute: typeof OrganizationsRouteRoute
     }
     '/organizations/$slug': {
       id: '/organizations/$slug'
       path: '/$slug'
       fullPath: '/organizations/$slug'
       preLoaderRoute: typeof OrganizationsSlugRouteImport
-      parentRoute: typeof OrganizationsRoute
+      parentRoute: typeof OrganizationsRouteRoute
     }
   }
 }
 
-interface AuthRouteChildren {
+interface AuthRouteRouteChildren {
   AuthResetRoute: typeof AuthResetRoute
   AuthIndexRoute: typeof AuthIndexRoute
 }
 
-const AuthRouteChildren: AuthRouteChildren = {
+const AuthRouteRouteChildren: AuthRouteRouteChildren = {
   AuthResetRoute: AuthResetRoute,
   AuthIndexRoute: AuthIndexRoute,
 }
 
-const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+const AuthRouteRouteWithChildren = AuthRouteRoute._addFileChildren(
+  AuthRouteRouteChildren,
+)
 
-interface OrganizationsRouteChildren {
+interface OrganizationsRouteRouteChildren {
   OrganizationsSlugRoute: typeof OrganizationsSlugRoute
   OrganizationsIndexRoute: typeof OrganizationsIndexRoute
 }
 
-const OrganizationsRouteChildren: OrganizationsRouteChildren = {
+const OrganizationsRouteRouteChildren: OrganizationsRouteRouteChildren = {
   OrganizationsSlugRoute: OrganizationsSlugRoute,
   OrganizationsIndexRoute: OrganizationsIndexRoute,
 }
 
-const OrganizationsRouteWithChildren = OrganizationsRoute._addFileChildren(
-  OrganizationsRouteChildren,
-)
+const OrganizationsRouteRouteWithChildren =
+  OrganizationsRouteRoute._addFileChildren(OrganizationsRouteRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthRouteRoute: AuthRouteRouteWithChildren,
+  OrganizationsRouteRoute: OrganizationsRouteRouteWithChildren,
   AboutRoute: AboutRoute,
-  AuthRoute: AuthRouteWithChildren,
   InvitationRoute: InvitationRoute,
-  OrganizationsRoute: OrganizationsRouteWithChildren,
   QueriesRoute: QueriesRoute,
 }
 export const routeTree = rootRouteImport
