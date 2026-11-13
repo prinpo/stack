@@ -1,10 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { expect, test } from "vite-plus/test";
 
+import { createTestDirectory } from "./test-utils/directory";
+
 test("example profiles load committed defaults and keep personal and production overrides separate", async () => {
-  const cwd = await mkdtemp(join(process.cwd(), ".stack-test-env-files-"));
+  const cwd = await createTestDirectory("env-files");
   try {
     for (const file of [
       "client/.env",

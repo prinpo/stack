@@ -1,16 +1,17 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { expect, test } from "vite-plus/test";
 
 import type { GitHubRelease } from "../scripts/release/github";
 
+import { createTestDirectory } from "./test-utils/directory";
+
 async function publication(
   options: { channel?: "latest" | "nightly"; npmExit?: number; history?: GitHubRelease[] } = {},
 ) {
-  const directory = await mkdtemp(join(tmpdir(), "stack-npm-publication-"));
+  const directory = await createTestDirectory("npm-publication");
   try {
     const channel = options.channel ?? "nightly";
     const version = channel === "latest" ? "0.1.0" : "0.1.0-nightly.20261101.42";

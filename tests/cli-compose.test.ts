@@ -1,8 +1,10 @@
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vite-plus/test";
+
+import { createTestDirectory } from "./test-utils/directory";
 
 const cli = resolve("src/cli/main.ts");
 const bun = spawnSync("bun", ["--no-env-file", "-p", "process.execPath"], {
@@ -22,7 +24,7 @@ afterEach(async () => {
 });
 
 async function fixture() {
-  const cwd = await mkdtemp(join(process.cwd(), ".stack-test-compose-"));
+  const cwd = await createTestDirectory("compose");
   directories.push(cwd);
   await mkdir(join(cwd, "bin"));
   await mkdir(join(cwd, "src/server"), { recursive: true });

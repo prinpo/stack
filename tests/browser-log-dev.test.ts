@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 import { expect, test } from "vite-plus/test";
 
 import { stopProcessGroup } from "../src/processes";
+import { createTestDirectory } from "./test-utils/directory";
 
 async function port() {
   const server = createServer();
@@ -16,7 +17,7 @@ async function port() {
 }
 
 test("stack dev broadcasts explicit server logs through Vite to every connected browser", async () => {
-  const root = await mkdtemp(join(process.cwd(), ".stack-test-browser-log-"));
+  const root = await createTestDirectory("browser-log");
   const apiPort = await port();
   const vitePort = await port();
   await mkdir(join(root, "src/server"), { recursive: true });

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { join } from "node:path";
 import { createServer } from "vite";
@@ -7,6 +7,8 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { varlockVitePlugin } from "../src/env/vite";
 import { stack } from "../src/vite";
+import { createTestDirectory } from "./test-utils/directory";
+import { closeViteServer } from "./test-utils/vite-server";
 
 const cleanup: Array<() => Promise<unknown>> = [];
 
@@ -36,7 +38,7 @@ afterEach(async () => {
 });
 
 async function application() {
-  const root = await mkdtemp(join(process.cwd(), ".stack-test-"));
+  const root = await createTestDirectory();
   cleanup.push(() => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, "src/routes"), { recursive: true });
   await writeFile(
@@ -58,7 +60,7 @@ test("the Vite preset serves src/index.html at the public origin without moving 
     plugins: [stack()],
     server: { host: "127.0.0.1", port: 0 },
   });
-  cleanup.push(() => server.close());
+  cleanup.push(() => closeViteServer(server));
   await server.listen();
   const origin = server.resolvedUrls?.local[0];
   if (!origin) throw new Error("Missing browser origin");
@@ -78,7 +80,7 @@ test("custom client schemas generate env modules under the explicit Vite project
     root,
     plugins: [varlockVitePlugin({ client: "config/client" })],
   });
-  cleanup.push(() => server.close());
+  cleanup.push(() => closeViteServer(server));
   expect(await readFile(join(root, "src/env-gen/client.ts"), "utf8")).toContain("LAYOUT_NAME");
 });
 
@@ -101,7 +103,7 @@ test.each([
     plugins: [stack({ api: { target: `http://127.0.0.1:${address.port}`, prefix } })],
     server: { host: "127.0.0.1", port: 0 },
   });
-  cleanup.push(() => server.close());
+  cleanup.push(() => closeViteServer(server));
   await server.listen();
   const origin = server.resolvedUrls?.local[0];
   if (!origin) throw new Error("Missing browser origin");
@@ -120,7 +122,7 @@ test("file route generation preserves imports through Stack", async () => {
     'import { createFileRoute } from "@prinpo/stack/react";\nexport const Route = createFileRoute("/")({ component: () => <h1>Hello</h1> });\n',
   );
   const server = await createServer({ configFile: false, root, plugins: [stack()] });
-  cleanup.push(() => server.close());
+  cleanup.push(() => closeViteServer(server));
 
   expect(await readFile(routeFile, "utf8")).not.toContain("@tanstack/react-router");
   expect(await readFile(join(root, "src/routeTree.gen.ts"), "utf8")).toContain("IndexRouteImport");
@@ -136,7 +138,7 @@ test("new file routes are generated at configurable locations during development
     plugins: [stack({ router: { routesDirectory: "pages", generatedRouteTree: "route-tree.ts" } })],
     server: { host: "127.0.0.1", port: 0 },
   });
-  cleanup.push(() => server.close());
+  cleanup.push(() => closeViteServer(server));
   await server.listen();
   const route = join(root, "pages/notes.tsx");
   await expect.poll(() => server.watcher.getWatched()[join(root, "pages")]).toContain("__root.tsx");

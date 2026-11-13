@@ -1,10 +1,12 @@
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, expect, test } from "vite-plus/test";
+
+import { createTestDirectory } from "./test-utils/directory";
 
 const cli = resolve("src/cli/main.ts");
 const directories: string[] = [];
@@ -28,7 +30,7 @@ async function files(cwd: string, entries: Record<string, string>) {
 }
 
 async function project(entries: Record<string, string>) {
-  const cwd = await mkdtemp(join(process.cwd(), ".stack-test-db-"));
+  const cwd = await createTestDirectory("db");
   directories.push(cwd);
   await files(cwd, entries);
   return cwd;

@@ -1,7 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { expect, test } from "vite-plus/test";
+
+import { createTestDirectory } from "./test-utils/directory";
 
 function run(source: string, env: NodeJS.ProcessEnv = {}) {
   return spawnSync("bun", ["--no-env-file", "--eval", source], {
@@ -28,7 +30,7 @@ test("the built boundary silences browserLog even in development mode", () => {
 });
 
 test("native server builds lock browser logging before external module initialization", async () => {
-  const root = await mkdtemp(join(process.cwd(), ".stack-test-built-log-"));
+  const root = await createTestDirectory("built-log");
   try {
     await writeFile(
       join(root, "dependency.ts"),

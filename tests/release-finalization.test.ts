@@ -1,11 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { expect, test } from "vite-plus/test";
 
+import { createTestDirectory } from "./test-utils/directory";
+
 async function repository(stableVersion = "0.1.0") {
-  const directory = await mkdtemp(join(tmpdir(), "stack-release-finalize-"));
+  const directory = await createTestDirectory("release-finalize");
   const remote = join(directory, "origin.git");
   const checkout = join(directory, "checkout");
   const git = (...args: string[]) => {

@@ -1,12 +1,14 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { expect, test } from "vite-plus/test";
+
+import { createTestDirectory } from "./test-utils/directory";
 
 const schema = "# @defaultSensitive=true\n# @redact=false @preventLeaks=false\n# ---\n";
 
 async function runtime(files: Record<string, string>, source: string, cliPath?: string) {
-  const cwd = await mkdtemp(join(process.cwd(), ".stack-test-runtime-"));
+  const cwd = await createTestDirectory("runtime");
   try {
     await writeFile(
       join(cwd, "package.json"),

@@ -1,7 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vite-plus/test";
+
+import { createTestDirectory } from "./test-utils/directory";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -17,7 +19,7 @@ function run(cwd: string, ...args: string[]) {
 }
 
 test("auth schema generation bootstraps offline and detects plugin schema drift", async () => {
-  const root = await mkdtemp(join(process.cwd(), ".stack-test-auth-"));
+  const root = await createTestDirectory("auth");
   roots.push(root);
   await mkdir(join(root, "src/server/auth"), { recursive: true });
   await writeFile(
@@ -40,7 +42,7 @@ test("auth schema generation bootstraps offline and detects plugin schema drift"
 });
 
 test("doctor inspects auth files without evaluating config and accepts custom paths", async () => {
-  const root = await mkdtemp(join(process.cwd(), ".stack-test-auth-doctor-"));
+  const root = await createTestDirectory("auth-doctor");
   roots.push(root);
   await mkdir(join(root, "src/server/auth"), { recursive: true });
   await writeFile(join(root, "src/server/index.ts"), "");

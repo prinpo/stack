@@ -1,8 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vite-plus/test";
+
+import { createTestDirectory } from "./test-utils/directory";
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -14,7 +16,7 @@ async function load(
   mode: "build" | "client" | "runtime" = "build",
   overrides: NodeJS.ProcessEnv = {},
 ) {
-  const cwd = await mkdtemp(join(process.cwd(), ".stack-test-env-"));
+  const cwd = await createTestDirectory("env");
   directories.push(cwd);
   await writeFile(
     join(cwd, ".env.schema"),

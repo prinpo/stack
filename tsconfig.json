@@ -17,5 +17,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "exclude": [".agents", "node_modules", "dist", "examples", ".stack-test-*", ".tanstack"]
+  "exclude": [".agents", "node_modules", "dist", "examples", ".stack-tests", ".tanstack"]
 }

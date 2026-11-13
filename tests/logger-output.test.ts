@@ -1,13 +1,14 @@
 import { type DrainContext } from "@prinpo/stack/logger";
 import { logger } from "@prinpo/stack/logger/elysia";
 import { Elysia } from "@prinpo/stack/server";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test, vi } from "vite-plus/test";
 
+import { createTestDirectory } from "./test-utils/directory";
+
 test("development persistence rotates bounded files readable by local tools", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "stack-log-output-"));
+  const dir = await createTestDirectory("log-output");
   const events: DrainContext[] = [];
   const app = new Elysia()
     .use(
@@ -41,7 +42,7 @@ test("development persistence rotates bounded files readable by local tools", as
 });
 
 test("production uses native JSON stdout without creating development files", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "stack-log-prod-"));
+  const dir = await createTestDirectory("log-prod");
   vi.stubEnv("NODE_ENV", "production");
   const output = vi.spyOn(console, "info").mockImplementation(() => {});
   try {

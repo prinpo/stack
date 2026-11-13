@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
+import { createTestDirectory } from "../tests/test-utils/directory";
+
 // Real emitted modules with happy-dom globals; this is not browser E2E.
-const root = await mkdtemp(join(process.cwd(), ".stack-test-varlock-"));
+const root = await createTestDirectory("varlock");
 const vp = resolve("node_modules/vite-plus/bin/vp");
 const happyDom = resolve("node_modules/happy-dom/lib/index.js");
 const baseEnv: NodeJS.ProcessEnv = { ...process.env, VARLOCK_TELEMETRY_DISABLED: "1" };
