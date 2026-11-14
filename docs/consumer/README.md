@@ -12,6 +12,8 @@ related:
 
 Stack composes native libraries through `@prinpo/stack/...` imports and adds integration helpers. Use its applicable Blocks, utilities, and CLI workflows before writing application-specific integration code. Applications choose the capabilities they need and own product behavior, UI, and policies.
 
+For a new project, run `bunx @prinpo/stack init` from its parent directory. It creates an empty project with working local tooling and an agent-documentation pointer. See [initialization](cli.md#initialize-an-empty-project). Preserve its configuration when adding application code.
+
 ## Application AGENTS.md pointer
 
 Copy this into the consuming application's `AGENTS.md`:

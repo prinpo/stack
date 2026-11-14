@@ -10,7 +10,7 @@ related:
 
 # Stack CLI for agents
 
-Run commands from the consuming application's root. Stack's CLI supports Linux and Bun. Use the installed executable from a package script, or `bunx --no-install stack <command>`; the commands below use that explicit form. Missing tooling is an installation problem: Stack never downloads tools implicitly. Vite+ is application-owned development tooling.
+Run commands from the consuming application's root. Stack's CLI supports Linux and Bun. Use the installed executable from a package script, or `bunx --no-install stack <command>`; the commands below use that explicit form. Missing tooling is an installation problem: Application lifecycle commands never download tools implicitly; `init` explicitly installs the new project’s dependencies. Vite+ is application-owned development tooling.
 
 Keep this application `bunfig.toml` setting so Varlock owns dotenv precedence even when Bun runs package scripts:
 
@@ -19,6 +19,21 @@ env = false
 ```
 
 For direct execution, `bun --no-env-file` also disables Bun dotenv loading.
+
+## Initialize an empty project
+
+From the parent directory, run `bunx @prinpo/stack init`. It asks for a simple lowercase unscoped npm package name, then optional Zed/VS Code settings. Both or neither editor can be selected. All prompts finish before files are created.
+
+```sh
+bunx @prinpo/stack init my-app --no-editor
+bunx @prinpo/stack@nightly init my-app --editor zed --editor vscode
+```
+
+A supplied name skips only the name prompt. Editor flags skip the editor prompt; without a terminal, omitted editor flags mean no editor files. Without a terminal or a name, initialization fails with usage instructions. Unknown editors, conflicting flags, path names, and all existing destinations are rejected before writing. `--editor` can be repeated; `--no-editor` cannot be combined with it.
+
+Initialization installs the exact Stack release running the command and that release's pinned local tooling, plus compatible React peers. It creates editable configuration, `AGENTS.md`, a README, Git on `main`, and hooks; then formats and checks files and runs Vitest. No source, database, example tests, initial commit, or remote is generated. Dev/build require application entry points later. On failure or interruption after creation, inspect the retained project and follow the recovery command. Cancelling a prompt creates nothing.
+
+Bun and Git are prerequisites. Linux is tested; the CLI does not reject other platforms, but unsupported operations may fail. Editor files do not install extensions: install Oxc for Zed or VS Code's recommended Vite Plus Extension Pack. Use local commands from the project root, such as `bun run check` and `bun run test`.
 
 ## Choose a command by evidence needed
 

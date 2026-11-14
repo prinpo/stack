@@ -11,6 +11,7 @@ const main = defineCommand({
     version: { type: "boolean", alias: "v", description: "Show version" },
   },
   subCommands: {
+    init: () => import("./init").then((module) => module.default),
     dev: () => import("./lifecycle").then((module) => module.dev),
     build: () => import("./lifecycle").then((module) => module.build),
     start: () => import("./lifecycle").then((module) => module.start),
@@ -23,7 +24,6 @@ const main = defineCommand({
 });
 
 try {
-  if (process.platform !== "linux") throw new Error("Stack CLI currently supports Linux only.");
   const args = process.argv.slice(2);
   if (!args.length || args[0] === "--help" || args[0] === "-h") {
     intro();

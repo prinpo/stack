@@ -9,6 +9,9 @@ runs:
   steps:
     - shell: bash
       working-directory: ${{ inputs.directory }}
+      run: bun run initializer:check
+    - shell: bash
+      working-directory: ${{ inputs.directory }}
       run: bun --bun vp check
     - shell: bash
       working-directory: ${{ inputs.directory }}

@@ -87,6 +87,9 @@ export function stack(options: StackOptions = {}): PluginOption[] {
         }
         return {
           resolve: { dedupe: ["react", "react-dom"] },
+          // Stack's source TSX wrapper is served directly from node_modules in dev.
+          // Its CommonJS dependency must be converted even when app code never imports it.
+          optimizeDeps: { include: ["react-dom/client"] },
           server:
             api && target
               ? {
