@@ -148,9 +148,13 @@ import {createServer} from "vite";
 const server=await createServer({server:{host:"127.0.0.1",port:0,strictPort:false},optimizeDeps:{force:true}});
 try {
   await server.listen();
+  // Transform the installed wrapper immediately: a browser can request it before
+  // the initial scan discovers Router. Waiting for scanProcessing hides the race.
+  const early=await server.transformRequest("/@fs"+process.cwd()+"/node_modules/@prinpo/stack/src/react.tsx");
+  if(!early)throw new Error("Missing cold-start Stack mounting helper");
+  if(!early.code.includes("@tanstack_react-router.js"))throw new Error("Cold start serves unoptimized Router and its CommonJS useSyncExternalStoreWithSelector dependency");
   const origin=server.resolvedUrls.local[0];
   await fetch(new URL("/",origin));
-  await server.environments.client.depsOptimizer?.scanProcessing;
   const entry=await (await fetch(new URL("/main.tsx",origin))).text();
   const wrapper=entry.match(/from "([^"]+react\\.tsx[^"]*)"/);
   if(!wrapper)throw new Error("Missing documented Stack mounting helper");
