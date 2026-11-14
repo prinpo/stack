@@ -6,6 +6,12 @@ import { validateApplicationAuth } from "./auth/startup";
 import { migrateProductionDatabase } from "./database/startup";
 import { injectClientEnv } from "./env/html";
 import { type ServerEnvOptions, loadServerEnv } from "./env/server";
+import {
+  applicationJobsShutdownTimeout,
+  closeApplicationJobs,
+  jobsCleanupTimeoutMs,
+  startApplicationJobs,
+} from "./jobs/lifecycle";
 import { type ServeAppPluginsOptions, serveAppPlugin } from "./serve-app";
 
 export type StartServerOptions = ServeAppPluginsOptions & {
@@ -44,8 +50,17 @@ export async function startServer<App extends AnyElysia>(
     if (stopping) return;
     stopping = true;
     process.exitCode = status;
+    const grace = applicationJobsShutdownTimeout(app);
+    if (grace !== undefined) {
+      // Unref keeps normal cleanup fast; the deadline also bounds non-cooperative handlers.
+      setTimeout(
+        () => process.exit(process.exitCode ?? status),
+        Math.min(2_147_483_647, grace + jobsCleanupTimeoutMs),
+      ).unref();
+    }
     console.error(chalkStderr.red("Stopping..."));
     try {
+      await closeApplicationJobs(app);
       if (onStop) await onStop(status);
       else await app.stop();
     } catch (error) {
@@ -59,6 +74,9 @@ export async function startServer<App extends AnyElysia>(
       }
     } finally {
       removeSignals();
+      // Bun's code watcher can outlive the app. Tell the managed session cleanup is complete.
+      if (process.env._STACK_BROWSER_LOG_IPC === "1" && process.connected)
+        process.send?.({ type: "stack:shutdown-complete" }, () => {});
     }
   };
   const interrupt = () => {
@@ -75,9 +93,14 @@ export async function startServer<App extends AnyElysia>(
     if (!stopping) removeSignals();
   });
   await app.modules;
-  await validateApplicationAuth(app);
-
-  app.listen({ hostname: config.host, port: config.port });
+  try {
+    await validateApplicationAuth(app);
+    await startApplicationJobs(app);
+    app.listen({ hostname: config.host, port: config.port });
+  } catch (error) {
+    await closeApplicationJobs(app);
+    throw error;
+  }
   process.on("SIGINT", interrupt);
   process.on("SIGTERM", terminate);
   console.log(`API listening at ${app.server?.url}`);

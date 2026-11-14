@@ -16,6 +16,7 @@ related:
       database.md,
       auth.md,
       logger.md,
+      jobs.md,
       development.md,
       cli.md,
       production.md,
@@ -36,6 +37,7 @@ A **Block** is a composable Stack capability, usable independently wherever its 
 | TanStack Query and Eden connector  | `@prinpo/stack/query`                                            | [Eden Query](eden-query.md) |
 | Varlock environment                | `@prinpo/stack/env`, `/env/server`, `/env/vite`, `/env/defaults` | [Environment](env.md)       |
 | Drizzle database                   | `@prinpo/stack/database`, matching `/database/*` ORM subpaths    | [Database](database.md)     |
+| BullMQ background jobs             | `@prinpo/stack/jobs`, `/jobs/client`, `/jobs/elysia`             | [Background jobs](jobs.md)  |
 | Better Auth                        | `@prinpo/stack/auth` and supported auth subpaths below           | [Authentication](auth.md)   |
 | evlog logging                      | `@prinpo/stack/logger`, `/logger/elysia`, `/logger/client`       | [Logging](logger.md)        |
 

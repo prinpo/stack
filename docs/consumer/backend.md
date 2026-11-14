@@ -48,7 +48,7 @@ export const app = new Elysia().use(greetingRoutes);
 export type App = typeof app;
 ```
 
-Keep the fluent Elysia chain inferred, including route return types. A broad annotation such as `const app: Elysia = ...` loses the route contract Eden needs. Put reusable plugins and schemas in their own modules; application rules and authorization remain application-owned. Use native Elysia `t` schemas for HTTP contracts or schema-derived validation from the [Database Block](database.md) when the input comes from a persisted model.
+Keep the fluent Elysia chain inferred, including route return types. A broad annotation such as `const app: Elysia = ...` loses the route contract Eden needs. Put reusable plugins and schemas in their own modules; application rules and authorization remain application-owned. For shared logging, auth, and other integrations, use one named `setupPlugin` on the root app and each route module that needs those dependencies; see [shared backend setup](application-patterns.md#shared-backend-setup). Use native Elysia `t` schemas for HTTP contracts or schema-derived validation from the [Database Block](database.md) when the input comes from a persisted model.
 
 For expected structured failures, use the logging integration's `apiError` in the route return expression so Eden sees the error branch; see [logging and typed failures](logger.md). Mount the [auth helpers](auth.md) for auth endpoints and protected routes rather than rebuilding session/cookie handling.
 
@@ -67,7 +67,7 @@ await startServer(() => import("./app"));
 - Validates Stack-owned and application environment settings before importing application modules.
 - Runs managed database migrations in production before application import.
 - Imports the application and, in production with a client enabled, attaches built SPA serving and public runtime environment injection.
-- Awaits registered Elysia modules and validates registered auth integrations before listening.
+- Awaits registered Elysia modules, validates auth integrations, and starts registered jobs runtimes with datastore readiness before listening.
 - Listens using environment-derived `HOST` and `PORT`, and installs shutdown handling for SIGINT/SIGTERM.
 
 This order lets database/auth modules use validated environment accessors at module scope. Preserve the deferred import instead of statically importing `app` into the listening entry.
@@ -93,7 +93,7 @@ An installed Stack CLI also selects backend-only serving from detected capabilit
 
 ## Shutdown and resource ownership
 
-An application's database client, queues, and other connections need application-owned cleanup. An Elysia `onStop` hook is suitable when resource lifetime matches the app. When overriding Stack's signal action, stop the HTTP app as well:
+Stack awaits registered Jobs Block cleanup during signal shutdown, including before a custom `onStop` action. Application-owned database clients, native queues created outside that Block, and other connections still need their owner's cleanup. An Elysia `onStop` hook can initiate cleanup when resource lifetime matches the app; native Elysia does not await asynchronous stop hooks, so explicitly await cleanup when ordering dependencies matters. When overriding Stack's signal action, stop the HTTP app as well:
 
 ```ts
 import { startServer } from "@prinpo/stack/server";

@@ -37,6 +37,8 @@ An unexpected child exit stops its siblings and fails the session. Ctrl+C stops 
 
 Compose dependencies stay running while application processes restart. Stack does not provide general infrastructure reconfiguration or recovery after readiness succeeds.
 
+Managed backend termination and server-environment restarts allow `JOBS_SHUTDOWN_TIMEOUT_MS` plus 2,500 milliseconds of connection-cleanup time before forcing the process group to exit. The CLI resolves only that setting to select the budget, leaving unrelated credentials to backend startup. Native Bun source reloads do not provide a Stack-owned asynchronous drain boundary; active jobs may be interrupted and recovered as stalled. See [jobs lifecycle](jobs.md#standalone-runtime-and-shutdown).
+
 ## Development Compose dependencies
 
 Put optional development dependencies in exactly `docker-compose.dev.yml` at the application root. This behavior is independent of whether the app uses Stack's Database Block. Without that file, `stack dev` performs no Docker checks or operations.

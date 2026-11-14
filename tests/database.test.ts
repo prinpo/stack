@@ -550,18 +550,29 @@ test("development leaves schemas untouched while direct production startup appli
 }, 30_000);
 
 test("the full-stack example upgrades old notes and loads notebook relations in both directions", async () => {
-  const exampleNotebooks = pathToFileURL(
-    resolve("examples/fullstack/src/server/routes/notebooks.ts"),
-  ).href;
-  const exampleNotes = pathToFileURL(resolve("examples/fullstack/src/server/routes/notes.ts")).href;
+  const routeDirectory = resolve("examples/fullstack/src/server/routes");
+  const routes = await Promise.all(
+    ["notes", "notebooks"].map(async (name) => {
+      const source = await readFile(join(routeDirectory, `${name}.ts`), "utf8");
+      // Exercise the example handlers with this fixture's database-only setup.
+      const content = source.replace(/from "(\.\.[^"]+)"/g, (statement, specifier: string) =>
+        specifier === "../plugins/setup"
+          ? statement
+          : `from ${JSON.stringify(pathToFileURL(resolve(routeDirectory, specifier)).href)}`,
+      );
+      return [`src/server/routes/${name}.ts`, content];
+    }),
+  );
   const exampleDatabase = pathToFileURL(
     resolve("examples/fullstack/src/server/database/index.ts"),
   ).href;
   const cwd = await project({
+    ...Object.fromEntries(routes),
     "drizzle.config.ts": config,
     "env/server/.env.schema":
       "# @redact=false @preventLeaks=false\n# ---\n# @dynamic\nDATABASE_URL=sqlite://example.sqlite\n# @public @dynamic\nLOG_DIR=.evlog/logs\n",
-    "src/server/app.ts": `import {Elysia} from "@prinpo/stack/server";import {notebookRoutes} from ${JSON.stringify(exampleNotebooks)};import {noteRoutes} from ${JSON.stringify(exampleNotes)};export const app=new Elysia().use(notebookRoutes).use(noteRoutes);`,
+    "src/server/plugins/setup.ts": `import {Elysia} from "@prinpo/stack/server";export const setupPlugin=new Elysia({name:"database-test:setup"});`,
+    "src/server/app.ts": `import {Elysia} from "@prinpo/stack/server";import {notebookRoutes} from "./routes/notebooks";import {noteRoutes} from "./routes/notes";export const app=new Elysia().use(notebookRoutes).use(noteRoutes);`,
     "src/server/index.ts": `import {startServer} from "@prinpo/stack/server";const app=await startServer(()=>import("./app"),{env:{client:false},onStop:async()=>{try{await app.stop();}finally{const{client}=await import(${JSON.stringify(exampleDatabase)});await client.close();}}});`,
     "legacy.ts": `import{SQL}from"bun";const client=new SQL("sqlite://example.sqlite");await client\`INSERT INTO notes (text) VALUES ('legacy note')\`;await client.close();`,
   });

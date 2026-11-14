@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 
 import { builtDatabase } from "../database/files";
 import { serverEnvPaths } from "../env/paths";
-import { loadStaticEnv } from "../env/server";
+import { loadStaticEnv, readJobsShutdownTimeout } from "../env/server";
+import { jobsCleanupTimeoutMs } from "../jobs/lifecycle";
 import { developmentCompose } from "./compose";
 import { buildDatabase } from "./database-build";
 import { frontendArguments, frontendEnvironment } from "./frontend";
@@ -197,6 +198,9 @@ export const dev = lifecycleCommand(
         args: [...frontendArguments("dev"), "--strictPort", "--clearScreen", "false"],
       });
     let children: ChildProcess[] = [];
+    const gracePeriods = new WeakMap<ChildProcess, number>();
+    const stopChild = (child: ChildProcess) =>
+      stop(child, "SIGTERM", gracePeriods.get(child) ?? 2000);
     const compose = developmentCompose();
     const cancellation = new AbortController();
     let launched = false;
@@ -212,7 +216,11 @@ export const dev = lifecycleCommand(
         finish(status);
       }
     };
-    const launch = () => {
+    const launch = async () => {
+      const grace = app.backend
+        ? await readJobsShutdownTimeout({ profile: env.APP_ENV, values: env })
+        : 0;
+      if (closing) return;
       launched = true;
       const developmentEnv = { ...env, _STACK_BROWSER_LOG_IPC: "1" };
       for (const command of commands) {
@@ -223,6 +231,8 @@ export const dev = lifecycleCommand(
           command.area,
         );
         children.push(child);
+        if (command.area === "backend")
+          gracePeriods.set(child, Math.min(2_147_483_647, grace + jobsCleanupTimeoutMs));
         if (command.area === "backend")
           child.on("message", (message) => {
             if (
@@ -259,10 +269,10 @@ export const dev = lifecycleCommand(
                 .then(async () => {
                   const previous = children;
                   children = [];
-                  await Promise.all(previous.map((child) => stop(child)));
+                  await Promise.all(previous.map(stopChild));
                   if (!closing && launched) {
                     restartNotice(changedPath, commands.length > 1);
-                    launch();
+                    await launch();
                   }
                 })
                 .catch((error) => {
@@ -282,14 +292,14 @@ export const dev = lifecycleCommand(
         process.exitCode = startupStatus || Number(cancellation.signal.reason);
         return;
       }
-      launch();
+      await launch();
       const status = await completed;
       process.exitCode = status;
     } finally {
       clearTimeout(debounce);
       watcher?.close();
       await restarting;
-      await Promise.all(children.map((child) => stop(child)));
+      await Promise.all(children.map(stopChild));
       const cleanupStatus = await compose.stop();
       if (cleanupStatus !== 0) {
         console.error("Failed to stop development Compose services.");

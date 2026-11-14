@@ -19,14 +19,29 @@ function signalGroup(child: ChildProcess, signal: NodeJS.Signals) {
 }
 
 /** Stop the owned group, including descendants, with one bounded escalation. */
-export async function stopProcessGroup(child: ChildProcess, signal: NodeJS.Signals = "SIGTERM") {
+export async function stopProcessGroup(
+  child: ChildProcess,
+  signal: NodeJS.Signals = "SIGTERM",
+  timeoutMs = 2000,
+) {
   if (!child.pid) return;
+  const cleanedUp = (message: unknown) => {
+    if (
+      message &&
+      typeof message === "object" &&
+      "type" in message &&
+      message.type === "stack:shutdown-complete"
+    )
+      signalGroup(child, "SIGKILL");
+  };
+  child.on("message", cleanedUp);
   signalGroup(child, signal);
-  const timeout = setTimeout(() => signalGroup(child, "SIGKILL"), 2000);
+  const timeout = setTimeout(() => signalGroup(child, "SIGKILL"), timeoutMs);
   try {
     if (child.exitCode === null && child.signalCode === null)
       await new Promise<void>((done) => child.once("exit", () => done()));
   } finally {
+    child.off("message", cleanedUp);
     clearTimeout(timeout);
     signalGroup(child, "SIGKILL");
   }

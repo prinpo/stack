@@ -18,6 +18,9 @@ export type CoercedEnvSchema = {
   /** **APP_ENV** */
   APP_ENV: string;
   
+  /** **JOBS_SHUTDOWN_TIMEOUT_MS** */
+  JOBS_SHUTDOWN_TIMEOUT_MS: number;
+  
   /** **LOG_DIR** */
   LOG_DIR: string;
   
@@ -26,6 +29,12 @@ export type CoercedEnvSchema = {
    * File-backed SQLite for the database example. This value is resolved at startup.  
    */
   DATABASE_URL: string;
+  
+  /**
+   * **JOBS_REDIS_URL** 🔐 _sensitive_  
+   * App-owned BullMQ connection. Override for deployed Redis or compatible services.  
+   */
+  JOBS_REDIS_URL: string;
   
   /**
    * **SERVER_PUBLIC_STATIC**  
@@ -62,7 +71,7 @@ export type CoercedEnvSchema = {
   
 };
 
-type _CoercedEnvSchema_7ffe10c0 = CoercedEnvSchema;
+type _CoercedEnvSchema_daff1e06 = CoercedEnvSchema;
 
 export type EnvSchemaAsStrings = {
   [Property in keyof CoercedEnvSchema]:
@@ -70,9 +79,9 @@ export type EnvSchemaAsStrings = {
       : (NonNullable<CoercedEnvSchema[Property]> extends boolean ? ('true' | 'false') : string)
 };
 
-type _EnvSchemaAsStrings_7ffe10c0 = EnvSchemaAsStrings;
+type _EnvSchemaAsStrings_daff1e06 = EnvSchemaAsStrings;
 
-export type PublicCoercedEnvSchema = Readonly<Pick<CoercedEnvSchema, 'HOST' | 'PORT' | 'NODE_ENV' | 'APP_ENV' | 'LOG_DIR' | 'SERVER_PUBLIC_STATIC' | 'SERVER_PUBLIC_DYNAMIC' | 'BETTER_AUTH_URL'>>;
+export type PublicCoercedEnvSchema = Readonly<Pick<CoercedEnvSchema, 'HOST' | 'PORT' | 'NODE_ENV' | 'APP_ENV' | 'JOBS_SHUTDOWN_TIMEOUT_MS' | 'LOG_DIR' | 'SERVER_PUBLIC_STATIC' | 'SERVER_PUBLIC_DYNAMIC' | 'BETTER_AUTH_URL'>>;
 
 // re-export of the runtime ENV proxy, typed to this package's schema
 export const ENV = _ENV as unknown as Readonly<CoercedEnvSchema>;

@@ -103,6 +103,20 @@ export async function readServerConnection(
   return connection(graph.getSerializedGraph());
 }
 
+/** Resolve the managed backend's grace period without loading application credentials. */
+export async function readJobsShutdownTimeout(
+  options: { profile?: string; values?: NodeJS.ProcessEnv } = {},
+) {
+  const graph = await graphAt(
+    serverEnvPaths(),
+    options.values ?? originalEnvironment(),
+    options.profile,
+  );
+  await graph.resolveEnvValues(["JOBS_SHUTDOWN_TIMEOUT_MS"]);
+  internal.checkForConfigErrors(graph);
+  return Number(graph.getSerializedGraph().config.JOBS_SHUTDOWN_TIMEOUT_MS.value);
+}
+
 async function classifyGraph(graph: Graph, publicOnly: boolean) {
   for (const item of Object.values(graph.configSchema)) {
     const decorators = [

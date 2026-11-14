@@ -11,3 +11,7 @@ _Avoid_: Dependency bundle, starter template
 **Block**:
 A composable capability of Stack that can be used independently wherever its underlying libraries allow.
 _Avoid_: Preset, template
+
+**Jobs Block**:
+The Block for defining, submitting, and processing background work with a shared, type-safe contract.
+_Avoid_: Jobs server

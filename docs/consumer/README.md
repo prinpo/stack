@@ -18,27 +18,28 @@ Copy this into the consuming application's `AGENTS.md`:
 
 ```md
 Before creating or changing application structure, frontend, backend, API queries,
-environment, database, authentication, logging, or development/build workflows,
+environment, database, authentication, logging, background jobs, or development/build workflows,
 read node_modules/@prinpo/stack/docs/consumer/README.md and follow its task-specific links.
 Use Stack's applicable Blocks, helpers, and CLI before implementing custom integration.
 ```
 
 ## Read by task
 
-| Task                                                                       | Read                                            |
-| -------------------------------------------------------------------------- | ----------------------------------------------- |
-| Discover supported Blocks, utilities, and import paths                     | [Capability map](capabilities.md)               |
-| Create application files or decide where code belongs                      | [Application patterns](application-patterns.md) |
-| Render React, add file routes, configure Vite or devtools                  | [Frontend](frontend.md)                         |
-| Define Elysia routes, validation, server startup, typed Eden calls         | [Backend](backend.md)                           |
-| Fetch/cache API data, mutate, paginate, preload in loaders                 | [Eden Query](eden-query.md)                     |
-| Configure schemas, generated types, static/dynamic public values           | [Environment](env.md)                           |
-| Define tables, select a driver, configure migrations                       | [Database](database.md)                         |
-| Add login, sessions, organizations, invitations, delivery                  | [Authentication](auth.md)                       |
-| Log requests, return structured errors, broadcast development messages     | [Logging](logger.md)                            |
-| Diagnose problems, retrieve logs, generate/check migrations or auth schema | [CLI workflows](cli.md)                         |
-| Run development, Compose dependencies, proxy and browser tools             | [Development](development.md)                   |
-| Build, deploy, configure runtime values, migrate, stop cleanly             | [Production](production.md)                     |
+| Task                                                                           | Read                                            |
+| ------------------------------------------------------------------------------ | ----------------------------------------------- |
+| Discover supported Blocks, utilities, and import paths                         | [Capability map](capabilities.md)               |
+| Create application files or decide where code belongs                          | [Application patterns](application-patterns.md) |
+| Render React, add file routes, configure Vite or devtools                      | [Frontend](frontend.md)                         |
+| Define Elysia routes, validation, server startup, typed Eden calls             | [Backend](backend.md)                           |
+| Fetch/cache API data, mutate, paginate, preload in loaders                     | [Eden Query](eden-query.md)                     |
+| Configure schemas, generated types, static/dynamic public values               | [Environment](env.md)                           |
+| Define tables, select a driver, configure migrations                           | [Database](database.md)                         |
+| Add login, sessions, organizations, invitations, delivery                      | [Authentication](auth.md)                       |
+| Log requests, return structured errors, broadcast development messages         | [Logging](logger.md)                            |
+| Define queues and jobs, submit or await work, inspect progress, manage workers | [Background jobs](jobs.md)                      |
+| Diagnose problems, retrieve logs, generate/check migrations or auth schema     | [CLI workflows](cli.md)                         |
+| Run development, Compose dependencies, proxy and browser tools                 | [Development](development.md)                   |
+| Build, deploy, configure runtime values, migrate, stop cleanly                 | [Production](production.md)                     |
 
 ## Essential conventions
 

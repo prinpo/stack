@@ -1,0 +1,16 @@
+services:
+  redis:
+    image: redis:8.2-alpine
+    command: [redis-server, --appendonly, "yes", --maxmemory-policy, noeviction]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - jobs-redis-data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 1s
+      timeout: 1s
+      retries: 20
+
+volumes:
+  jobs-redis-data:

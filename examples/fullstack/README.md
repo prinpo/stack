@@ -4,6 +4,8 @@ A runnable environment sandbox using Stack's public entry points. The landing pa
 
 ## Run
 
+Docker Compose supplies the example's Redis service. `stack dev` starts it, waits for its healthcheck, and stops it after the app exits; its data volume is preserved. Production needs an application-provided datastore through `JOBS_REDIS_URL`.
+
 From the repository root:
 
 ```sh
@@ -46,12 +48,14 @@ fullstack/
         ├── app.ts              # Compose plugins and route apps
         ├── index.ts            # Startup and shutdown
         ├── database/           # Client, tables, and relations
-        ├── plugins/            # Shared Elysia plugins
+        ├── plugins/            # setupPlugin composes shared integrations
         ├── routes/             # Elysia route apps by concern
         └── validation/         # Request schemas by concern
 ```
 
 The server directories are an example pattern to build on. Keep startup in `index.ts` and composition in `app.ts`; add endpoints, plugins, and validators in their respective directories as the application grows. Validation imports table definitions without initializing the database client. Stack does not enforce these server folders.
+
+`src/server/plugins/setup.ts` exports one named `setupPlugin` composing logging, auth, and jobs. The root app and each route module call `.use(setupPlugin)` before declaring handlers, making their shared context and macros available with a single import. Add shared integrations there; keep endpoint authorization on individual routes. See [shared backend setup](../../docs/consumer/application-patterns.md#shared-backend-setup) for dependency direction and lifecycle conventions.
 
 ## Follow the connection
 
@@ -78,9 +82,25 @@ To use another layout, set `router.routesDirectory` and `router.generatedRouteTr
 
 For a frontend-only application, omit the server files, API client, and `api` preset option. A backend-only application can use the server and Eden entry points with Bun alone.
 
+## Background jobs
+
+`src/server/jobs/format-message.ts` defines a schema-backed job with a typed result and `formatting` progress phase. `jobs/queues.ts` groups it into the utilities queue and configures concurrency and retention. Shared `setupPlugin` registers jobs with the app-owned `JOBS_REDIS_URL` and an environment-specific prefix. Workers run inside the backend, and HTTP starts only after Redis readiness succeeds.
+
+Try an enqueue-and-wait task through the backend:
+
+```sh
+curl http://localhost:5173/api/jobs/format \
+  -H 'content-type: application/json' \
+  -d '{"text":" hello jobs "}'
+```
+
+It returns `{"text":"HELLO JOBS","length":10}`. POST the same body to `/api/jobs/format/queued` to receive a job ID, then GET `/api/jobs/format/<id>` to inspect validated input, progress, state, and result. The backend uses typed `jobs.utilities.run.formatMessage`, `add.formatMessage`, and `getJob.formatMessage`; `jobs/client.ts` supplies the type-only facade for helpers outside route context.
+
+The example selects a five-second development drain period through `JOBS_SHUTDOWN_TIMEOUT_MS`; production inherits Stack's thirty-second default unless overridden. See [background jobs](../../docs/consumer/jobs.md) for serialization, shutdown, standalone usage, and deferred capabilities.
+
 ## Optional logging and structured errors
 
-The example opts into evlog through shared `src/server/plugins/logging.ts`, registered on the main app and `src/server/routes/errors.ts` route module. **Try a structured API error** calls a typed 409 endpoint. The same guard runs in a native `MutationCache` callback and the endpoint's mutation `onError`, retaining `orderId` inference. Native validation and ordinary statuses remain available.
+The example opts into evlog through shared `src/server/plugins/logging.ts`, composed by `setupPlugin` and reused on the root app and route modules. **Try a structured API error** calls a typed 409 endpoint. The same guard runs in a native `MutationCache` callback and the endpoint's mutation `onError`, retaining `orderId` inference. Native validation and ordinary statuses remain available.
 
 From the repository root, use `bun run stack logs`, `bun run stack logs errors`, or `bun run stack logs --json`. Files default to this example's `.evlog/logs`; set `LOG_DIR` to share another directory between server and commands. Runtime logging needs no external account. The CLI owns its tested evlog version and disables usage telemetry. See [the logging guide](../../docs/consumer/logger.md) for options and type boundaries.
 

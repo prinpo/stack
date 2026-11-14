@@ -29,6 +29,7 @@
     "docs/consumer/database.md",
     "docs/consumer/auth.md",
     "docs/consumer/logger.md",
+    "docs/consumer/jobs.md",
     "docs/consumer/cli.md",
     "docs/consumer/development.md",
     "docs/consumer/production.md"
@@ -38,6 +39,9 @@
     "./src/browser-log/built.ts"
   ],
   "exports": {
+    "./jobs": "./src/jobs.ts",
+    "./jobs/client": "./src/jobs/client.ts",
+    "./jobs/elysia": "./src/jobs/elysia.ts",
     "./database": "./src/database.ts",
     "./database/*": {
       "types": "./src/database/generated/*.d.ts",
@@ -91,6 +95,7 @@
     "@evlog/cli": "0.11.1",
     "@rollup/plugin-replace": "6.0.3",
     "@sinclair/typebox": "0.34.52",
+    "@standard-schema/spec": "1.1.0",
     "@tanstack/react-query": "5.102.8",
     "@tanstack/react-router": "1.170.44",
     "@tanstack/react-router-devtools": "1.167.2",
@@ -99,6 +104,7 @@
     "@vitejs/plugin-react": "6.1.2",
     "auth": "1.7.21",
     "better-auth": "1.7.21",
+    "bullmq": "6.7.6",
     "chalk": "6.0.1",
     "citty": "0.2.2",
     "drizzle-kit": "1.0.0-rc.5",
@@ -107,6 +113,7 @@
     "evlog": "2.34.0",
     "exact-mirror": "0.2.7",
     "file-type": "22.2.0",
+    "ioredis": "6.0.0",
     "openapi-types": "12.1.3",
     "varlock": "1.23.0",
     "zod": "4.6.7"

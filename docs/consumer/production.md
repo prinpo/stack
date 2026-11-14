@@ -57,6 +57,8 @@ Do not replace this with development `push` or a private application migration r
 
 Standard backend startup waits for plugins and checks registered auth configuration before opening the listener. Enabled wrapped auth delivery flows need production senders; development console delivery does not satisfy that requirement. See [authentication](auth.md). `doctor`, `auth check`, and successful SQL generation do not prove those runtime requirements.
 
+Registered Jobs Block workers run in the backend process and must reach datastore readiness before HTTP opens. Supply application-owned native connection settings and provision the datastore separately; production startup does not run development Compose. See [background jobs](jobs.md).
+
 ## Serving behavior
 
 The normal full-stack origin serves `/api` and built browser assets together. Root HTML, explicit `index.html`, and SPA navigation share the prepared shell; unknown API paths, missing assets, and application failures retain their error behavior. GET/HEAD handling is supported. Backend-only startup omits browser serving; frontend-only startup uses a lightweight Bun server without Elysia application code.

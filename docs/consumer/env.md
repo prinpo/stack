@@ -86,12 +86,13 @@ The loaded module exports a native Elysia instance named `app`. Environment vali
 
 Stack owns these declarations and validation; set their values without redeclaring their schemas:
 
-| Setting    | Default       | Constraint                             |
-| ---------- | ------------- | -------------------------------------- |
-| `HOST`     | `127.0.0.1`   | Server bind host                       |
-| `PORT`     | `3000`        | Integer from 1 through 65535           |
-| `NODE_ENV` | `development` | `development`, `test`, or `production` |
-| `APP_ENV`  | `NODE_ENV`    | Deployment-profile string              |
+| Setting                    | Default       | Constraint                                                      |
+| -------------------------- | ------------- | --------------------------------------------------------------- |
+| `HOST`                     | `127.0.0.1`   | Server bind host                                                |
+| `PORT`                     | `3000`        | Integer from 1 through 65535                                    |
+| `NODE_ENV`                 | `development` | `development`, `test`, or `production`                          |
+| `APP_ENV`                  | `NODE_ENV`    | Deployment-profile string                                       |
+| `JOBS_SHUTDOWN_TIMEOUT_MS` | `30000`       | Jobs drain grace period, integer 0–2147483647; 0 skips draining |
 
 For container port exposure, choose `HOST=0.0.0.0` where appropriate. `dev` sets development mode; `build`/`start` set production mode. `--env` chooses the profile before inherited `APP_ENV`, then mode. Thus `stack start --env staging` uses production serving/logging with `.env.staging` values. Vite's native mode does not select `APP_ENV`.
 

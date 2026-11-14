@@ -1,6 +1,6 @@
 # @prinpo/stack
 
-Stack is a thin application framework that composes Bun, Elysia, Eden, React, TanStack Router, TanStack Query, Varlock, Drizzle, Better Auth, and evlog through a shared public interface and documented patterns.
+Stack is a thin application framework that composes Bun, Elysia, Eden, React, TanStack Router, TanStack Query, Varlock, Drizzle, Better Auth, BullMQ, and evlog through a shared public interface and documented patterns.
 
 ## Installation
 
@@ -26,7 +26,7 @@ With Bun installed, run these steps from your application's directory. If you're
 
    ```md
    Before creating or changing application structure, frontend, backend, API queries,
-   environment, database, authentication, logging, or development/build workflows,
+   environment, database, authentication, logging, background jobs, or development/build workflows,
    read node_modules/@prinpo/stack/docs/consumer/README.md and follow its task-specific links.
    Use Stack's applicable Blocks, helpers, and CLI before implementing custom integration.
    ```
