@@ -10,4 +10,6 @@ The [CLI milestone](../milestones/0005-stack-cli.md) records the agreed command 
 
 [ADR 0015](0015-manage-development-compose-through-stack-dev.md) subsequently brings development Compose startup and shutdown into scope.
 
+[ADR 0022](0022-initialize-empty-projects-with-local-tooling.md) subsequently brings interactive empty-project initialization into scope.
+
 [ADR 0019](0019-keep-html-and-generated-env-under-src.md) places the frontend entry at `src/index.html`, with root tool configuration retained and public build output unchanged.

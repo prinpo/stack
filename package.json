@@ -74,6 +74,7 @@
   },
   "scripts": {
     "package:check": "bun --no-env-file scripts/release/package.ts",
+    "initializer:check": "bun --no-env-file scripts/check-init-toolchain.ts",
     "dev": "bun run stack dev",
     "test": "vp test",
     "check": "vp check",
@@ -86,6 +87,7 @@
   "dependencies": {
     "@babel/parser": "7.29.9",
     "@better-auth/drizzle-adapter": "1.7.21",
+    "@clack/prompts": "1.9.0",
     "@elysiajs/eden": "1.4.9",
     "@elysiajs/static": "1.4.10",
     "@evlog/cli": "0.11.1",
