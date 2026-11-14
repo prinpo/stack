@@ -10,7 +10,7 @@ related:
 
 # Background jobs
 
-The Jobs Block adds typed definitions and runtime validation to BullMQ. Workers initially run in the backend process and share the application's datastore. Backend producers connect directly through the registered runtime; no jobs HTTP server is needed. Stack ships BullMQ and its default ioredis driver. Redis is the qualified example datastore; application configuration remains native BullMQ connection configuration, including compatible Redis services such as Valkey. Applications own credentials, datastore provisioning, and job policies.
+The Jobs Block adds typed definitions and runtime validation to BullMQ. Workers initially run in the backend process and share the application's datastore. Backend producers connect directly through the registered runtime; no jobs HTTP server is needed. Stack uses Bun's built-in Redis client through BullMQ's adapter, without an additional Redis driver dependency. Redis is the qualified example datastore; application configuration remains native BullMQ connection configuration, including compatible Redis services such as Valkey. Applications own credentials, datastore provisioning, and job policies.
 
 ## Definitions
 
@@ -43,6 +43,10 @@ Accept any Standard Schema v1 validator, including asynchronous validators and t
 Queue `worker` accepts native worker settings except lifecycle-owned connection, prefix, and autorun. Queue `options` supplies other native queue settings. Job `defaults` and enqueue options override queue defaults in that order, using BullMQ's shallow option merging. Unspecified retry, backoff, deduplication, and retention settings keep native defaults. Choose bounded retention explicitly for your application.
 
 ## Shared setup and startup
+
+The built-in client supports Redis 7.2 and newer.
+
+Importing the Jobs Block installs Bun's Redis adapter as BullMQ's default client factory if no application factory is already configured. This opens no connections. URL or host/port settings, authentication, database selection, TLS, and connection timeouts are passed to the built-in client; BullMQ's adapter owns reconnection. Supply a native client or an application factory for driver-specific options beyond Bun's support. The lightweight `/jobs/client` entry does not configure a driver.
 
 Declare connection settings in the application's server environment schema, for example:
 

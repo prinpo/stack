@@ -1,3 +1,4 @@
+import "./bun-redis";
 import { type Job, Queue, QueueEvents, UnrecoverableError, Worker } from "bullmq";
 
 import type { CreateJobsOptions, JobsClient, QueueDefinitions, RunOptions } from "./types";

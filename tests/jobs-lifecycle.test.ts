@@ -51,7 +51,7 @@ console.log(JSON.stringify({aborted,elapsed:Date.now()-start}));
 test("unavailable Redis fails startup within its deadline and releases connection resources", () => {
   const source = `
 import {createJobs,defineJob,defineQueue,z} from "@prinpo/stack/jobs";
-const runtime=createJobs({connection:{host:"127.0.0.1",port:1,retryStrategy:()=>10,disconnectTimeout:10},startupTimeoutMs:50,onError:()=>{},queues:{work:defineQueue("unavailable",{jobs:{echo:defineJob({input:z.string(),handler:async job=>job.data})}})}});
+const runtime=createJobs({connection:{host:"127.0.0.1",port:1},startupTimeoutMs:50,onError:()=>{},queues:{work:defineQueue("unavailable",{jobs:{echo:defineJob({input:z.string(),handler:async job=>job.data})}})}});
 try{await runtime.start();throw new Error("Unexpected readiness");}catch(error){console.log(error.message);}
 await runtime.close();
 `;
@@ -60,7 +60,7 @@ await runtime.close();
     timeout: 2000,
   });
   expect(result.status, result.stdout + result.stderr + result.error?.message).toBe(0);
-  expect(result.stdout).toContain("startup timeout");
+  expect(result.stdout).toMatch(/startup timeout|Connection.*closed/i);
 });
 
 test("standard backend startup registers shared jobs before listening and app stop closes them", async () => {
@@ -148,7 +148,7 @@ test.skipIf(Boolean(process.env.STACK_TEST_REDIS_URL))(
     const datastore = testRedis();
     const source = `
 import {createJobs,defineJob,defineQueue,z} from "@prinpo/stack/jobs";
-const runtime=createJobs({queues:{work:defineQueue(${JSON.stringify(`outage-${crypto.randomUUID()}`)},{jobs:{echo:defineJob({input:z.string(),handler:async job=>job.data})}})},connection:{...${JSON.stringify(datastore.connection)},maxRetriesPerRequest:null,retryStrategy:()=>10,disconnectTimeout:10},enqueueTimeoutMs:50,shutdownTimeoutMs:50,onError:()=>{}});
+const runtime=createJobs({queues:{work:defineQueue(${JSON.stringify(`outage-${crypto.randomUUID()}`)},{jobs:{echo:defineJob({input:z.string(),handler:async job=>job.data})}})},connection:${JSON.stringify(datastore.connection)},enqueueTimeoutMs:50,shutdownTimeoutMs:50,onError:()=>{}});
 await runtime.start();console.log("ready");await Bun.stdin.text();
 try{await runtime.client.work.add.echo("hello");}catch(error){console.log(error.message);}
 await runtime.close();console.log("closed");
@@ -174,7 +174,7 @@ await runtime.close();console.log("closed");
       } catch (error) {
         throw new Error(output, { cause: error });
       }
-      expect(output).toContain("enqueue timeout");
+      expect(output).toMatch(/enqueue timeout|Connection.*closed/i);
       expect(output).toContain("closed");
     } finally {
       if (child.exitCode === null && child.signalCode === null) {

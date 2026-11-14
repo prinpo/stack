@@ -1,3 +1,5 @@
+import "./jobs/bun-redis";
+
 export * from "bullmq";
 export { z } from "zod";
 export { defineJob, defineQueue } from "./jobs/definitions";

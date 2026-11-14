@@ -18,9 +18,14 @@ export const jobRoutes = new Elysia()
     },
     { body: formatMessageInput },
   )
-  .get("/api/jobs/format/:id", async ({ params, jobs, status }) => {
+  .get("/api/jobs/format/:id", async ({ params, jobs, apiError }) => {
     const job = await jobs.utilities.getJob.formatMessage(params.id);
-    if (!job) return status(404, { message: "Job not found" });
+    if (!job)
+      return apiError(404, {
+        message: "Job not found",
+        code: "JOB_NOT_FOUND",
+        data: { jobId: params.id },
+      });
     return {
       id: job.id,
       data: job.data,

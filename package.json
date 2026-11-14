@@ -36,7 +36,8 @@
   ],
   "type": "module",
   "sideEffects": [
-    "./src/browser-log/built.ts"
+    "./src/browser-log/built.ts",
+    "./src/jobs/bun-redis.ts"
   ],
   "exports": {
     "./jobs": "./src/jobs.ts",
@@ -113,7 +114,6 @@
     "evlog": "2.34.0",
     "exact-mirror": "0.2.7",
     "file-type": "22.2.0",
-    "ioredis": "6.0.0",
     "openapi-types": "12.1.3",
     "varlock": "1.23.0",
     "zod": "4.6.7"
