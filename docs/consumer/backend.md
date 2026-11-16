@@ -52,6 +52,19 @@ Keep the fluent Elysia chain inferred, including route return types. A broad ann
 
 For expected structured failures, use the logging integration's `apiError` in the route return expression so Eden sees the error branch; see [logging and typed failures](logger.md). Mount the [auth helpers](auth.md) for auth endpoints and protected routes rather than rebuilding session/cookie handling.
 
+## OpenAPI documentation
+
+Use `@prinpo/stack/openapi` for the native OpenAPI plugin and its types. Register it on the root application with its default paths:
+
+```ts
+import { openapi } from "@prinpo/stack/openapi";
+import { Elysia } from "@prinpo/stack/server";
+
+export const app = new Elysia().use(openapi());
+```
+
+In development, open the fullstack example's backend directly at <http://localhost:3000/openapi> for the documentation UI, or <http://localhost:3000/openapi/json> for the JSON specification. These default paths are outside Stack's `/api` development proxy. Keep `openapi()` without a custom `path`: the underlying plugin currently generates an inconsistent specification URL when the path is changed. Plugin options preserve the [native OpenAPI API](https://elysiajs.com/plugins/openapi).
+
 ## Standard startup
 
 The standard CLI detects a backend at `src/server/index.ts`. This entry should defer importing the application:

@@ -1,3 +1,4 @@
+import { openapi } from "@prinpo/stack/openapi";
 import { Elysia } from "@prinpo/stack/server";
 
 import { setupPlugin } from "./plugins/setup";
@@ -9,6 +10,7 @@ import { noteRoutes } from "./routes/notes";
 import { queryRoutes } from "./routes/queries";
 
 export const app = new Elysia()
+  .use(openapi())
   .use(setupPlugin)
   .get("/api/profile", ({ user, session }) => ({ user, session }), { auth: true })
   .use(errorRoutes)

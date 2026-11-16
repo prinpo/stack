@@ -24,6 +24,8 @@ Vite updates browser-used Stack modules through HMR or a page reload. The client
 
 The notebook POST endpoint demonstrates optional Zod validation in `src/server/validation/notebooks.ts`: `createInsertSchema` comes from `@prinpo/stack/database/zod`, derives the table shape, trims/bounds the name, and picks only the caller-owned name field. Other endpoints retain native Elysia TypeBox schemas. Database clients are not imported by the validation module.
 
+OpenAPI documentation is available directly from the backend at <http://localhost:3000/openapi>, with the JSON specification at <http://localhost:3000/openapi/json>. The root application registers `openapi()` from `@prinpo/stack/openapi` without a custom path because of an upstream specification URL issue. These routes are outside the Vite development proxy's `/api` prefix.
+
 ## Application layout
 
 Keep root configuration small and put application code in `src/`. Stack requires `src/index.html` and generates Varlock modules only inside `src/env-gen/`. The HTML script uses `/main.tsx` because Vite serves `src/` as its root. Schemas remain in root `env/` and Drizzle manages root `migrations/`.

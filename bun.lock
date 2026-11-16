@@ -7,6 +7,7 @@
       "dependencies": {
         "@babel/parser": "7.29.9",
         "@better-auth/drizzle-adapter": "1.7.21",
+        "@elysia/openapi": "1.4.17",
         "@elysiajs/eden": "1.4.9",
         "@elysiajs/static": "1.4.10",
         "@evlog/cli": "0.11.1",
@@ -185,6 +186,8 @@
     "@clack/core": ["@clack/core@1.5.1", "", { "dependencies": { "fast-wrap-ansi": "^0.2.0", "sisteransi": "^1.0.5" } }, "sha512-iHTrHA8MtVuLl2TfZySmcKv1qO2PoyC9Z7pfSDozEuV5vtY3/wcOPKJXlqJ5Oq2Cx5DDGQGAMVx6HZfRRoVEbQ=="],
 
     "@clack/prompts": ["@clack/prompts@1.8.1", "", { "dependencies": { "@clack/core": "1.5.1", "fast-string-width": "^3.0.2", "fast-wrap-ansi": "^0.2.0", "sisteransi": "^1.0.5" } }, "sha512-dlT1m5e/0yUL0kRNcQn7yGLVThkgbB0Ga/1AmfDDC/8ik6AIiSf2QLQO2zPYvefsHP0aFgxO93cVLCCfDp7kzQ=="],
+
+    "@elysia/openapi": ["@elysia/openapi@1.4.17", "", { "peerDependencies": { "@sinclair/typebox": ">= 0.34.0 < 1", "elysia": ">= 1.4.0", "typescript": ">= 5.0.0" } }, "sha512-rmyqxfoQyM6QMsxelt6RMuM8b0I6y33KgGcrm5LKw2xIOVHRFg9EAbxFejZBfyZmVYkY3EazgaPNlEz4HJ3Thg=="],
 
     "@elysiajs/eden": ["@elysiajs/eden@1.4.9", "", { "peerDependencies": { "elysia": ">=1.4.19" } }, "sha512-3CKVD4ycVjB8nCNssfmhnUuq3SzSHkUES3v5PNCFr9LxIrx39/HVRAZ8z2sLxrFqzUs48dCBZaxoZzJ5UUVHDA=="],
 

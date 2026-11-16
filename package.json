@@ -60,6 +60,7 @@
     "./query": "./src/query.ts",
     "./react": "./src/react.tsx",
     "./server": "./src/server.ts",
+    "./openapi": "./src/openapi.ts",
     "./vite": "./src/vite.ts",
     "./package.json": "./package.json",
     "./browser-log": "./src/browser-log.ts",
@@ -91,6 +92,7 @@
   "dependencies": {
     "@babel/parser": "7.29.9",
     "@better-auth/drizzle-adapter": "1.7.21",
+    "@elysia/openapi": "1.4.17",
     "@elysiajs/eden": "1.4.9",
     "@elysiajs/static": "1.4.10",
     "@evlog/cli": "0.11.1",
