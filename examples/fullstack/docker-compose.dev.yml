@@ -11,13 +11,13 @@ services:
       interval: 1s
       timeout: 1s
       retries: 20
-  workbench:
-    image: ghcr.io/pontusab/workbench-standalone:latest
+  queuedash:
+    image: ghcr.io/alexbudure/queuedash:latest
     ports:
       - "127.0.0.1:3001:3000"
     environment:
-      - REDIS_URL=redis://redis:6379
-      - QUEUE_NAMES=utilities
+      QUEUES_CONFIG_JSON: >-
+        {"discovery":{"type":"bullmq","connectionUrl":"redis://redis:6379","prefix":"stack-example:development"}}
     depends_on:
       redis:
         condition: service_healthy

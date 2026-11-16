@@ -86,7 +86,7 @@ For a frontend-only application, omit the server files, API client, and `api` pr
 
 ## Background jobs
 
-`src/server/jobs/format-message.ts` defines a schema-backed job with a typed result and `formatting` progress phase. `jobs/queues.ts` groups it into the utilities queue and configures concurrency and retention. Shared `setupPlugin` registers jobs with the app-owned `JOBS_REDIS_URL` and an environment-specific prefix. Workers run inside the backend, and HTTP starts only after Redis readiness succeeds.
+`src/server/jobs/format-message.ts` defines a schema-backed job with a typed result and `formatting` progress phase. `jobs/queues.ts` groups it into the utilities queue and configures concurrency and retention. Shared `setupPlugin` registers jobs with the app-owned `JOBS_REDIS_URL` and the environment-specific prefix `stack-example:<environment>`. Workers run inside the backend, and HTTP starts only after Redis readiness succeeds.
 
 Try an enqueue-and-wait task through the backend:
 
@@ -97,6 +97,8 @@ curl http://localhost:5173/api/jobs/format \
 ```
 
 It returns `{"text":"HELLO JOBS","length":10}`. POST the same body to `/api/jobs/format/queued` to receive a job ID, then GET `/api/jobs/format/<id>` to inspect validated input, progress, state, and result. The backend uses typed `jobs.utilities.run.formatMessage`, `add.formatMessage`, and `getJob.formatMessage`; `jobs/client.ts` supplies the type-only facade for helpers outside route context.
+
+QueueDash runs at <http://127.0.0.1:3001> during development using the stock Docker image. `QUEUES_CONFIG_JSON` enables background queue discovery under `stack-example:development`; keep its prefix in sync with `setupPlugin`. Queues appear after the backend registers them, including on a fresh Redis volume. To submit a job in QueueDash, use the job name `formatMessage` and data such as `{"text":"hello jobs"}`. The backend must be running to process jobs. Jobs stored under BullMQ's default `bull` prefix remain in Redis but are outside this namespace.
 
 The example selects a five-second development drain period through `JOBS_SHUTDOWN_TIMEOUT_MS`; production inherits Stack's thirty-second default unless overridden. See [background jobs](../../docs/consumer/jobs.md) for serialization, shutdown, standalone usage, and deferred capabilities.
 
