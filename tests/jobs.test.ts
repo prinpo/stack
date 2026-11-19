@@ -3,19 +3,17 @@ import { createJobsClient } from "@prinpo/stack/jobs/client";
 import { afterAll, afterEach, beforeAll, expect, test } from "vite-plus/test";
 
 import { createWorkerRuntime } from "../src/jobs/runtime";
-import { testRedis } from "./test-utils/redis";
+import { type TestRedis, testRedis } from "./test-utils/redis";
 
-let redis: ReturnType<typeof testRedis>;
+let redis: TestRedis;
 const runtimes: { close(): Promise<void> }[] = [];
-beforeAll(() => {
-  redis = testRedis();
+beforeAll(async () => {
+  redis = await testRedis();
 }, 60_000);
 afterEach(async () => {
   await Promise.all(runtimes.splice(0).map((runtime) => runtime.close()));
 });
-afterAll(() => {
-  redis?.close();
-});
+afterAll(() => redis?.close());
 
 test.each(["default", "sync", "async"] as const)(
   "%s job IDs use the same generator for add and run",

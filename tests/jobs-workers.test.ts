@@ -14,11 +14,11 @@ import { afterAll, beforeAll, expect, test } from "vite-plus/test";
 
 import { createWorkerRuntime } from "../src/jobs/runtime";
 import { createTestDirectory } from "./test-utils/directory";
-import { testRedis } from "./test-utils/redis";
+import { type TestRedis, testRedis } from "./test-utils/redis";
 
-let redis: ReturnType<typeof testRedis>;
-beforeAll(() => {
-  redis = testRedis();
+let redis: TestRedis;
+beforeAll(async () => {
+  redis = await testRedis();
 }, 60_000);
 afterAll(() => redis?.close());
 

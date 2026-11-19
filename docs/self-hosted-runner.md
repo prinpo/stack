@@ -6,6 +6,8 @@ The Docker definition lives in `.github/runner/`. A named volume, `prinpo-stack-
 
 ## Operate the runner
 
+The runner image includes the Redis 8.2 server binary. CI and release tests use `STACK_TEST_REDIS_SERVER` to start a disposable Redis process per suite under the runner user. Each process listens on a private Unix socket and exits during test cleanup. This also lets the outage test stop its own datastore. Local tests can use the same setting or the existing Docker fixture.
+
 Run commands from the repository root:
 
 ```sh

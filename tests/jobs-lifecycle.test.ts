@@ -6,15 +6,13 @@ import { join, resolve } from "node:path";
 import { afterAll, beforeAll, expect, test } from "vite-plus/test";
 
 import { createTestDirectory } from "./test-utils/directory";
-import { testRedis } from "./test-utils/redis";
+import { type TestRedis, testRedis } from "./test-utils/redis";
 
-let redis: ReturnType<typeof testRedis>;
-beforeAll(() => {
-  redis = testRedis();
+let redis: TestRedis;
+beforeAll(async () => {
+  redis = await testRedis();
 }, 60_000);
-afterAll(() => {
-  redis?.close();
-});
+afterAll(() => redis?.close());
 
 test("startup is idempotent and shutdown bounds active work while aborting its signal", () => {
   const source = `
@@ -146,7 +144,7 @@ console.log("ready");setInterval(()=>{},1000);
 test.skipIf(Boolean(process.env.STACK_TEST_REDIS_URL))(
   "producer waits and resource cleanup stay bounded when Redis disappears after startup",
   async () => {
-    const datastore = testRedis();
+    const datastore = await testRedis();
     const source = `
 import {createJobs,defineJob,defineQueue,z} from "@prinpo/stack/jobs";
 const runtime=createJobs({queues:{work:defineQueue(${JSON.stringify(`outage-${crypto.randomUUID()}`)},{jobs:{echo:defineJob({input:z.string(),handler:async job=>job.data})}})},connection:${JSON.stringify(datastore.connection)},operationTimeoutMs:50,shutdownTimeoutMs:50,onError:()=>{}});
@@ -166,7 +164,7 @@ await runtime.close();console.log("closed");
     });
     try {
       await expect.poll(() => output).toContain("ready");
-      datastore.close();
+      await datastore.close();
       child.stdin.end("continue");
       await expect.poll(() => output, { timeout: 2000 }).toContain("closed");
       // BullMQ's already scheduled connection-error retry timer can take five seconds to expire.
@@ -182,7 +180,7 @@ await runtime.close();console.log("closed");
         child.kill("SIGKILL");
         await once(child, "exit");
       }
-      datastore.close();
+      await datastore.close();
     }
   },
   10_000,

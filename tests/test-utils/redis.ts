@@ -1,14 +1,61 @@
+import { RedisClient } from "bun";
 import { spawnSync } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+export interface TestRedis {
+  connection: { url: string } | { host: string; port: number };
+  close(): void | Promise<void>;
+}
+
+async function startRedisProcess(binary: string) {
+  const directory = await mkdtemp(join(tmpdir(), "stack-redis-"));
+  const socket = join(directory, "redis.sock");
+  const connection = { url: `redis+unix://${socket}` };
+  let server: Bun.Subprocess | undefined;
+  const close = async () => {
+    if (server) {
+      if (server.exitCode === null) server.kill();
+      await server.exited;
+    }
+    await rm(directory, { recursive: true, force: true });
+  };
+  try {
+    server = Bun.spawn(
+      [binary, "--port", "0", "--unixsocket", socket, "--save", "", "--appendonly", "no"],
+      { cwd: directory, stdout: "ignore", stderr: "inherit" },
+    );
+    const deadline = Date.now() + 10_000;
+    while (server.exitCode === null && Date.now() < deadline) {
+      const client = new RedisClient(connection.url, { autoReconnect: false });
+      try {
+        if ((await client.ping()) === "PONG") return { connection, close };
+      } catch {
+        // Redis may still be creating its socket.
+      } finally {
+        client.close();
+      }
+      await Bun.sleep(25);
+    }
+    throw new Error(`Test redis-server did not become ready (exit code: ${server.exitCode})`);
+  } catch (error) {
+    await close();
+    throw error;
+  }
+}
 
 /** Each suite owns its ephemeral datastore; no application Redis data is touched. */
-export function testRedis() {
+export async function testRedis(): Promise<TestRedis> {
   const external = process.env.STACK_TEST_REDIS_URL;
   if (external) return { connection: { url: external }, close() {} };
+  if (process.env.STACK_TEST_REDIS_SERVER)
+    return startRedisProcess(process.env.STACK_TEST_REDIS_SERVER);
   const run = (...args: string[]) => {
     const result = spawnSync("docker", args, { encoding: "utf8", timeout: 60_000 });
     if (result.status !== 0)
       throw new Error(
-        `Redis tests require Docker or STACK_TEST_REDIS_URL. ${result.error?.message ?? result.stderr}`,
+        `Redis tests require Docker, STACK_TEST_REDIS_SERVER or STACK_TEST_REDIS_URL. ${result.error?.message ?? result.stderr}`,
       );
     return result.stdout.trim();
   };
