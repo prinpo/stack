@@ -14,6 +14,8 @@ For tooling issues, inspect `bun --version`, `bun --bun vp --version`, and `bun 
 
 Vite+ docs are in `node_modules/vite-plus/docs` and at https://viteplus.dev/guide/. This file is repository-owned; `prepare` runs `vp config --no-agent` to configure hooks while preserving these instructions.
 
+Before changing the initializer or upgrading its toolchain/editor settings, read `docs/agents/initializer.md`. Run `bun run initializer:check` when upgrading tooling.
+
 ## Coding standards
 
 Before changing code, committing, or writing pull-request metadata, read [CODING_STANDARDS.md](CODING_STANDARDS.md).

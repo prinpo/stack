@@ -1,6 +1,6 @@
 # Run independent workers with native JSON results
 
-Supersede ADR 0022’s original in-process consumption decision. HTTP hosts are producers. `stack dev` owns one development session with a dedicated worker process whenever `src/server/worker.ts` exists. Production starts the same worker entry with `stack worker`. Worker hosts retain producers for follow-up jobs.
+Supersede ADR 0023’s original in-process consumption decision. HTTP hosts are producers. `stack dev` owns one development session with a dedicated worker process whenever `src/server/worker.ts` exists. Production starts the same worker entry with `stack worker`. Worker hosts retain producers for follow-up jobs.
 
 Keep native JSON transport and map client results to JsonResult, including Date/nonfinite-number nullability and root void normalization, instead of adding a rich-value protocol. Handler values remain native until transport. Durable business results belong in application storage. Each typed run call gets a fresh ID to correlate completion with its execution. Custom job IDs and deduplication are available on add.
 

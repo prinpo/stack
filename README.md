@@ -4,40 +4,36 @@ Stack is a thin application framework that composes Bun, Elysia, Eden, React, Ta
 
 ## Installation
 
-With Bun installed, run these steps from your application's directory. If you're starting with an empty directory, run `bun init -y` first.
+With Bun and Git installed, create an empty project:
 
-1. **Install Vite+ locally.**
+```sh
+bunx @prinpo/stack init
+```
 
-   ```sh
-   bun add --dev --exact vite-plus@1.2.0
-   ```
+Enter a project name and optionally select Zed, VS Code, both, or neither. Stack creates a new directory, installs its exact version with the tested local Vite+ toolchain and React peers, writes configuration and the `AGENTS.md` documentation pointer, initializes Git on `main`, and verifies checks and tests. No global `vp` is needed.
 
-   This installs the project-local `vp` toolchain. Run it with `bun --bun vp`; no global installation is required.
+For unattended use:
 
-2. **Install Stack.**
+```sh
+bunx @prinpo/stack init my-app --no-editor
+bunx @prinpo/stack@nightly init my-app --editor zed --editor vscode
+```
 
-   ```sh
-   bun add @prinpo/stack
-   ```
+Select an older published version with `bunx @prinpo/stack@<version> init`; the created project pins that exact version. Existing destinations are rejected, including empty directories. No initial commit or remote is created. If installation or checks fail, the directory is retained with recovery instructions.
 
-   Stack includes its integrated libraries, CLI, and documentation for agents.
+```sh
+cd my-app
+bun run check
+bun run test
+```
 
-3. **Add this reference to your application's `AGENTS.md`.**
-
-   ```md
-   Before creating or changing application structure, frontend, backend, API queries,
-   environment, database, authentication, logging, background jobs, or development/build workflows,
-   read node_modules/@prinpo/stack/docs/consumer/README.md and follow its task-specific links.
-   Use Stack's applicable Blocks, helpers, and CLI before implementing custom integration.
-   ```
-
-Then ask your agent to build your app. It can use the installed docs to choose Blocks, configure the project, and follow Stack's patterns.
+Use the generated `AGENTS.md` to build the application. Once entry points exist, `bun run dev` starts the detected services, including a dedicated jobs worker when configured. Use `bun run build` followed by `bun run preview` to run the built project locally. For production, run `bun run start` for HTTP and `bun run worker` for each worker replica. See [application patterns](docs/consumer/application-patterns.md) for adding Stack to an existing application.
 
 Start with the [documentation entry point](docs/consumer/README.md), [capability map](docs/consumer/capabilities.md), and [application patterns](docs/consumer/application-patterns.md). The references cover all Stack-owned helpers and operational CLI workflows; native APIs link to upstream documentation.
 
 ## Installation boundary
 
-Stack requires Bun. Its CLI currently supports Linux. Stack owns its integrated library dependencies; UI applications install compatible React and React DOM peers, and applications own their Vite+ development tooling. Backend-only applications do not require React.
+Stack requires Bun. Linux is the tested CLI platform; other operating systems are not blocked but remain unverified. Stack owns its integrated library dependencies; UI applications install compatible React and React DOM peers, and applications own their Vite+ development tooling. Backend-only applications do not require React.
 
 Use the application's installed executable with `bunx --no-install stack`, or from package scripts. See [application configuration](docs/consumer/application-patterns.md) for standalone manifests and [CLI workflows](docs/consumer/cli.md) for diagnostics, logs, schema operations, development, and builds.
 

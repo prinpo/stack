@@ -27,6 +27,12 @@ Use the applicable Stack Blocks and helpers before introducing a parallel integr
 
 These are reference conventions, not a scaffolding walkthrough. Use [the capability inventory](capabilities.md) to identify every relevant integration, then read its guide before writing configuration or feature code.
 
+## New project setup
+
+Prefer `bunx @prinpo/stack init` from the parent directory. The initializer supplies the version-matched local Vite+ toolchain, React peers, configuration, Git hooks, and agent documentation pointer without application source. See [initializer usage](cli.md#initialize-an-empty-project) for editor selection and unattended arguments. The manifest below is a reference for integrating Stack into an existing application.
+
+Initialized projects use Vitest through `vite-plus/test`, discovering tests under `src/` and `tests/`. Empty suites pass. Run `bun run check`, `bun run test`, `bun run fmt`, and `bun run lint`; all resolve the application-local toolchain. Keep this configuration when adding application files. Generated files are excluded from formatting/linting, while TypeScript still sees generated modules.
+
 ## Recommended layout
 
 ```text

@@ -87,6 +87,10 @@ export function stack(options: StackOptions = {}): PluginOption[] {
         }
         return {
           resolve: { dedupe: ["react", "react-dom"] },
+          // Stack's source TSX wrapper is served directly from node_modules in dev.
+          // Prebundle its dependencies before the first transform, including Router's
+          // transitive CommonJS store shim, rather than relying on scan timing.
+          optimizeDeps: { include: ["react-dom/client", "@tanstack/react-router"] },
           server:
             api && target
               ? {

@@ -1,6 +1,6 @@
 # Jobs Block council review
 
-Reviewed 2026-11-16 against the working tree at `1adaadf`, Stack's consumer documentation and ADR 0022, installed BullMQ 6.7.6, and BullMQ's official guides cited inline. This is an assessment, not an implementation change.
+Reviewed 2026-11-16 against the working tree at `1adaadf`, Stack's consumer documentation and ADR 0023, installed BullMQ 6.7.6, and BullMQ's official guides cited inline. This is an assessment, not an implementation change.
 
 The companion [BullMQ source research](bullmq-jobs-assessment.md) records exact version evidence, native contracts, OSS/Pro distinctions, and pinned source locations.
 
@@ -38,7 +38,7 @@ Rework active-attempt accounting to cover native control-flow transitions and lo
 
 **Confirmed, documented limitation.** [types.ts](../../src/jobs/types.ts) infers `ResultOf` directly from the handler. BullMQ serializes results to JSON. A probe returned `{ date: new Date(...) }`; the client received a string for `date`, while TypeScript advertises Date.
 
-ADR 0022 explicitly defers this mapping, so this is an accepted design limitation rather than an undocumented implementation deviation. Nevertheless, it weakens the Block's central type-safety promise. Resolve it before stabilizing the interface.
+ADR 0023 explicitly defers this mapping, so this is an accepted design limitation rather than an undocumented implementation deviation. Nevertheless, it weakens the Block's central type-safety promise. Resolve it before stabilizing the interface.
 
 Prefer a deliberately specified JSON-native result contract initially, with runtime handling for unsupported values and clear semantics for void. Another option is a carefully tested transport type mapping. A simple mapped type is insufficient for custom `toJSON`, optional properties, nested undefined, nonfinite numbers, classes, and unsupported values. Add optional result schemas when validating independently deployed producer/worker contracts becomes necessary. Rich-value codecs can remain deferred.
 
@@ -50,7 +50,7 @@ Omit or reject settings that cannot take effect until Stack supports sandboxed p
 
 ## Architecture and developer experience
 
-**Keep the single definition.** Schema, handler, defaults, and phases live together, and producer types derive from them. This removes duplicated producer/worker contracts. Explicit registries are easy to inspect, and definitions do not open connections. This matches [ADR 0002](../adr/0002-compose-independent-blocks-with-native-apis.md) and [ADR 0022](../adr/0022-derive-job-clients-from-bullmq-job-definitions.md).
+**Keep the single definition.** Schema, handler, defaults, and phases live together, and producer types derive from them. This removes duplicated producer/worker contracts. Explicit registries are easy to inspect, and definitions do not open connections. This matches [ADR 0002](../adr/0002-compose-independent-blocks-with-native-apis.md) and [ADR 0023](../adr/0023-derive-job-clients-from-bullmq-job-definitions.md).
 
 **Keep both validation points.** Submission serializes input, validates the actual wire value, and stores it unchanged. Execution transforms that wire value for the handler. This avoids applying transformations to an already transformed value. Retrieval validates again, and `updateData` accepts schema input while exposing parsed output. The cost is repeated validation, which is documented. Validators should remain pure; database lookups and external calls belong in handler logic. Worker validation currently has no deadline, unlike producer validation.
 
@@ -60,7 +60,7 @@ Omit or reject settings that cannot take effect until Stack supports sandboxed p
 
 **Separate production roles.** `createJobs().start()` always constructs a Worker for every queue. A web-only producer, independent worker fleet, and batch-producing CLI cannot use the managed runtime without also consuming jobs. Add producer-only and worker-only startup roles, worker queue selection, and a documented worker entry point. Keep the shared definitions; first support role separation without forcing a separate contract system.
 
-This extends the initial in-process choice in ADR 0022. It should be recorded as a deliberate architectural evolution. Worker isolation is more urgent than typed flows because deployment, scaling, source reloads, and CPU workloads all depend on it.
+This extends the initial in-process choice in ADR 0023. It should be recorded as a deliberate architectural evolution. Worker isolation is more urgent than typed flows because deployment, scaling, source reloads, and CPU workloads all depend on it.
 
 **Clarify option ownership.** Queue defaults currently have two native paths: `options.defaultJobOptions` and top-level `defaultJobOptions`, followed by job `defaults` and enqueue overrides. Choose one documented preferred path and consider omitting the duplicate from the wrapper type. The timeout named `enqueueTimeoutMs` also bounds retrieval and event readiness; `operationTimeoutMs` would describe its current scope more accurately.
 
@@ -100,7 +100,7 @@ Document consumer-first rollouts with producer feature gating, or versioned queu
 4. Add typed lifecycle hooks, status/metrics integration, and an explicit native-resource escape hatch. Keep application retention/retry policies visible and configurable; offer production examples rather than changing native defaults silently.
 5. Add typed bulk enqueueing. Validate all inputs before the native bulk operation, preserve queue/job/override defaults, and distinguish one atomic Redis bulk insertion from N individual calls. Bulk insertion atomicity does not imply atomic execution. See [BullMQ bulk enqueueing](https://docs.bullmq.io/guide/queues/adding-bulks).
 6. Add typed Job Scheduler management: stable IDs, validated templates, upsert/list/remove, cron/timezone/end semantics, and documented cadence under queue saturation. BullMQ 6 no longer accepts legacy `repeat` on `Queue.add`; model its Job Scheduler interface directly. See [Job Schedulers](https://docs.bullmq.io/guide/job-schedulers/).
-7. Add typed flows when real workflows require them. Preserve child-before-parent semantics and explicit failure policy. ADR 0022 already chooses default terminal child failure propagation; explain that parent finalization requires a parent worker and siblings are not automatically cancelled. Distinguish child-result unions from named result slots. See [fail-parent semantics](https://docs.bullmq.io/guide/flows/fail-parent).
+7. Add typed flows when real workflows require them. Preserve child-before-parent semantics and explicit failure policy. ADR 0023 already chooses default terminal child failure propagation; explain that parent finalization requires a parent worker and siblings are not automatically cancelled. Distinguish child-result unions from named result slots. See [fail-parent semantics](https://docs.bullmq.io/guide/flows/fail-parent).
 8. Add application-authorized status/progress delivery over HTTP/SSE only after defining a safe DTO and ownership checks. Keep Redis credentials and native Job objects server-side. Polling through existing Elysia/Eden is a reasonable initial recipe.
 
 Do not expand the first version into a durable-workflow engine, automatic exactly-once framework, generic transport protocol, or implicit multi-tenant scheduler. Define a tested Redis/Bun scope first. Evaluate newer BullMQ capabilities against the installed release rather than assuming old v5 tutorials or generic OSS/Pro feature lists still apply.

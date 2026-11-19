@@ -1,6 +1,6 @@
 # Jobs workers and transport: BullMQ 6.7.6 / Bun 1.4.4
 
-Researched 2026-11-16. Installed BullMQ is **6.7.6**, Bun runtime is **1.4.4**, Eden is **1.4.9**, and evlog is **2.34.0**. These are the repository pins, not a claim about latest upstream releases. Read the repository instructions, coding standards, domain guidance, glossary, [ADR 0022](/home/martini/.t3/worktrees/stack/t3-f439743b-d5d94843a395c932/docs/adr/0022-derive-job-clients-from-bullmq-job-definitions.md), [consumer contract](/home/martini/.t3/worktrees/stack/t3-f439743b-d5d94843a395c932/docs/consumer/jobs.md), and existing [assessment](/home/martini/.t3/worktrees/stack/t3-f439743b-d5d94843a395c932/docs/research/bullmq-jobs-assessment.md) / [review](/home/martini/.t3/worktrees/stack/t3-f439743b-d5d94843a395c932/docs/research/jobs-block-council-review.md). Recommendations below are proposals, not claims that the concurrently changing Jobs Block implements them.
+Researched 2026-11-16. Installed BullMQ is **6.7.6**, Bun runtime is **1.4.4**, Eden is **1.4.9**, and evlog is **2.34.0**. These are the repository pins, not a claim about latest upstream releases. Read the repository instructions, coding standards, domain guidance, glossary, [ADR 0023](/home/martini/.t3/worktrees/stack/t3-f439743b-d5d94843a395c932/docs/adr/0023-derive-job-clients-from-bullmq-job-definitions.md), [consumer contract](/home/martini/.t3/worktrees/stack/t3-f439743b-d5d94843a395c932/docs/consumer/jobs.md), and existing [assessment](/home/martini/.t3/worktrees/stack/t3-f439743b-d5d94843a395c932/docs/research/bullmq-jobs-assessment.md) / [review](/home/martini/.t3/worktrees/stack/t3-f439743b-d5d94843a395c932/docs/research/jobs-block-council-review.md). Recommendations below are proposals, not claims that the concurrently changing Jobs Block implements them.
 
 ## Recommended surface
 
@@ -26,7 +26,7 @@ export default utilities;
 
 Omitting `processor` keeps inline execution; with it, native subprocesses are the default and `useWorkerThreads: true` selects threads. No second handler/schema contract is needed. If the application uses named exports, an explicit export selector can be added later; a default export is the smallest initial convention. Validate the loaded definition's native queue name and requested job name. Never import the application composition entry from the bootstrap: doing so can start nested runtimes or HTTP listeners.
 
-This deliberately reopens ADR 0022's deferred separate-worker lifecycle and result-type mapping; update that decision when adopting these changes. Preserve definition-derived input/output/phases/defaults, the `add`/`run` syntax, and both input-validation boundaries.
+This deliberately reopens ADR 0023's deferred separate-worker lifecycle and result-type mapping; update that decision when adopting these changes. Preserve definition-derived input/output/phases/defaults, the `add`/`run` syntax, and both input-validation boundaries.
 
 ## Pinned sandbox behavior and actual Bun probes
 

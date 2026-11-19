@@ -86,14 +86,14 @@ A **Block** is a composable Stack capability, usable independently wherever its 
 
 All command workflows, machine output, flags, help, exit statuses, and diagnostic boundaries are owned by the [CLI reference](cli.md).
 
-| Area        | Commands                                                                                |
-| ----------- | --------------------------------------------------------------------------------------- |
-| Application | `dev`, `build`, `preview`, `start`, `worker`, `worker --check` and profile selection    |
-| Diagnostics | `doctor`, `doctor --json`, `logs`, log selectors/filters, `--json`, `--follow`, `--dir` |
-| Environment | `env load`, `env codegen`, `env run`                                                    |
-| Database    | `db generate`, `migrate`, `push`, `pull`, `studio`, `check`, `up`, `export`             |
-| Auth        | `auth generate`, `check`, `info`, `secret`                                              |
-| Discovery   | `--help`, leaf-command help, `--version`                                                |
+| Area        | Commands                                                                                     |
+| ----------- | -------------------------------------------------------------------------------------------- |
+| Application | `init`, `dev`, `build`, `preview`, `start`, `worker`, `worker --check` and profile selection |
+| Diagnostics | `doctor`, `doctor --json`, `logs`, log selectors/filters, `--json`, `--follow`, `--dir`      |
+| Environment | `env load`, `env codegen`, `env run`                                                         |
+| Database    | `db generate`, `migrate`, `push`, `pull`, `studio`, `check`, `up`, `export`                  |
+| Auth        | `auth generate`, `check`, `info`, `secret`                                                   |
+| Discovery   | `--help`, leaf-command help, `--version`                                                     |
 
 ## Build and production
 
@@ -103,4 +103,4 @@ All command workflows, machine output, flags, help, exit statuses, and diagnosti
 
 Native exports are documented by library and import path; upstream references in the owning guides cover their full APIs. `@prinpo/stack/package.json` exposes the installed version, export map, dependency versions, and peer requirements. The database wildcard mirrors installed Drizzle ORM subpaths; optional adapters retain their native dependency requirements.
 
-Applications own UI, business rules, mutation feedback, authorization policy, deployment infrastructure, external delivery providers, optional drivers, and production process supervision. The supported CLI baseline is Linux and Bun. SSR, generators, production Docker orchestration, and hosted log aggregation are outside the provided capabilities.
+Applications own UI, business rules, mutation feedback, authorization policy, deployment infrastructure, external delivery providers, optional drivers, and production process supervision. The supported CLI baseline is Linux and Bun. SSR, application feature generation, production Docker orchestration, and hosted log aggregation are outside the provided capabilities.

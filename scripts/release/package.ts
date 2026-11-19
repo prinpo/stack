@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,19 +6,10 @@ import { fileURLToPath } from "node:url";
 
 import { devDependencies } from "../../package.json";
 import { generateDatabaseExports } from "../generate-database-exports";
+import { command } from "./command";
+import { validateInitializer } from "./initializer";
 
-export function command(args: string[], cwd: string, env: NodeJS.ProcessEnv = process.env) {
-  const result = spawnSync(args[0]!, args.slice(1), {
-    cwd,
-    env,
-    encoding: "utf8",
-    timeout: 120_000,
-    maxBuffer: 10 * 1024 * 1024,
-  });
-  if (result.status !== 0)
-    throw new Error(`${args.join(" ")} failed: ${result.error ?? result.stdout + result.stderr}`);
-  return result.stdout.trim();
-}
+export { command } from "./command";
 
 export async function preparePackage(source: string, output: string, version: string) {
   const stage = await mkdtemp(join(tmpdir(), "stack-pack-"));
@@ -131,6 +121,7 @@ if (await response.text() !== "packed" || isStructuredApiError(null)) throw new 
       await documentedExample(packageRoot, "application-patterns.md", "tsconfig.json", "json"),
     );
     command(["bun", "install", "--ignore-scripts"], consumer, env);
+    await validateInitializer(tarball, version, cli, env);
     await mkdir(join(consumer, "src"), { recursive: true });
     await writeFile(
       join(consumer, "src/index.html"),
@@ -138,7 +129,7 @@ if (await response.text() !== "packed" || isStructuredApiError(null)) throw new 
     );
     await writeFile(
       join(consumer, "src/main.tsx"),
-      'import { createRoot } from "react-dom/client"; import { QueryClient } from "@prinpo/stack/query"; import { createRouter } from "@prinpo/stack/react"; import { treaty } from "@prinpo/stack/client"; createRoot(document.getElementById("root")!).render(<div>{[typeof QueryClient, typeof createRouter, typeof treaty].join(":")}</div>);',
+      await documentedExample(packageRoot, "frontend.md", "Browser entry and mounting", "tsx"),
     );
     await writeFile(
       join(consumer, "vite.config.ts"),
@@ -150,6 +141,39 @@ if (await response.text() !== "packed" || isStructuredApiError(null)) throw new 
       'import { createRootRoute } from "@prinpo/stack/react"; export const Route = createRootRoute();',
     );
     command([cli, "build"], consumer, env);
+    await writeFile(
+      join(consumer, "dev-probe.ts"),
+      `
+import {createServer} from "vite";
+const server=await createServer({server:{host:"127.0.0.1",port:0,strictPort:false},optimizeDeps:{force:true}});
+try {
+  await server.listen();
+  // Transform the installed wrapper immediately: a browser can request it before
+  // the initial scan discovers Router. Waiting for scanProcessing hides the race.
+  const early=await server.transformRequest("/@fs"+process.cwd()+"/node_modules/@prinpo/stack/src/react.tsx");
+  if(!early)throw new Error("Missing cold-start Stack mounting helper");
+  if(!early.code.includes("@tanstack_react-router.js"))throw new Error("Cold start serves unoptimized Router and its CommonJS useSyncExternalStoreWithSelector dependency");
+  const origin=server.resolvedUrls.local[0];
+  await fetch(new URL("/",origin));
+  const entry=await (await fetch(new URL("/main.tsx",origin))).text();
+  const wrapper=entry.match(/from "([^"]+react\\.tsx[^"]*)"/);
+  if(!wrapper)throw new Error("Missing documented Stack mounting helper");
+  const module=await (await fetch(new URL(wrapper[1],origin))).text();
+  if(/from "[^"]*node_modules\\/react-dom\\/client\\.js/.test(module))throw new Error("Browser receives raw CommonJS react-dom/client without createRoot export");
+  if(!module.includes("react-dom_client.js"))throw new Error("React DOM client was not optimized");
+  if(!module.includes("__vite__cjsImport"))throw new Error("Missing React DOM CommonJS interop");
+} finally {
+  await server.waitForRequestsIdle();
+  for(const environment of Object.values(server.environments)) {
+    await environment.depsOptimizer?.scanProcessing;
+    for(const dep of Object.values(environment.depsOptimizer?.metadata.discovered??{}))await dep.processing;
+  }
+  await server.close();
+}
+`,
+    );
+    command(["bun", "--no-env-file", "dev-probe.ts"], consumer, env);
+    await rm(join(consumer, "dev-probe.ts"));
     await readFile(join(consumer, "dist/client/index.html"));
     command([join(consumer, "node_modules/.bin/tsc"), "--noEmit"], consumer, env);
     await validateDatabaseConsumer(consumer, cli, env);
