@@ -25,3 +25,5 @@ dist
 !examples/fullstack/env/server/.env.start
 !examples/fullstack/env/server/.env.development
 !examples/fullstack/env/server/.env.production
+!examples/fullstack/env/client/.env.preview
+!examples/fullstack/env/server/.env.preview

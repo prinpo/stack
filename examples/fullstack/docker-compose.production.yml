@@ -1,0 +1,79 @@
+x-application: &application
+  image: ${STACK_IMAGE:-stack-example:local}
+  init: true
+  restart: unless-stopped
+  stop_grace_period: 35s
+  environment: &environment
+    NODE_ENV: production
+    HOST: 0.0.0.0
+    JOBS_REDIS_URL: redis://redis:6379
+    DATABASE_URL: sqlite:///data/application.sqlite
+    JOBS_SHUTDOWN_TIMEOUT_MS: 30000
+    BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set a production auth secret}
+    BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set the public application URL}
+  volumes:
+    - application-data:/data
+
+services:
+  app:
+    <<: *application
+    build:
+      context: ../..
+      dockerfile: examples/fullstack/Dockerfile
+    command: [start]
+    environment:
+      <<: *environment
+      EXAMPLE_AUTH_MAIL_URL: http://mailpit:8025
+    ports:
+      - "127.0.0.1:${STACK_HTTP_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        [
+          CMD,
+          bun,
+          --eval,
+          "const r=await fetch('http://127.0.0.1:3000/api/health');process.exit(r.ok?0:1)",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+  worker:
+    <<: *application
+    command: [worker]
+    environment:
+      <<: *environment
+      # Forward a host override. Varlock supplies the default when it is unset.
+      JOBS_CONCURRENCY:
+    deploy:
+      replicas: 2
+    # The app owns migrations. Workers start only after its startup gate succeeds.
+    depends_on:
+      app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  redis:
+    image: redis:8.2-alpine
+    command: [redis-server, --appendonly, "yes", --maxmemory-policy, noeviction]
+    restart: unless-stopped
+    volumes:
+      - jobs-redis-data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 1s
+      timeout: 1s
+      retries: 20
+  # The example captures auth emails locally. A real deployment supplies its own sender.
+  mailpit:
+    image: axllent/mailpit:v1.30.5
+    ports:
+      - "127.0.0.1:${STACK_MAIL_PORT:-8025}:8025"
+
+volumes:
+  application-data:
+  jobs-redis-data:

@@ -75,8 +75,13 @@ async function fixture() {
   return cwd;
 }
 
-function launch(cwd: string, env: NodeJS.ProcessEnv = {}, args: string[] = []) {
-  const child = spawn(bun, ["--no-env-file", cli, "dev", ...args], {
+function launch(
+  cwd: string,
+  env: NodeJS.ProcessEnv = {},
+  args: string[] = [],
+  command: "dev" | "preview" = "dev",
+) {
+  const child = spawn(bun, ["--no-env-file", cli, command, ...args], {
     cwd,
     env: {
       ...process.env,
@@ -319,4 +324,83 @@ test.each([
     expect(JSON.parse(line).args).not.toContain("--context");
     expect(JSON.parse(line).args).not.toContain("--host");
   }
+});
+
+test.each([
+  ["development", []],
+  ["preview", ["--env", "preview"]],
+] as const)(
+  "built preview owns its Compose project and starts a separate worker after HTTP in the %s profile",
+  async (profile, args) => {
+    const cwd = await fixture();
+    await writeFile(
+      join(cwd, "docker-compose.preview.yml"),
+      "services: { redis: { image: redis } }",
+    );
+    await writeFile(
+      join(cwd, "src/server/index.ts"),
+      `
+      import {appendFileSync, existsSync} from 'node:fs';
+      appendFileSync('events','http-start\\n');
+      while (!existsSync('migrated')) await Bun.sleep(10);
+      await Bun.write('http-pid',String(process.pid));
+      process.on('SIGTERM',()=>{appendFileSync('events','http-stop\\n');process.exit(0)});
+      setInterval(()=>{},1000);
+    `,
+    );
+    await writeFile(
+      join(cwd, "src/server/worker.ts"),
+      `
+      import {appendFileSync} from 'node:fs';
+      appendFileSync('events', 'worker-'+process.env.NODE_ENV+'-'+process.env.APP_ENV+'\\n');
+      await Bun.write('worker-pid',String(process.pid));
+      process.on('SIGTERM',()=>{appendFileSync('events','worker-stop\\n');process.exit(0)});
+      setInterval(()=>{},1000);
+    `,
+    );
+    const build = spawnSync(bun, ["--no-env-file", cli, "build"], { cwd, encoding: "utf8" });
+    expect(build.status, build.stderr).toBe(0);
+    await rm(join(cwd, "src"), { recursive: true });
+    const app = launch(cwd, { FIXTURE_PROJECT: cwd, APP_ENV: undefined }, [...args], "preview");
+    await expect.poll(() => events(cwd)).toContain("up\n");
+    expect(await events(cwd)).not.toContain("http-start");
+    await writeFile(join(cwd, "ready"), "");
+    await expect.poll(() => events(cwd)).toContain("http-start");
+    expect(await events(cwd)).not.toContain("worker-");
+    await writeFile(join(cwd, "migrated"), "");
+    await expect.poll(() => events(cwd)).toContain(`worker-production-${profile}`);
+    expect(await readFile(join(cwd, "http-pid"), "utf8")).not.toBe(
+      await readFile(join(cwd, "worker-pid"), "utf8"),
+    );
+    app.child.kill("SIGTERM");
+    expect(await app.exited, app.output()).toBe(143);
+    expect(await events(cwd)).toContain("http-stop\nworker-stop\nstop\n");
+    const docker = await readFile(join(cwd, "docker-commands"), "utf8");
+    expect(docker).toContain("docker-compose.preview.yml");
+    expect(docker).not.toContain("docker-compose.dev.yml");
+    expect(docker).toContain(`"--project-name","${cwd}-preview"`);
+  },
+);
+
+test("preview validates its build before starting Compose", async () => {
+  const cwd = await fixture();
+  await writeFile(join(cwd, "docker-compose.preview.yml"), "services: {}");
+  const app = launch(cwd, {}, [], "preview");
+  expect(await app.exited).toBe(1);
+  expect(app.output()).toContain("Run stack build");
+  expect(await events(cwd)).toBe("");
+});
+
+test("a failed HTTP preview skips the worker and stops Compose", async () => {
+  const cwd = await fixture();
+  await writeFile(join(cwd, "docker-compose.preview.yml"), "services: {}");
+  await writeFile(join(cwd, "src/server/index.ts"), "process.exit(19);");
+  await writeFile(join(cwd, "src/server/worker.ts"), 'await Bun.write("worker-started","yes");');
+  const build = spawnSync(bun, ["--no-env-file", cli, "build"], { cwd, encoding: "utf8" });
+  expect(build.status, build.stderr).toBe(0);
+  await writeFile(join(cwd, "ready"), "");
+  const app = launch(cwd, {}, [], "preview");
+  expect(await app.exited, app.output()).toBe(19);
+  expect(await events(cwd)).toContain("up\nstop\n");
+  await expect(readFile(join(cwd, "worker-started"))).rejects.toThrow();
 });

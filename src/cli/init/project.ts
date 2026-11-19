@@ -18,7 +18,9 @@ export async function writeProject(directory: string, name: string, editors: Edi
       scripts: {
         dev: "stack dev",
         build: "stack build",
+        preview: "stack preview",
         start: "stack start",
+        worker: "stack worker",
         check: "bun --bun vp check",
         fmt: "bun --bun vp fmt",
         lint: "bun --bun vp lint",
@@ -59,8 +61,8 @@ export async function writeProject(directory: string, name: string, editors: Edi
     ".gitignore":
       "node_modules/\ndist/\ncoverage/\n.tanstack/\n.evlog/\n*.log\n*.sqlite\n*.sqlite-*\n*.tsbuildinfo\n.DS_Store\n.env\n.env.*\n!.env.example\n!.env.schema\n",
     "AGENTS.md":
-      "Before creating or changing application structure, frontend, backend, API queries,\nenvironment, database, authentication, logging, or development/build workflows,\nread node_modules/@prinpo/stack/docs/consumer/README.md and follow its task-specific links.\nUse Stack's applicable Blocks, helpers, and CLI before implementing custom integration.\n\nUse Bun and the project-local Vite+ toolchain. Run direct commands with\n`bun --bun vp <command>`; no global vp installation is required. Use Vitest\nthrough `vite-plus/test`, with tests under src/ or tests/. Run `bun run check`\nand `bun run test` after changes.\n",
-    "README.md": `# ${name}\n\nEmpty Stack project with local Vite+ tooling.\n\nRun \`bun install --frozen-lockfile\`, \`bun run check\`, and \`bun run test\`.\nUse \`bun run fmt\` to format files and \`bun run lint\` to lint and typecheck.\nTests use \`vite-plus/test\` and live under \`src/\` or \`tests/\`. An empty test suite succeeds.\n\nAsk your agent to build the app using AGENTS.md and the installed Stack docs.\nNo application source is generated: dev/build require \`src/index.html\` or\n\`src/server/index.ts\`. After adding entry points, use \`bun run dev\`,\n\`bun run build\`, and \`bun run start\`.\n\n${editors.includes("zed") ? "For Zed, install the Oxc extension (Oxlint and Oxfmt language servers).\n" : ""}${editors.includes("vscode") ? "For VS Code, install the recommended Vite Plus Extension Pack.\n" : ""}Editor settings belong to this project; extensions are installed separately.\n`,
+      "Before creating or changing application structure, frontend, backend, API queries,\nenvironment, database, authentication, logging, background jobs, or development/build workflows,\nread node_modules/@prinpo/stack/docs/consumer/README.md and follow its task-specific links.\nUse Stack's applicable Blocks, helpers, and CLI before implementing custom integration.\n\nUse Bun and the project-local Vite+ toolchain. Run direct commands with\n`bun --bun vp <command>`; no global vp installation is required. Use Vitest\nthrough `vite-plus/test`, with tests under src/ or tests/. Run `bun run check`\nand `bun run test` after changes.\n",
+    "README.md": `# ${name}\n\nEmpty Stack project with local Vite+ tooling.\n\nRun \`bun install --frozen-lockfile\`, \`bun run check\`, and \`bun run test\`.\nUse \`bun run fmt\` to format files and \`bun run lint\` to lint and typecheck.\nTests use \`vite-plus/test\` and live under \`src/\` or \`tests/\`. An empty test suite succeeds.\n\nAsk your agent to build the app using AGENTS.md and the installed Stack docs.\nAdd application entries at \`src/index.html\` (frontend), \`src/server/index.ts\` (HTTP), or\n\`src/server/worker.ts\` (jobs). Use \`bun run dev\` from source or \`bun run build\` then\n\`bun run preview\` to try the build locally. In production use \`bun run start\` for HTTP\nand \`bun run worker\` for each worker replica.\n\n${editors.includes("zed") ? "For Zed, install the Oxc extension (Oxlint and Oxfmt language servers).\n" : ""}${editors.includes("vscode") ? "For VS Code, install the recommended Vite Plus Extension Pack.\n" : ""}Editor settings belong to this project; extensions are installed separately.\n`,
   };
   if (editors.length) {
     files["EDITOR_SETTINGS_LICENSE"] = await readFile(

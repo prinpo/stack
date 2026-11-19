@@ -3,7 +3,7 @@ import { injectedEnvironment, matchesEnvironment, originalEnvironment } from "..
 export const profileArgs = {
   env: {
     type: "string",
-    description: "Deployment profile (defaults to APP_ENV or the command's mode)",
+    description: "Environment profile (defaults to APP_ENV or the command default)",
   },
 } as const;
 
@@ -30,8 +30,12 @@ export function takeOptions(raw: string[], strings: string[], booleans: string[]
   return { values, rest };
 }
 
-export function environment(profile?: string, mode = process.env.NODE_ENV ?? "development") {
-  const selected = profile ?? process.env.APP_ENV ?? mode;
+export function environment(
+  profile?: string,
+  mode = process.env.NODE_ENV ?? "development",
+  defaultProfile = mode,
+) {
+  const selected = profile ?? process.env.APP_ENV ?? defaultProfile;
   if (!selected) throw new Error("APP_ENV must name a deployment profile.");
   const snapshot = injectedEnvironment();
   const changed = snapshot && !matchesEnvironment(snapshot, mode, selected);

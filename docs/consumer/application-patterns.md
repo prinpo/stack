@@ -42,7 +42,8 @@ app/
 ├── tsconfig.json
 ├── vite.config.ts
 ├── drizzle.config.ts           # only with a managed database
-├── docker-compose.dev.yml      # only with local development services
+├── docker-compose.dev.yml      # optional services for stack dev
+├── docker-compose.preview.yml  # optional services for stack preview
 ├── env/
 │   ├── client/.env.schema
 │   └── server/.env.schema
@@ -62,10 +63,19 @@ app/
     │   └── notes/view.tsx
     └── server/
         ├── index.ts           # deferred, validated startup
+        ├── worker.ts          # Optional deferred startJobsWorker entry
         ├── app.ts             # Elysia composition and exported App type
         ├── routes/notes.ts
-        ├── plugins/logging.ts
+        ├── plugins/
+        │   ├── setup.ts       # Shared setupPlugin for app and route modules
+        │   └── logging.ts
         ├── validation/notes.ts
+        ├── jobs/
+        │   ├── index.ts       # queues and connection shared by HTTP and worker
+        │   ├── context.ts     # optional worker resources
+        │   └── queues/utilities/
+        │       ├── index.ts   # queue definition
+        │       └── format-message.ts
         ├── database/
         │   ├── index.ts
         │   ├── schema.ts
@@ -76,7 +86,7 @@ app/
             └── instance.ts
 ```
 
-`src/index.html` and `src/server/index.ts` are the CLI's frontend/backend detection points. Generated environment modules must be inside `src/env-gen/`; tool configuration, environment schemas, and managed `migrations/` stay at the application root. Keep the standard outputs `dist/client/`, `dist/server/`, and `dist/manifest.json` for the CLI lifecycle. Remaining feature organization is recommended rather than enforced.
+`src/index.html` and `src/server/index.ts` are the CLI's frontend/backend detection points. Optional `src/server/worker.ts` is the independently scalable worker entry; workers-only applications can omit both HTTP and browser entries. Generated environment modules must be inside `src/env-gen/`; tool configuration, environment schemas, and managed `migrations/` stay at the application root. Keep the standard outputs `dist/client/`, `dist/server/`, and `dist/manifest.json` for the CLI lifecycle. Remaining feature organization is recommended rather than enforced.
 
 For an existing application, retain compatible feature organization. Change the required entry/configuration conventions and adopt the relevant Blocks without restructuring unrelated code. Backend-only applications omit the browser entry and frontend tooling. Frontend-only applications omit the server entry and API proxy.
 
@@ -92,7 +102,9 @@ This complete full-stack manifest shows the tested toolchain for this Stack docu
   "scripts": {
     "dev": "stack dev",
     "build": "stack build",
+    "preview": "stack preview",
     "start": "stack start",
+    "worker": "stack worker",
     "check": "vp check"
   },
   "dependencies": {
@@ -163,16 +175,50 @@ Preserve `import type` boundaries so importing a server contract into browser co
 
 ## Compose by responsibility
 
-| Concern          | Application pattern                                                                                                        | Stack integration                                          |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Server startup   | `server/index.ts` dynamically imports `./app`; resource cleanup lives with resource ownership.                             | [Backend lifecycle](backend.md).                           |
-| Server features  | Small native Elysia apps in `server/routes/`, assembled with `.use()` in `app.ts`. Export `App = typeof app`.              | [Backend route contracts](backend.md).                     |
-| Input validation | Reusable schemas in `server/validation/`; derive persisted-model inputs where appropriate.                                 | [Database validation](database.md), native Elysia schemas. |
-| Browser features | Route files declare loaders/navigation/layout; feature modules implement views and domain interactions.                    | [Frontend](frontend.md).                                   |
-| API data         | One exported `createApiClient` result per browser app; components and route loaders reuse its options and cache.           | [Eden Query](eden-query.md).                               |
-| Authentication   | Separate generation-safe config from runtime instance/helpers; mount server helpers and choose browser plugins explicitly. | [Auth](auth.md).                                           |
-| Configuration    | Independent public client and secret server schemas; deferred startup precedes runtime module imports.                     | [Environment](env.md).                                     |
-| Observability    | Reusable Elysia logging plugin; typed expected failures and a client guard; explicit browser development messages.         | [Logging](logger.md).                                      |
+| Concern          | Application pattern                                                                                                                             | Stack integration                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Server startup   | `server/index.ts` dynamically imports `./app`; resource cleanup lives with resource ownership.                                                  | [Backend lifecycle](backend.md).                           |
+| Server features  | Small native Elysia apps in `server/routes/`, each using the shared `setupPlugin`, assembled in `app.ts`. Export `App = typeof app`.            | [Backend route contracts](backend.md).                     |
+| Input validation | Reusable schemas in `server/validation/`; derive persisted-model inputs where appropriate.                                                      | [Database validation](database.md), native Elysia schemas. |
+| Browser features | Route files declare loaders/navigation/layout; feature modules implement views and domain interactions.                                         | [Frontend](frontend.md).                                   |
+| API data         | One exported `createApiClient` result per browser app; components and route loaders reuse its options and cache.                                | [Eden Query](eden-query.md).                               |
+| Authentication   | Separate generation-safe config from runtime instance/helpers; mount server helpers and choose browser plugins explicitly.                      | [Auth](auth.md).                                           |
+| Configuration    | Independent public client and secret server schemas; deferred startup precedes runtime module imports.                                          | [Environment](env.md).                                     |
+| Observability    | Configure logging once and compose it through `setupPlugin`; typed expected failures and a client guard; explicit browser development messages. | [Logging](logger.md).                                      |
+| Background jobs  | Share one queue registry. Register the producer through HTTP setup and start consumers in `server/worker.ts`.                                   | [Background jobs](jobs.md)                                 |
+
+## Shared backend setup
+
+Compose application-wide Elysia integrations in one named, exported `setupPlugin` instance at `src/server/plugins/setup.ts`. Configure logging and auth once in their owning modules, then reuse them here:
+
+```ts
+import { Elysia } from "@prinpo/stack/server";
+
+import { authHelpers } from "../auth/instance";
+import { logging } from "./logging";
+
+export const setupPlugin = new Elysia({ name: "app:setup" }).use(logging).use(authHelpers.elysia());
+```
+
+Use that same instance before declaring handlers in the root app and every route module. For example, `src/server/routes/profile.ts`:
+
+```ts
+import { Elysia } from "@prinpo/stack/server";
+
+import { setupPlugin } from "../plugins/setup";
+
+export const profileRoutes = new Elysia()
+  .use(setupPlugin)
+  .get("/api/profile", ({ user }) => ({ id: user.id }), { auth: true });
+```
+
+Each Elysia route module declares its own typed dependencies; registering setup only on the parent app does not give child handlers those types. Export a single named instance so Elysia can deduplicate shared hooks and mounted integrations when route modules are composed. Keep endpoint-specific authorization such as `{ auth: true }` on the endpoint; registering auth support does not make every route private.
+
+For a mutation that accepts no body, declare `body: t.Optional(t.Undefined())`. With the current Elysia macro inference, an undeclared body can become `{}` when auth macros are present; the explicit schema preserves bodyless Eden and Query calls.
+
+Add shared integrations to setup rather than repeating their imports in routes. Keep the dependency direction from app and routes to setup, then to integration modules; setup imports no route modules or root app. Preserve deferred application loading through `startServer` because runtime integrations can depend on validated environment settings. Retain narrower setup boundaries in existing applications where routes intentionally have different dependencies.
+
+For background work, add `jobsPlugin(jobs)` to this same chain. Stack opens the producer before the HTTP listener and supplies typed `jobs` in route context. Backend helpers can use `createJobsClient<typeof queues>()` from `@prinpo/stack/jobs/client`. The separate worker entry loads the same jobs options. See [queue registry and worker entry](jobs.md#queue-registry-and-worker-entry).
 
 ## Mutation behavior belongs to the application
 

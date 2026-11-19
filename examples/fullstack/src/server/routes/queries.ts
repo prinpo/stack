@@ -1,6 +1,9 @@
 import { Elysia, t } from "@prinpo/stack/server";
 
+import { setupPlugin } from "../plugins/setup";
+
 export const queryRoutes = new Elysia()
+  .use(setupPlugin)
   .get("/api/hello", ({ query }) => ({ message: `Hello, ${query.name}!` }), {
     query: t.Object({ name: t.String({ minLength: 1 }) }),
   })

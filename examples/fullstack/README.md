@@ -4,6 +4,8 @@ A runnable environment sandbox using Stack's public entry points. The landing pa
 
 ## Run
 
+Docker Compose supplies the example's Redis service. `stack dev` starts it, waits for its healthcheck, and stops it after the app exits; its data volume is preserved. Production needs an application-provided datastore through `JOBS_REDIS_URL`.
+
 From the repository root:
 
 ```sh
@@ -16,11 +18,26 @@ Open <http://localhost:5173>. This example is a private Bun workspace. Its `file
 
 Vite+ is installed locally; a global `vp` installation is optional. Prefer `bun --bun vp` for direct tooling commands. The root install uses Bun's hoisted linker. Keep shared tooling versions aligned with the root manifest so dependencies stay in the root `node_modules`; Vite's cache also lives there.
 
-From this directory, use `bun run stack dev` to run both processes, or `bun run stack doctor` to inspect the application. The `stack` script points to the live source executable because Bun does not link the root package's own binary in this source-linked workspace; installed applications use the package's local `stack` executable directly. `bun run check` formats, lints, and typechecks the application after dependencies are installed. The generated route tree is committed so checking also works before the first dev-server run.
+From this directory, use `bun run stack dev` to run the frontend, HTTP server, and worker, or `bun run stack doctor` to inspect the application. The `stack` script points to the live source executable because Bun does not link the root package's own binary in this source-linked workspace; installed applications use the package's local `stack` executable directly. `bun run check` formats, lints, and typechecks the application after dependencies are installed. The generated route tree is committed so checking also works before the first dev-server run.
 
-Vite updates browser-used Stack modules through HMR or a page reload. The client script uses `--configLoader runner` so changes to Stack's Vite preset and its helpers also restart Vite through native config dependency tracking. Bun's `--watch` mode restarts the backend when its imported application or Stack modules change. Reload the page manually when you want to fetch updated backend responses. Unused blocks do not need to trigger updates.
+Vite updates browser-used Stack modules through HMR or a page reload. The client script uses `--configLoader runner` so changes to Stack's Vite preset and its helpers also restart Vite through native config dependency tracking. Stack watches `src/server/` and shared source imported by the HTTP server or worker. It drains both processes before restarting them. Vite handles edits to browser-only files. Restart the session after editing source-linked Stack worker code outside the application. Reload the page manually when you want to fetch updated backend responses. Unused blocks do not need to trigger updates.
 
 The notebook POST endpoint demonstrates optional Zod validation in `src/server/validation/notebooks.ts`: `createInsertSchema` comes from `@prinpo/stack/database/zod`, derives the table shape, trims/bounds the name, and picks only the caller-owned name field. Other endpoints retain native Elysia TypeBox schemas. Database clients are not imported by the validation module.
+
+OpenAPI documentation is available directly from the backend at <http://localhost:3000/openapi>, with the JSON specification at <http://localhost:3000/openapi/json>. The root application registers `openapi()` from `@prinpo/stack/openapi` without a custom path because of an upstream specification URL issue. These routes are outside the Vite development proxy's `/api` prefix.
+
+## Preview the built example
+
+Stop `stack dev`, then run these commands from this directory:
+
+```sh
+bun run stack build
+bun run stack preview
+```
+
+Open <http://localhost:3000> for the app and <http://localhost:8025> for the Mailpit inbox. Preview starts Redis and Mailpit from `docker-compose.preview.yml`. Bun runs the built HTTP server, migrates `preview.sqlite`, then starts the built jobs worker locally. Only the dependencies run in Docker. Ctrl+C stops the session and preserves the local data.
+
+Preview defaults to the development Varlock profile with production runtime behavior. To try the example’s separate preview profile with the same build, stop the session and run `bun run stack preview --env preview`. The environment sandbox shows which dynamic values the profile supplied.
 
 ## Application layout
 
@@ -46,12 +63,14 @@ fullstack/
         ├── app.ts              # Compose plugins and route apps
         ├── index.ts            # Startup and shutdown
         ├── database/           # Client, tables, and relations
-        ├── plugins/            # Shared Elysia plugins
+        ├── plugins/            # setupPlugin composes shared integrations
         ├── routes/             # Elysia route apps by concern
         └── validation/         # Request schemas by concern
 ```
 
 The server directories are an example pattern to build on. Keep startup in `index.ts` and composition in `app.ts`; add endpoints, plugins, and validators in their respective directories as the application grows. Validation imports table definitions without initializing the database client. Stack does not enforce these server folders.
+
+`src/server/plugins/setup.ts` exports one named `setupPlugin` composing logging, auth, and jobs. The root app and each route module call `.use(setupPlugin)` before declaring handlers, making their shared context and macros available with a single import. Add shared integrations there; keep endpoint authorization on individual routes. See [shared backend setup](../../docs/consumer/application-patterns.md#shared-backend-setup) for dependency direction and lifecycle conventions.
 
 ## Follow the connection
 
@@ -78,15 +97,33 @@ To use another layout, set `router.routesDirectory` and `router.generatedRouteTr
 
 For a frontend-only application, omit the server files, API client, and `api` preset option. A backend-only application can use the server and Eden entry points with Bun alone.
 
+## Background jobs
+
+`src/server/jobs/queues/utilities/format-message.ts` defines a schema-backed job with a typed result and `formatting` progress phase. `jobs/queues/utilities/index.ts` defines queue policy and reads concurrency from Varlock. `jobs/index.ts` exports the shared registry. Shared `setupPlugin` registers jobs with the app-owned `JOBS_REDIS_URL` and the environment-specific prefix `stack-example:<environment>`. HTTP starts after Redis readiness succeeds.
+
+Try an enqueue-and-wait task through the backend:
+
+```sh
+curl http://localhost:5173/api/jobs/format \
+  -H 'content-type: application/json' \
+  -d '{"text":" hello jobs "}'
+```
+
+It returns `{"text":"HELLO JOBS","length":10}`. POST the same body to `/api/jobs/format/queued` to receive a job ID, then GET `/api/jobs/format/<id>` to inspect validated input, progress, state, and result. The backend uses typed `jobs.utilities.run.formatMessage`, `add.formatMessage`, and `inspect.formatMessage` through the route context.
+
+QueueDash runs at <http://127.0.0.1:3001> during development using the stock Docker image. `QUEUES_CONFIG_JSON` enables background queue discovery under `stack-example:development`; keep its prefix in sync with `setupPlugin`. Queues appear after the backend registers them, including on a fresh Redis volume. To submit a job in QueueDash, use the job name `formatMessage` and data such as `{"text":"hello jobs"}`. The backend must be running to process jobs. Jobs stored under BullMQ's default `bull` prefix remain in Redis but are outside this namespace.
+
+The example selects a five-second development drain period through `JOBS_SHUTDOWN_TIMEOUT_MS`; production inherits Stack's thirty-second default unless overridden. See [background jobs](../../docs/consumer/jobs.md) for serialization, shutdown, standalone usage, and deferred capabilities.
+
 ## Optional logging and structured errors
 
-The example opts into evlog through shared `src/server/plugins/logging.ts`, registered on the main app and `src/server/routes/errors.ts` route module. **Try a structured API error** calls a typed 409 endpoint. The same guard runs in a native `MutationCache` callback and the endpoint's mutation `onError`, retaining `orderId` inference. Native validation and ordinary statuses remain available.
+The example opts into evlog through shared `src/server/plugins/logging.ts`, composed by `setupPlugin` and reused on the root app and route modules. **Try a structured API error** calls a typed 409 endpoint. The same guard runs in a native `MutationCache` callback and the endpoint's mutation `onError`, retaining `orderId` inference. Native validation and ordinary statuses remain available.
 
 From the repository root, use `bun run stack logs`, `bun run stack logs errors`, or `bun run stack logs --json`. Files default to this example's `.evlog/logs`; set `LOG_DIR` to share another directory between server and commands. Runtime logging needs no external account. The CLI owns its tested evlog version and disables usage telemetry. See [the logging guide](../../docs/consumer/logger.md) for options and type boundaries.
 
 ## Environment files
 
-Run `bun run stack dev`, or `bun run stack build` followed by `bun run stack start`, without supplying application environment variables in the command.
+Run `bun run stack dev`, or `bun run stack build` followed by `bun run stack preview`, without supplying application environment variables in the command.
 
 The example commits public configuration and explicitly fake secret-classified strings:
 
@@ -94,7 +131,7 @@ The example commits public configuration and explicitly fake secret-classified s
 - `env/client/.env.development` and `.env.production` contain `CLIENT_PUBLIC_DYNAMIC` with distinct development and production values.
 - `env/server/.env.development` and `.env.production` contain `SERVER_PUBLIC_DYNAMIC`, `SERVER_SECRET_DYNAMIC`, with different development and production values.
 - `env/server/.env` contains `SERVER_PUBLIC_STATIC` and the dummy `SERVER_SECRET_STATIC`.
-- Stack owns NODE_ENV and APP_ENV alongside HOST/PORT. Dev selects development; build/start select production. `bun run stack start --env staging` selects staging configuration while retaining production runtime behavior.
+- Stack owns NODE_ENV and APP_ENV alongside HOST/PORT. Dev and preview default to the development profile. Build, start, and worker default to production. `bun run stack start --env staging` selects staging configuration while retaining production runtime behavior.
 
 Schemas describe types, exposure, and timing. Each setting is declared and assigned in the same directory: browser configuration in `client/`, backend configuration and credentials in `server/`. Vite loads client values directly during development, using the selected profile; production startup loads the two directories independently. It derives the client dynamic keys from the client schema and delivers their validated values through HTML injection. The schemas do not import each other, and app code maintains no exposure key lists. The client schema supports both static and dynamic public values; credentials never belong there. Browser static values require a production rebuild. Development client dynamic values update on page reload; production client dynamics and backend values require a server restart. The Bun server reads all four server demo values at startup; its static classification adds build validation without embedding server values in the browser.
 
@@ -121,20 +158,20 @@ Open `/` and compare `CLIENT_PUBLIC_STATIC` with `CLIENT_PUBLIC_DYNAMIC`. Click 
 
 The `SERVER_SECRET_*` values are long dummy strings for teaching sensitivity and timing. This endpoint deliberately returns them, because this example contains no real credentials. It does not serialize the whole server environment. Real secrets must never be assigned to these demo variables or added to this response. Secret classification alone does not prevent application code from returning a value; automatic response scanning is disabled in this example.
 
-1. Run `bun run stack dev`. Edit the static client value in `env/client/.env`; Vite reloads the browser configuration. Change client dynamic values in `env/client/.env.development` and reload the page. For backend values in `env/server/.env.development`, the CLI restarts both processes automatically; fetch again once they are ready.
-2. Run `bun run stack build`, then `bun run stack start`. The browser static value comes from the build; dynamic values now come from each directory's `.env.production` profile. Server static values come from `env/server/.env` at startup.
-3. Stop the server, change `CLIENT_PUBLIC_DYNAMIC` in `env/client/.env.production.local` and the server dynamic values in `env/server/.env.production.local`, then run `bun run stack start` again **without rebuilding**. Reload and fetch to see the changed values.
+1. Run `bun run stack dev`. Edit the static client value in `env/client/.env`; Vite reloads the browser configuration. Change client dynamic values in `env/client/.env.development` and reload the page. For backend values in `env/server/.env.development`, the CLI restarts the HTTP server, worker, and frontend automatically; fetch again once they are ready.
+2. Stop dev. Run `bun run stack build`, then `bun run stack preview --env preview`. The browser static value comes from the build and dynamic values come from each directory's `.env.preview` profile. Server static values come from `env/server/.env` at startup.
+3. Stop preview, change `CLIENT_PUBLIC_DYNAMIC` in `env/client/.env.preview.local` and the server dynamic values in `env/server/.env.preview.local`, then run `bun run stack preview --env preview` again **without rebuilding**. Reload and fetch to see the changed values.
 4. Change `CLIENT_PUBLIC_STATIC` and restart without rebuilding: the browser still displays the built value. Rebuild and restart to update it. For server static values, startup reads the current file value; this example's Bun build does not inline server `ENV` reads. Static server values must still pass validation during builds.
 
 Fetches read the server's startup snapshot; they do not reload `.env` files. Each directory has a `.env.example` for creating ignored local overrides.
 
 ## Production wiring
 
-`bun run stack build` validates static inputs and builds the browser in `dist/client/` and Bun server in `dist/server/`, publishing `dist/manifest.json` only on success, without requiring deployment overrides or real credentials. Start with `bun run stack start`; it loads the committed production profile and any host-local production overrides. Change `CLIENT_PUBLIC_DYNAMIC` in `env/client/.env.production.local` to reuse the same artifacts for another deployment. Production Elysia serves the browser build and API from one origin. Stack owns `HOST=127.0.0.1`, `PORT=3000`, `NODE_ENV=development`, and APP_ENV defaulting to NODE_ENV; override them in server files without redeclaring validation. For container access through published ports, set `HOST=0.0.0.0` in the production server file. Vite derives only the API proxy target from those connection settings; it resolves client envs locally.
+`bun run stack build` validates static inputs and builds the browser in `dist/client/` and Bun server in `dist/server/`, publishing `dist/manifest.json` only on success, without requiring deployment overrides or real credentials. Production deployments run `bun run stack start` for HTTP and `bun run stack worker` for each worker, with deployment-provided dependencies. The two processes load the production profile and host-local overrides. Change `CLIENT_PUBLIC_DYNAMIC` in `env/client/.env.production.local` to reuse the same artifacts for another deployment. Production Elysia serves the browser build and API from one origin. Stack owns `HOST=127.0.0.1`, `PORT=3000`, `NODE_ENV=development`, and APP_ENV defaulting to NODE_ENV; override them in server files without redeclaring validation. For container access through published ports, set `HOST=0.0.0.0` in the production server file. Vite derives only the API proxy target from those connection settings; it resolves client envs locally.
 
 The server entry calls `startServer(() => import("./app"))`: configuration initializes before application modules read `ENV`, and production startup prepares HTML with client configuration. No environment-fetch endpoint is registered. CLI development watches the entry; production startup reads the successful build manifest and hands off to Bun without an ongoing CLI parent. Stack reuses that validated server snapshot without resolving providers twice. `stack({ api: true })` handles the browser's native Varlock plugin, proxy, and local client-env resolution with no repeated addresses or ports. Browser `main.tsx` is identical in both modes. Both Bun configurations disable native dotenv loading. `bun run stack env codegen` regenerates the committed local types; generated files are excluded from formatting and linting.
 
-Backend runtime-file and connection-setting edits restart both development processes. Restart manually for external imports or newly created schema directories. Client dynamic file changes take effect on reload. Development runs the loader inside Bun, so code-triggered process restarts also resolve a fresh snapshot. Production resolves a startup snapshot: restart `bun run stack start` after changing its values. Native redaction and response scanning are disabled; applications own secret-handling discipline. See [the environment guide](../../docs/consumer/env.md) for schema rules, the unpatched Varlock integration, optional provider setup, and separate-origin bootstrap considerations.
+Server environment file edits restart all development processes so the Vite proxy, HTTP server, and worker pick up the same settings. Restart manually for external imports or newly created schema directories. Client dynamic file changes take effect on reload. Development runs the loader inside Bun, so code-triggered process restarts also resolve a fresh snapshot. Production resolves a startup snapshot: restart `bun run stack start` after changing its values. Native redaction and response scanning are disabled; applications own secret-handling discipline. See [the environment guide](../../docs/consumer/env.md) for schema rules, the unpatched Varlock integration, optional provider setup, and separate-origin bootstrap considerations.
 
 The backend artifact keeps package imports external, so deployment needs the installed Stack package, its dependencies, environment schemas, and the built `dist/` artifacts, including packaged migrations. It is not a standalone binary. Installed-package qualification covers browser builds and source-free database startup; automated browser E2E remains deferred.
 
@@ -144,4 +181,12 @@ After `bun run stack db migrate`, start `bun run dev` and open `/auth`. Use pass
 
 `src/client/auth.ts` is the browser client. `src/server/auth/config.ts` exports connection-free native options for offline schema generation. `src/server/auth/instance.ts` supplies the app-owned SQLite connection and runtime credentials. Run `bun run stack auth generate --yes` after changing native additional fields or plugins, then `bun run stack db generate --name auth-change` and `bun run stack db migrate`. Never hand-edit `src/server/database/auth.generated.ts`.
 
-The example has no production email provider. Before production startup, supply `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, and real callbacks for its enabled delivery flows. Builds succeed without these runtime credentials. Social providers can be added through native `socialProviders` runtime options and `authClient.signIn.social`; no OAuth credentials are needed to run the example. See the [Auth guide](../../docs/consumer/auth.md).
+The production Compose demo sets `EXAMPLE_AUTH_MAIL_URL` to its Mailpit service. For a standalone demo, set that URL in the production Varlock profile before starting HTTP. For real delivery, provide your sender to `createAuthOptions` and set deployment-specific `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`. Social providers can be added through native `socialProviders` runtime options and `authClient.signIn.social`; no OAuth credentials are needed to run the example. See the [Auth guide](../../docs/consumer/auth.md).
+
+## Background workers
+
+Run `bun run stack dev` to start Compose, HTTP, the frontend, and the dedicated worker. Server source edits drain the worker before its replacement starts. Set `JOBS_CONCURRENCY` in your Varlock environment profile to change the per-worker limit. Jobs under `src/server/jobs/queues/` receive `{ db, logger }` through the job helper defined in `jobs/context.ts`. The database connection is shared across queues and each attempt gets its own logger.
+
+Production runs HTTP and workers from the same build. Use `bun run stack worker --check` to verify a built worker and `bun run stack worker` to consume jobs. Each worker replica reads its own concurrency limit at startup.
+
+Build one image from the repository root with `docker build -f examples/fullstack/Dockerfile -t stack-example:local .`. Set `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` before starting Compose. The example runs HTTP and two worker replicas from that image, with Redis and SQLite on the same host. Mailpit captures demo auth email at `http://127.0.0.1:8025`. Run `bun --no-env-file scripts/smoke-jobs-production.ts` from the repository root to verify the deployment with disposable containers and volumes.

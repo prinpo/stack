@@ -33,3 +33,7 @@ Use the five default triage labels. Before triaging, read `docs/agents/triage-la
 ### Domain docs
 
 Use a single-context layout: root `GLOSSARY.md` and `docs/adr/`. Before exploring the codebase, read `docs/agents/domain.md`.
+
+### Backend composition
+
+Before adding route modules or composing shared backend plugins, read [the shared backend setup pattern](docs/consumer/application-patterns.md#shared-backend-setup).

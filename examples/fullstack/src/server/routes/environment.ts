@@ -1,8 +1,10 @@
 import { Elysia } from "@prinpo/stack/server";
 
 import { ENV } from "../../env-gen/server";
+import { setupPlugin } from "../plugins/setup";
 
 export const environmentRoutes = new Elysia()
+  .use(setupPlugin)
   // Teaching endpoint: these four settings contain dummy strings, including the
   // secret-classified examples. Keep real application credentials out of it.
   .get("/api/env", ({ set }) => {

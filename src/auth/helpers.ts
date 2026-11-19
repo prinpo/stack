@@ -1,5 +1,6 @@
 import type { BetterAuthOptions } from "better-auth";
 
+import { isDynamicBaseURLConfig, resolveBaseURL } from "better-auth";
 import { APIError } from "better-auth/api";
 import { Elysia, ElysiaCustomStatusResponse, status } from "elysia";
 
@@ -140,9 +141,17 @@ export function createAuthHelpers<A extends AuthInstance>(auth: A) {
     validateAuthDelivery((await auth.$context).options);
   }
   function elysia() {
+    const basePath = auth.options.basePath ?? "/api/auth";
+    const url = resolveBaseURL(auth.options.baseURL, basePath);
+    const paths = new Set([url ? new URL(url).pathname : basePath]);
+    // Allowed dynamic hosts use basePath even when the fallback URL has its own path.
+    if (isDynamicBaseURLConfig(auth.options.baseURL)) paths.add(basePath);
+    const routes = new Elysia();
+    for (const path of paths)
+      routes.use(new Elysia({ prefix: path.replace(/\/+$/, "") }).mount(auth.handler));
     return new Elysia({ name: "prinpo:auth", seed: auth })
       .decorate(authStartup, validate)
-      .mount(auth.handler)
+      .use(routes)
       .macro({
         auth: {
           async resolve(context) {

@@ -1,6 +1,6 @@
 # @prinpo/stack
 
-Stack is a thin application framework that composes Bun, Elysia, Eden, React, TanStack Router, TanStack Query, Varlock, Drizzle, Better Auth, and evlog through a shared public interface and documented patterns.
+Stack is a thin application framework that composes Bun, Elysia, Eden, React, TanStack Router, TanStack Query, Varlock, Drizzle, Better Auth, BullMQ, and evlog through a shared public interface and documented patterns.
 
 ## Installation
 
@@ -27,7 +27,7 @@ bun run check
 bun run test
 ```
 
-The project contains tooling and documentation, with no application source or example tests. Ask your agent to build the app using `AGENTS.md`. Once application entry points exist, `bun run dev`, `bun run build`, and `bun run start` run its lifecycle. See [application patterns](docs/consumer/application-patterns.md) for adding Stack to an existing application.
+Use the generated `AGENTS.md` to build the application. Once entry points exist, `bun run dev` starts the detected services, including a dedicated jobs worker when configured. Use `bun run build` followed by `bun run preview` to run the built project locally. For production, run `bun run start` for HTTP and `bun run worker` for each worker replica. See [application patterns](docs/consumer/application-patterns.md) for adding Stack to an existing application.
 
 Start with the [documentation entry point](docs/consumer/README.md), [capability map](docs/consumer/capabilities.md), and [application patterns](docs/consumer/application-patterns.md). The references cover all Stack-owned helpers and operational CLI workflows; native APIs link to upstream documentation.
 

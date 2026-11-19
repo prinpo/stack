@@ -35,7 +35,15 @@ test("example profiles load committed defaults and keep personal and production 
     };
     for (const key of Object.keys(env)) {
       if (
-        ["NODE_ENV", "APP_ENV", "PORT", "LOG_DIR", "CLIENT_PUBLIC_DYNAMIC"].includes(key) ||
+        [
+          "NODE_ENV",
+          "APP_ENV",
+          "PORT",
+          "LOG_DIR",
+          "CLIENT_PUBLIC_DYNAMIC",
+          "JOBS_CONCURRENCY",
+          "EXAMPLE_AUTH_MAIL_URL",
+        ].includes(key) ||
         key.startsWith("_VARLOCK") ||
         key.startsWith("__VARLOCK") ||
         key.startsWith("STACK_ENV_")
@@ -59,7 +67,7 @@ const response = await app.handle(new Request("http://localhost/api/env"));
 const sandbox = await response.json();
 const { readClientEnv } = await import("@prinpo/stack/env/server");
 const browser = config.mode === "production" ? config.clientValues : (await readClientEnv({ profile: config.mode })).clientValues;
-console.log("STACK_ENV_RESULT=" + JSON.stringify({ mode: config.mode, host: config.host, port: config.port, name: browser.CLIENT_PUBLIC_DYNAMIC, secret: ENV.STACK_ENV_FILE_SECRET, sandbox, browser, cache: response.headers.get("cache-control") }));`,
+console.log("STACK_ENV_RESULT=" + JSON.stringify({ mode: config.mode, host: config.host, port: config.port, name: browser.CLIENT_PUBLIC_DYNAMIC, secret: ENV.STACK_ENV_FILE_SECRET, concurrency: ENV.JOBS_CONCURRENCY, mailUrl: ENV.EXAMPLE_AUTH_MAIL_URL, sandbox, browser, cache: response.headers.get("cache-control") }));`,
         ],
         { cwd, env: { ...env, NODE_ENV: mode, APP_ENV: mode }, encoding: "utf8", timeout: 15_000 },
       );
@@ -76,7 +84,9 @@ console.log("STACK_ENV_RESULT=" + JSON.stringify({ mode: config.mode, host: conf
       mode: "development",
       name: "client-public-dynamic-development",
       cache: "no-store",
+      concurrency: 4,
     });
+    expect(development).not.toHaveProperty("mailUrl");
     expect(development.browser).toEqual({
       CLIENT_PUBLIC_DYNAMIC: "client-public-dynamic-development",
     });
@@ -88,7 +98,7 @@ console.log("STACK_ENV_RESULT=" + JSON.stringify({ mode: config.mode, host: conf
     });
     await writeFile(
       join(cwd, "env/server/.env.development.local"),
-      "STACK_ENV_FILE_SECRET=synthetic-sandbox-credential\n",
+      "STACK_ENV_FILE_SECRET=synthetic-sandbox-credential\nJOBS_CONCURRENCY=7\nEXAMPLE_AUTH_MAIL_URL=https://mail.example.test\n",
     );
     await writeFile(
       join(cwd, "env/client/.env.development.local"),
@@ -99,6 +109,8 @@ console.log("STACK_ENV_RESULT=" + JSON.stringify({ mode: config.mode, host: conf
       mode: "development",
       name: "personal",
       secret: "synthetic-sandbox-credential",
+      concurrency: 7,
+      mailUrl: "https://mail.example.test",
     });
 
     const production = load("env/server", "production");
@@ -116,6 +128,7 @@ console.log("STACK_ENV_RESULT=" + JSON.stringify({ mode: config.mode, host: conf
       SERVER_SECRET_DYNAMIC: "demo-only-server-secret-dynamic-production",
     });
     expect(production).not.toHaveProperty("secret");
+    expect(production.mailUrl).toBe("http://127.0.0.1:8025");
     await writeFile(
       join(cwd, "env/server/.env.production.local"),
       "STACK_ENV_FILE_SECRET=synthetic-production-credential\n",

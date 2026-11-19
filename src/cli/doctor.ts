@@ -26,6 +26,7 @@ const command = defineCommand({
           error: !project.frontend.ready,
           detail: project.frontend.reason,
         },
+        { label: "Worker", present: project.worker.enabled, detail: project.worker.reason },
         { label: "Backend", present: project.backend.enabled, detail: project.backend.reason },
       ]);
       section(
@@ -36,11 +37,16 @@ const command = defineCommand({
           detail: `env/${area}${project.env[area] ? "" : " not found; defaults apply"}`,
         })),
       );
-      section("Development dependencies", [
+      section("Local dependencies", [
         {
-          label: "Docker Compose",
+          label: "Development Compose",
           present: project.compose.enabled,
           detail: project.compose.reason,
+        },
+        {
+          label: "Preview Compose",
+          present: project.previewCompose.enabled,
+          detail: project.previewCompose.reason,
         },
       ]);
       section("Database", [
@@ -62,13 +68,15 @@ const command = defineCommand({
           detail: project.auth.reason,
         },
       ]);
-      if (!project.frontend.enabled && !project.backend.enabled)
+      if (!project.frontend.enabled && !project.backend.enabled && !project.worker.enabled)
         console.log(
-          color.red("No application detected. Add src/index.html or src/server/index.ts."),
+          color.red(
+            "No application detected. Add src/index.html, src/server/index.ts, or src/server/worker.ts.",
+          ),
         );
     }
     if (
-      (!project.frontend.enabled && !project.backend.enabled) ||
+      (!project.frontend.enabled && !project.backend.enabled && !project.worker.enabled) ||
       !project.frontend.ready ||
       !project.database.ready ||
       !project.auth.ready
