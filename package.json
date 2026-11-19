@@ -30,6 +30,7 @@
     "docs/consumer/auth.md",
     "docs/consumer/logger.md",
     "docs/consumer/jobs.md",
+    "docs/consumer/i18n.md",
     "docs/consumer/cli.md",
     "docs/consumer/development.md",
     "docs/consumer/production.md"
@@ -43,6 +44,9 @@
     "./jobs": "./src/jobs.ts",
     "./jobs/client": "./src/jobs/client.ts",
     "./jobs/elysia": "./src/jobs/elysia.ts",
+    "./i18n": "./src/i18n.ts",
+    "./i18n/react": "./src/i18n/client.tsx",
+    "./i18n/server": "./src/i18n/server.ts",
     "./database": "./src/database.ts",
     "./database/*": {
       "types": "./src/database/generated/*.d.ts",
@@ -118,7 +122,10 @@
     "evlog": "2.34.0",
     "exact-mirror": "0.2.7",
     "file-type": "22.2.0",
+    "generaltranslation": "9.5.13",
     "get-tsconfig": "4.14.3",
+    "gt-node": "1.0.46",
+    "gt-react": "11.4.24",
     "openapi-types": "12.1.3",
     "varlock": "1.23.0",
     "zod": "4.6.7"

@@ -20,7 +20,7 @@ Copy this into the consuming application's `AGENTS.md`:
 
 ```md
 Before creating or changing application structure, frontend, backend, API queries,
-environment, database, authentication, logging, background jobs, or development/build workflows,
+environment, database, authentication, logging, internationalization, background jobs, or development/build workflows,
 read node_modules/@prinpo/stack/docs/consumer/README.md and follow its task-specific links.
 Use Stack's applicable Blocks, helpers, and CLI before implementing custom integration.
 ```
@@ -38,6 +38,7 @@ Use Stack's applicable Blocks, helpers, and CLI before implementing custom integ
 | Define tables, select a driver, configure migrations                           | [Database](database.md)                         |
 | Add login, sessions, organizations, invitations, delivery                      | [Authentication](auth.md)                       |
 | Log requests, return structured errors, broadcast development messages         | [Logging](logger.md)                            |
+| Translate frontend and backend messages, configure locale URLs and API errors  | [i18n](i18n.md)                                 |
 | Define queues and jobs, submit or await work, inspect progress, manage workers | [Background jobs](jobs.md)                      |
 | Diagnose problems, retrieve logs, generate/check migrations or auth schema     | [CLI workflows](cli.md)                         |
 | Run from source or preview a build locally with workers and Compose services   | [Development](development.md)                   |

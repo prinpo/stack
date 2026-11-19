@@ -32,7 +32,10 @@
         "evlog": "2.34.0",
         "exact-mirror": "0.2.7",
         "file-type": "22.2.0",
+        "generaltranslation": "9.5.13",
         "get-tsconfig": "4.14.3",
+        "gt-node": "1.0.46",
+        "gt-react": "11.4.24",
         "openapi-types": "12.1.3",
         "varlock": "1.23.0",
         "zod": "4.6.7",
@@ -198,6 +201,14 @@
     "@evlog/cli": ["@evlog/cli@0.11.1", "", { "dependencies": { "@clack/prompts": "^1.8.1", "@evlog/telemetry": "0.3.5", "citty": "^0.2.2", "oxc-parser": "^0.155.0" }, "peerDependencies": { "evlog": ">=2.33.1" }, "bin": { "evlog": "./bin/evlog.mjs" } }, "sha512-SzLBhkvT8OcGny3q0vh+yGLTW0LT0tLm36s88YOR5C4iLHWIdYjWHiMxo4Sz9HQvkBHn3+6FsTkHIZbZoANnvg=="],
 
     "@evlog/telemetry": ["@evlog/telemetry@0.3.5", "", { "dependencies": { "citty": "^0.2.2", "std-env": "^4.3.0" } }, "sha512-NNrII8SEEEpAafjOvJNIZLGmzI9BOqbhvKILJuXW4kk206abYTcaEXLacTVMhaDDOuvb8YkdM0QuUdeTeAa34g=="],
+
+    "@generaltranslation/api": ["@generaltranslation/api@0.6.0", "", {}, "sha512-6wO2caNXTWhf3EJrlQUFIiBMR9usQvP4uiQ/u5XwdeR6kcIcH3H/qrC9JglU0Ha3fkOzFGsCcxKBbKuRHZuLGw=="],
+
+    "@generaltranslation/format": ["@generaltranslation/format@0.1.11", "", { "dependencies": { "@generaltranslation/icu": "0.1.2" } }, "sha512-SEXwXZUcSyP6w+QbKnIkzECjZBzi3BFgGjEfPQK0NsvMdrFPuqylac2IfrbzZhqDkhcXv2JFG6djF4+Az1fSYw=="],
+
+    "@generaltranslation/icu": ["@generaltranslation/icu@0.1.2", "", {}, "sha512-2A0txUrZdAWAc42N58/PtoWv7vNB0U1Iyl+nDzf7RSswLHPMsonp7OmPnSraQgkoRSVSlueARVQK4T+zanWsyA=="],
+
+    "@generaltranslation/react-core": ["@generaltranslation/react-core@11.4.24", "", { "dependencies": { "@generaltranslation/format": "0.1.11", "generaltranslation": "9.5.13", "gt-i18n": "1.0.45" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-q7YSVTxJ/dmH8q2cJjKAAXzCayZbORPNunL/5LsIpyi5ZwD8FWoLKEKAv7vZArm6seegIauQa58Ro+nBzkjrdA=="],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
 
@@ -675,11 +686,19 @@
 
     "fsevents": ["fsevents@2.3.3", "", { "os": "darwin" }, "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw=="],
 
+    "generaltranslation": ["generaltranslation@9.5.13", "", { "dependencies": { "@generaltranslation/api": "0.6.0", "@generaltranslation/format": "0.1.11", "@generaltranslation/icu": "0.1.2", "@noble/hashes": "^2.2.0" } }, "sha512-0iGuBePx+aXcIESp5ipBhOvWZL//LHzYYY9R+PNYsJig9yqsX60cDopVAbPahNIORcVsPthqwnFiqf9pcy62QQ=="],
+
     "gensync": ["gensync@1.0.0-beta.2", "", {}, "sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg=="],
 
     "get-tsconfig": ["get-tsconfig@4.14.3", "", { "dependencies": { "resolve-pkg-maps": "^1.0.0" } }, "sha512-++QEw4DIY7WGoukz+/+A/8dGYPT9l9yIadnmSgZ8Rjr3YVSVDipQSO9CdnJo9ePqFqUUqh+wk9uIaoiAwsiPkA=="],
 
     "goober": ["goober@2.1.19", "", { "peerDependencies": { "csstype": "^3.0.10" } }, "sha512-U7veizMqxyKlM58+Z5j2ngJBH/r9siDmxpvNxSw0PylF6WQvrASJEZrxh1hidRBJc2jqoBVSyOban5u8m+6Rxg=="],
+
+    "gt-i18n": ["gt-i18n@1.0.45", "", { "dependencies": { "@generaltranslation/format": "0.1.11", "generaltranslation": "9.5.13" } }, "sha512-H2qjvpG5ayVNqfh35aEDuXN8mTHzxlh/lTwCf3X28UtoNmP77LWjcISTgKjn23zVXBzZHEUmYQ98hbgC4LyISg=="],
+
+    "gt-node": ["gt-node@1.0.46", "", { "dependencies": { "generaltranslation": "9.5.13", "gt-i18n": "1.0.45" } }, "sha512-u3TxbDwQMPIIbx3rbjFqAczbnPQP+Pt3nk9SPS6deCPgMCj/KiM4pVfOxayV9XXxpakhGGM28o4oSrpMv0mMOA=="],
+
+    "gt-react": ["gt-react@11.4.24", "", { "dependencies": { "@generaltranslation/react-core": "11.4.24", "generaltranslation": "9.5.13", "gt-i18n": "1.0.45" }, "peerDependencies": { "react": ">=18.0.0", "react-dom": ">=18.0.0" } }, "sha512-NSn1e5y0hjn/Fkmo54KOiHXE1/0ZPOZNEXwIITbgPBU4XsMS4BK5kHoPTWLAtDHjV+yrpFurKqXs+fEnSRHgig=="],
 
     "happy-dom": ["happy-dom@20.14.0", "", { "dependencies": { "@types/node": ">=20.0.0", "@types/whatwg-mimetype": "^3.0.2", "@types/ws": "^8.18.1", "buffer-image-size": "^0.6.4", "entities": "^7.0.1", "whatwg-mimetype": "^3.0.0", "ws": "^8.21.0" } }, "sha512-4bRh1KzRvKDnFNTlLhzT1RZTpkKhQbQDl9j+7GXszWsvuspYdo29k6OHRf4PwiM6oLb8r/pMWeYiJjkfod5AvQ=="],
 

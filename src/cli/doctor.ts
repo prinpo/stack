@@ -68,6 +68,20 @@ const command = defineCommand({
           detail: project.auth.reason,
         },
       ]);
+      section("Internationalization", [
+        {
+          label: "General Translation",
+          present: project.i18n.enabled,
+          error: !project.i18n.ready,
+          detail: project.i18n.defaultLocale
+            ? project.i18n.locales
+                .map((locale) =>
+                  locale === project.i18n.defaultLocale ? `${locale} (default)` : locale,
+                )
+                .join(", ")
+            : project.i18n.reason,
+        },
+      ]);
       if (!project.frontend.enabled && !project.backend.enabled && !project.worker.enabled)
         console.log(
           color.red(
@@ -79,7 +93,8 @@ const command = defineCommand({
       (!project.frontend.enabled && !project.backend.enabled && !project.worker.enabled) ||
       !project.frontend.ready ||
       !project.database.ready ||
-      !project.auth.ready
+      !project.auth.ready ||
+      !project.i18n.ready
     )
       process.exitCode = 1;
   },

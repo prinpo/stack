@@ -1,0 +1,9 @@
+{
+  "errors": {
+    "ORDER_CONFIRMED": {
+      "message": "This example order is already confirmed",
+      "why": "An order can only be confirmed once",
+      "fix": "Open the existing order"
+    }
+  }
+}

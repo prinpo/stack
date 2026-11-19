@@ -59,3 +59,47 @@ export function publicError(error: EvlogError) {
     ...((nativeData !== undefined || Object.keys(data).length > 0) && { data }),
   };
 }
+
+type LocalizedText = Pick<ApiErrorOptions, "message" | "why" | "fix" | "link">;
+
+const localizedErrors = new WeakMap<EvlogError, { locale: string; error: EvlogError }>();
+
+export function localizedApiError<
+  const S extends number,
+  const C extends string,
+  const D extends Record<string, unknown> | undefined,
+>(
+  status: S,
+  code: C,
+  data: D | undefined,
+  locale: string,
+  source: LocalizedText,
+  target: LocalizedText,
+): ElysiaCustomStatusResponse<S, ApiErrorBody<S, LocalizedText & { code: C; data: D }>> {
+  const error = createError({ ...source, status, code, data });
+  localizedErrors.set(error, { locale, error: createError({ ...target, status, code, data }) });
+  throw error;
+}
+
+export function apiErrorResponse(error: EvlogError, headers: Record<string, string | number>) {
+  const localized = localizedErrors.get(error);
+  if (!localized) return Response.json(publicError(error), { status: error.status });
+
+  const vary = Object.entries(headers)
+    .filter(([name]) => name.toLowerCase() === "vary")
+    .flatMap(([, value]) =>
+      String(value)
+        .split(",")
+        .map((field) => field.trim())
+        .filter(Boolean),
+    );
+  if (!vary.some((field) => field.toLowerCase() === "accept-language"))
+    vary.push("Accept-Language");
+  return Response.json(publicError(localized.error), {
+    status: error.status,
+    headers: {
+      "Content-Language": localized.locale,
+      Vary: vary.includes("*") ? "*" : vary.join(", "),
+    },
+  });
+}

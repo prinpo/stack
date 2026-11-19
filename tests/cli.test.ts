@@ -72,6 +72,21 @@ test("doctor explains inferred capabilities without resolving application creden
   });
 });
 
+test("doctor reports the default and target locales from gt.config.json", async () => {
+  const cwd = await project({
+    "src/index.html": "",
+    "gt.config.json": '{"defaultLocale":"en","locales":["pl","en"]}',
+  });
+  const result = run(cwd, ["doctor", "--json"]);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).i18n).toMatchObject({
+    enabled: true,
+    defaultLocale: "en",
+    locales: ["en", "pl"],
+  });
+  expect(run(cwd, ["doctor"]).stdout).toContain("en (default), pl");
+});
+
 test.each([false, true])(
   "frontend capability requires src/index.html with backend=%s",
   async (backend) => {

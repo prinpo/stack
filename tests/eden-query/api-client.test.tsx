@@ -166,3 +166,17 @@ function typeChecks() {
   createApiClient<App, "/rpc/v1">("http://localhost", {});
 }
 void typeChecks;
+
+test("the API client sends the active locale on each request", async () => {
+  let locale = "en";
+  const setup = createApiClient<App>("http://localhost", {
+    getLocale: () => locale,
+    treaty: { fetcher, headers: { "x-client": "Stack" } },
+  });
+  clients.push(setup);
+  await setup.api.health.get();
+  locale = "pl";
+  await setup.api.health.get();
+  expect(requests.map((request) => request.headers.get("Accept-Language"))).toEqual(["en", "pl"]);
+  expect(requests[1]?.headers.get("x-client")).toBe("Stack");
+});

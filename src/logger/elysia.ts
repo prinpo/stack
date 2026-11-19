@@ -18,7 +18,7 @@ import {
 } from "evlog/toolkit";
 import { format } from "node:util";
 
-import { apiError, publicError } from "./errors";
+import { apiError, apiErrorResponse, publicError } from "./errors";
 import { developmentDrain } from "./persistence";
 
 type FrameworkError = "NOT_FOUND" | "PARSE" | "UNKNOWN";
@@ -90,7 +90,7 @@ export function logger({ persistence, errors, ...input }: LoggerOptions = {}) {
         if (EvlogError.isEvlogError(error)) {
           state?.logger.error(error);
           set.status = error.status;
-          return Response.json(publicError(error), { status: error.status });
+          return apiErrorResponse(error, set.headers);
         }
         if (code === "VALIDATION") {
           state?.logger.error(error);

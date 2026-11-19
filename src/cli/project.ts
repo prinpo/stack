@@ -8,6 +8,7 @@ import { inspectAuth } from "../auth/files";
 import { buildManifestPath } from "../build-manifest";
 import { inspectDatabase } from "../database/files";
 import { isFile } from "../files";
+import { inspectI18n } from "../i18n/files";
 import { frontendEntry } from "../project-layout";
 
 export { isFile } from "../files";
@@ -44,6 +45,7 @@ export function inspectProject(auth: { config?: string; schema?: string } = {}) 
     env: { client: existsSync("env/client"), server: existsSync("env/server") },
     database: inspectDatabase(),
     auth: inspectAuth(auth.config, auth.schema),
+    i18n: inspectI18n(),
     compose: {
       enabled: compose,
       reason: `${compose ? "Found" : "Missing"} ${developmentComposeFile}`,

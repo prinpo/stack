@@ -86,6 +86,8 @@ A bare call still throws but does not declare a failure in a route that returns 
 
 Stack trusts the inferred contract without another backend validation pass. Elysia's error-handler response path bypasses response validation: conflicting explicit error response schemas or earlier response-producing application handlers can replace the advertised contract. Native request and success-response validation remain available.
 
+Translate application-declared error codes with the [i18n Block](i18n.md#localized-api-errors) when responses need request-locale text.
+
 ## Query callbacks
 
 The same browser-safe guard works inside native global and endpoint-specific callbacks:

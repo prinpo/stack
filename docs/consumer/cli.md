@@ -37,19 +37,19 @@ Bun and Git are prerequisites. Linux is tested; the CLI does not reject other pl
 
 ## Choose a command by evidence needed
 
-| Task                                       | Command                                               | What the result establishes                                                                  |
-| ------------------------------------------ | ----------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Inspect a new or unfamiliar application    | `bunx --no-install stack doctor --json`               | Detected entry points, schema directories, Compose, database migrations, and auth files      |
-| Verify a built worker before deployment    | `bunx --no-install stack worker --check`              | Server configuration, datastore and handler initialization succeed in a fresh worker process |
-| Inspect recent request failures            | `bunx --no-install stack logs errors --json`          | Persisted local error events                                                                 |
-| Trace one request                          | `bunx --no-install stack logs <request-id> --json`    | Persisted events selected by the native request selector                                     |
-| Watch a reproduction                       | `bunx --no-install stack logs --follow --json`        | New local events as newline-delimited JSON                                                   |
-| Inspect configuration                      | `bunx --no-install stack env load --agent`            | The native effective server configuration report                                             |
-| Check auth generation drift                | `bunx --no-install stack auth check`                  | Generated auth schema matches current configuration                                          |
-| Inspect auth configuration                 | `bunx --no-install stack auth info`                   | JSON config/schema paths, adapter, and enabled plugin IDs                                    |
-| Generate SQL after schema changes          | `bunx --no-install stack db generate --name <change>` | New native Drizzle migration artifacts                                                       |
-| Check migration history                    | `bunx --no-install stack db check`                    | Native Drizzle migration consistency checks                                                  |
-| Apply migrations to a development database | `bunx --no-install stack db migrate`                  | Native migrator completed against the selected database                                      |
+| Task                                       | Command                                               | What the result establishes                                                                                 |
+| ------------------------------------------ | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Inspect a new or unfamiliar application    | `bunx --no-install stack doctor --json`               | Detected entry points, schema directories, Compose, database migrations, auth files, and configured locales |
+| Verify a built worker before deployment    | `bunx --no-install stack worker --check`              | Server configuration, datastore and handler initialization succeed in a fresh worker process                |
+| Inspect recent request failures            | `bunx --no-install stack logs errors --json`          | Persisted local error events                                                                                |
+| Trace one request                          | `bunx --no-install stack logs <request-id> --json`    | Persisted events selected by the native request selector                                                    |
+| Watch a reproduction                       | `bunx --no-install stack logs --follow --json`        | New local events as newline-delimited JSON                                                                  |
+| Inspect configuration                      | `bunx --no-install stack env load --agent`            | The native effective server configuration report                                                            |
+| Check auth generation drift                | `bunx --no-install stack auth check`                  | Generated auth schema matches current configuration                                                         |
+| Inspect auth configuration                 | `bunx --no-install stack auth info`                   | JSON config/schema paths, adapter, and enabled plugin IDs                                                   |
+| Generate SQL after schema changes          | `bunx --no-install stack db generate --name <change>` | New native Drizzle migration artifacts                                                                      |
+| Check migration history                    | `bunx --no-install stack db check`                    | Native Drizzle migration consistency checks                                                                 |
+| Apply migrations to a development database | `bunx --no-install stack db migrate`                  | Native migrator completed against the selected database                                                     |
 
 Use the actual command exit status when deciding whether a step succeeded. Stack preserves native tool output and failure statuses; its own diagnostics go to stderr. Use leaf-command `--help` to discover native flags rather than guessing them.
 
@@ -60,7 +60,7 @@ bunx --no-install stack doctor --json
 bunx --no-install stack doctor --auth-config src/server/auth/options.ts --auth-schema src/server/database/auth.generated.ts --json
 ```
 
-Doctor is offline and structural: it imports no application configuration, starts no services, resolves no credentials, and connects to no database. Its JSON has `frontend`, `backend`, `worker`, `env`, `database`, `auth`, `compose`, and `previewCompose` sections. Inspect each section's `enabled`, `ready`, and `reason` fields where present. `env.client` and `env.server` are directory-presence booleans. `compose` reports the development Compose file and `previewCompose` reports the preview file.
+Doctor is offline and structural: it imports no application configuration, starts no services, resolves no credentials, and connects to no database. Its JSON has `frontend`, `backend`, `worker`, `env`, `database`, `auth`, `i18n`, `compose`, and `previewCompose` sections. Inspect each section's `enabled`, `ready`, and `reason` fields where present. `env.client` and `env.server` are directory-presence booleans. `compose` reports the development Compose file and `previewCompose` reports the preview file.
 
 Respond to findings at their actual boundary:
 
@@ -68,9 +68,10 @@ Respond to findings at their actual boundary:
 - Legacy root `index.html`: move it into `src/` and update its module URL and public assets; see [application patterns](application-patterns.md).
 - Enabled database has no migrations: inspect the schema/config, generate and review a migration, then rerun doctor. Development can run before migrations exist; production build/start require them.
 - Auth files missing: inspect the configured paths and use `auth info`, `auth generate`, and `auth check`; see [authentication](auth.md).
+- i18n reports configured locales from root `gt.config.json`. Fix malformed configuration before rerunning doctor. See the [i18n Block](i18n.md).
 - Optional capability absent: treat it as informational unless the requested feature needs that capability.
 
-Doctor returns nonzero for an absent application, obsolete frontend entry, or enabled database/auth capability that is not structurally ready. A green doctor result does not prove schema validity, credential validity, database connectivity, applied migrations, or successful auth delivery. Use the narrower commands below and runtime logs for those questions.
+Doctor returns nonzero for an absent application, obsolete frontend entry, or enabled database, auth, or i18n capability that is not structurally ready. A green doctor result does not prove schema validity, credential validity, database connectivity, applied migrations, or successful auth delivery. Use the narrower commands below and runtime logs for those questions.
 
 ## Retrieve logs before changing code
 
