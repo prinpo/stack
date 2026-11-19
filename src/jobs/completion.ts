@@ -1,74 +1,102 @@
-import type { Job, Queue, QueueEvents } from "bullmq";
+import type { Queue, QueueEvents, QueueEventsListener } from "bullmq";
 
-import { beforeDeadline } from "./deadline";
+import { JobsTimeoutError, beforeDeadline } from "./deadline";
 
 export type CancelWait = (error: Error) => void;
-type Outcome = { ok: true; value: unknown } | { ok: false; reason: string };
+type QueueJobEvents = QueueEventsListener<unknown> & {
+  [Event in "completed" | "failed" as `${Event}:${string}`]: QueueEventsListener<unknown>[Event];
+};
 
-/** Own listeners before enqueueing, including completions removed before add returns. */
+/** Listen for this execution before enqueueing, including auto-removed completions. */
 export async function awaitCompletion(
   queue: Queue<unknown, unknown>,
   events: QueueEvents<unknown>,
-  submit: () => Promise<Job<unknown, unknown>>,
+  id: string,
+  submit: () => Promise<unknown>,
   deadline: number,
   pending: Set<CancelWait>,
+  signal?: AbortSignal,
 ) {
-  let id: string | undefined;
-  const early = new Map<string, Outcome>();
-  let resolve!: (value: unknown) => void;
-  let reject!: (error: Error) => void;
-  let cancel!: CancelWait;
-  const result = new Promise<unknown>((done, fail) => {
-    resolve = done;
-    reject = fail;
-  });
-  const closed = new Promise<never>((_, fail) => {
-    cancel = fail;
-  });
-  // A completion or shutdown can arrive while submission is still resolving.
-  void result.catch(() => {});
-  void closed.catch(() => {});
-  const settle = (outcome: Outcome) => {
-    if (outcome.ok) resolve(outcome.value);
-    else reject(new Error(outcome.reason));
+  const result = Promise.withResolvers<unknown>();
+  const closed = Promise.withResolvers<never>();
+  void result.promise.catch(() => {});
+  void closed.promise.catch(() => {});
+  let settled = false;
+  let polling: ReturnType<typeof setTimeout> | undefined;
+  let delay = 1000;
+
+  const completed = ({ returnvalue }: { returnvalue: unknown }) => {
+    settled = true;
+    result.resolve(returnvalue);
   };
-  const receive = (jobId: string, outcome: Outcome) => {
-    if (id === undefined) early.set(jobId, outcome);
-    else if (jobId === id) settle(outcome);
+  const failed = ({ failedReason }: { failedReason: string }) => {
+    settled = true;
+    result.reject(new JobFailedError(queue.name, id, failedReason));
   };
-  const completed = ({ jobId, returnvalue }: { jobId: string; returnvalue: unknown }) =>
-    receive(jobId, { ok: true, value: returnvalue });
-  const failed = ({ jobId, failedReason }: { jobId: string; failedReason: string }) =>
-    receive(jobId, { ok: false, reason: failedReason });
-  pending.add(cancel);
-  events.on("completed", completed);
-  events.on("failed", failed);
+  const reconcile = async (lastCheck: boolean) => {
+    if (settled) return;
+    // Read terminal status and result atomically. A Redis failure leaves events and
+    // later reconciliation available for the rest of the caller's deadline.
+    const outcome = await queue
+      .getBackend()
+      .isFinished(id, true)
+      .catch(() => undefined);
+    if (settled) return;
+    const [status, value] = (outcome ?? []) as [number?, string?];
+    if (status === 1) completed({ returnvalue: value ? JSON.parse(value) : null });
+    else if (status === 2) failed({ failedReason: value ?? "Job failed" });
+    else if (!lastCheck) scheduleCheck();
+  };
+  const scheduleCheck = () => {
+    // Fast calls do no extra reads. Back off on long waits and give the last
+    // lookup time to finish before the deadline even for short waits.
+    const untilLastCheck = Math.max(0, deadline - Date.now() - 50);
+    const lastCheck = untilLastCheck <= delay;
+    polling = setTimeout(
+      () => {
+        void reconcile(lastCheck).catch(result.reject);
+      },
+      Math.min(delay, untilLastCheck),
+    );
+    delay = Math.min(delay * 2, 8000);
+  };
+  const abort = () => closed.reject(signal?.reason);
+  const completedEvent = `completed:${id}` as const;
+  const failedEvent = `failed:${id}` as const;
+  signal?.addEventListener("abort", abort, { once: true });
+  pending.add(closed.reject);
+  events.on<QueueJobEvents, typeof completedEvent>(completedEvent, completed);
+  events.on<QueueJobEvents, typeof failedEvent>(failedEvent, failed);
   try {
-    const job = await Promise.race([submit(), closed]);
-    id = job.id;
-    if (!id) throw new Error("Queued job has no ID");
-    const cached = early.get(id);
-    early.clear();
-    if (cached) settle(cached);
-    else {
-      const stored = await Promise.race([
-        beforeDeadline(queue.getJob(id), deadline, "completion lookup"),
-        closed,
-      ]);
-      if (stored) {
-        const state = await Promise.race([
-          beforeDeadline(stored.getState(), deadline, "completion state"),
-          closed,
-        ]);
-        if (state === "completed") settle({ ok: true, value: stored.returnvalue });
-        else if (state === "failed") settle({ ok: false, reason: stored.failedReason });
-      }
-    }
-    return await beforeDeadline(Promise.race([result, closed]), deadline, "completion");
+    signal?.throwIfAborted();
+    await Promise.race([submit(), closed.promise]);
+    if (!settled) scheduleCheck();
+    return await beforeDeadline(
+      Promise.race([result.promise, closed.promise]),
+      deadline,
+      "completion",
+    );
+  } catch (error) {
+    if (error instanceof JobsTimeoutError)
+      throw new JobsTimeoutError(error.operation, { queueName: queue.name, jobId: id });
+    throw error;
   } finally {
-    pending.delete(cancel);
-    events.off("completed", completed);
-    events.off("failed", failed);
-    early.clear();
+    settled = true;
+    signal?.removeEventListener("abort", abort);
+    clearTimeout(polling);
+    pending.delete(closed.reject);
+    events.off<QueueJobEvents, typeof completedEvent>(completedEvent, completed);
+    events.off<QueueJobEvents, typeof failedEvent>(failedEvent, failed);
+  }
+}
+
+export class JobFailedError extends Error {
+  constructor(
+    readonly queueName: string,
+    readonly jobId: string,
+    readonly failedReason: string,
+  ) {
+    super(failedReason);
+    this.name = "JobFailedError";
   }
 }

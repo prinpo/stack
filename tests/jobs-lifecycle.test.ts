@@ -18,7 +18,8 @@ afterAll(() => {
 
 test("startup is idempotent and shutdown bounds active work while aborting its signal", () => {
   const source = `
-import { createJobs, defineJob, defineQueue, z } from "@prinpo/stack/jobs";
+import { createWorkerRuntime as createJobs } from "./src/jobs/runtime";
+import { defineJob, defineQueue, z } from "@prinpo/stack/jobs";
 let entered;
 const active = new Promise(resolve => { entered = resolve; });
 let aborted = false;
@@ -29,7 +30,7 @@ const queues = { work: defineQueue(${JSON.stringify(`shutdown-${crypto.randomUUI
     return job.data;
   }})
 }}) };
-const runtime=createJobs({queues,connection:${JSON.stringify(redis.connection)},shutdownTimeoutMs:50,onError:()=>{}});
+const runtime=createJobs({queues,connection:${JSON.stringify(redis.connection)},logging:false,shutdownTimeoutMs:50,onError:()=>{}});
 await Promise.all([runtime.start(),runtime.start()]);
 await runtime.client.work.add.hold("hello");
 await active;
@@ -77,7 +78,7 @@ import {jobsPlugin} from "@prinpo/stack/jobs/elysia";
 import {defineJob,defineQueue,z} from "@prinpo/stack/jobs";
 const queues={work:defineQueue(${JSON.stringify(`plugin-${crypto.randomUUID()}`)},{jobs:{echo:defineJob({input:z.string(),handler:async job=>({echo:job.data})})}})};
 const setup=new Elysia({name:"test:setup"}).use(jobsPlugin({queues,connection:${JSON.stringify(redis.connection)}}));
-const routes=new Elysia().use(setup).get("/echo",({jobs})=>jobs.work.run.echo("hello",{timeoutMs:1000}));
+const routes=new Elysia().use(setup).get("/echo",({jobs})=>jobs.work.add.echo("hello").then(async job=>({state:await job.getState()})));
 const app=new Elysia().use(setup).use(routes);
 await startServer(async()=>({app}),{env:{client:false}});
 console.log(JSON.stringify(await (await app.handle(new Request("http://localhost/echo"))).json()));
@@ -95,7 +96,7 @@ try{await createJobsClient().work.add.echo("closed");throw new Error("Unexpected
     },
   });
   expect(result.status, result.stdout + result.stderr + result.error?.message).toBe(0);
-  expect(result.stdout).toContain('"echo":"hello"');
+  expect(result.stdout).toContain('"state":"waiting"');
   expect(result.stdout).toContain("not started");
 });
 
@@ -148,7 +149,7 @@ test.skipIf(Boolean(process.env.STACK_TEST_REDIS_URL))(
     const datastore = testRedis();
     const source = `
 import {createJobs,defineJob,defineQueue,z} from "@prinpo/stack/jobs";
-const runtime=createJobs({queues:{work:defineQueue(${JSON.stringify(`outage-${crypto.randomUUID()}`)},{jobs:{echo:defineJob({input:z.string(),handler:async job=>job.data})}})},connection:${JSON.stringify(datastore.connection)},enqueueTimeoutMs:50,shutdownTimeoutMs:50,onError:()=>{}});
+const runtime=createJobs({queues:{work:defineQueue(${JSON.stringify(`outage-${crypto.randomUUID()}`)},{jobs:{echo:defineJob({input:z.string(),handler:async job=>job.data})}})},connection:${JSON.stringify(datastore.connection)},operationTimeoutMs:50,shutdownTimeoutMs:50,onError:()=>{}});
 await runtime.start();console.log("ready");await Bun.stdin.text();
 try{await runtime.client.work.add.echo("hello");}catch(error){console.log(error.message);}
 await runtime.close();console.log("closed");
@@ -195,14 +196,11 @@ test("standard signal shutdown exits within its budget even when a handler ignor
   const port = address.port;
   await new Promise<void>((resolve) => listener.close(() => resolve()));
   const source = `
-import {Elysia,startServer} from "@prinpo/stack/server";
-import {jobsPlugin} from "@prinpo/stack/jobs/elysia";
-import {defineJob,defineQueue,z} from "@prinpo/stack/jobs";
+import {startJobsWorker,defineJob,defineQueue,z} from "@prinpo/stack/jobs";
 let entered;const active=new Promise(resolve=>{entered=resolve;});
 const queues={work:defineQueue(${JSON.stringify(`signal-${crypto.randomUUID()}`)},{jobs:{hold:defineJob({input:z.string(),handler:async job=>{entered();await Bun.sleep(10000);return job.data;}})}})};
-const app=new Elysia().use(jobsPlugin({queues,connection:${JSON.stringify(redis.connection)}}));
-await startServer(async()=>({app}),{env:{client:false}});
-await app.decorator.jobs.work.add.hold("hello");await active;process.kill(process.pid,"SIGTERM");
+const runtime=await startJobsWorker(async()=>({jobs:{queues,connection:${JSON.stringify(redis.connection)}}}));
+await runtime.client.work.add.hold("hello");await active;process.kill(process.pid,"SIGTERM");
 `;
   const result = spawnSync("bun", ["--no-env-file", "--eval", source], {
     encoding: "utf8",
@@ -216,4 +214,32 @@ await app.decorator.jobs.work.add.hold("hello");await active;process.kill(proces
     },
   });
   expect(result.status, result.stdout + result.stderr + result.error?.message).toBe(143);
+});
+
+test("a termination signal during worker startup closes acquired resources once", async () => {
+  const cwd = await createTestDirectory("worker-interrupt");
+  try {
+    await writeFile(
+      join(cwd, "worker.ts"),
+      `
+      import {startJobsWorker,defineQueue,defineJobContext,z} from "@prinpo/stack/jobs";
+      const job=defineJobContext(async resources=>{
+        resources.defer(()=>console.log("dependencies closed"));
+        process.kill(process.pid,"SIGTERM");
+        await Bun.sleep(50);
+        return {};
+      });
+      await startJobsWorker(async()=>({jobs:{connection:${JSON.stringify(redis.connection)},queues:{work:defineQueue("startup-interrupt",{jobs:{test:job({input:z.string(),handler:job=>job.data})}})}}}));
+    `,
+    );
+    const child = spawnSync("bun", ["--no-env-file", "worker.ts"], {
+      cwd,
+      encoding: "utf8",
+      timeout: 3000,
+    });
+    expect(child.status, child.stderr).toBe(143);
+    expect(child.stdout.trim().split("\n")).toEqual(["dependencies closed"]);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });

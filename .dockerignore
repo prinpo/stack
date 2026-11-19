@@ -1,0 +1,20 @@
+.git
+.agents
+.stack-tests
+**/node_modules
+**/dist
+**/.evlog
+**/*.sqlite
+**/*.sqlite-shm
+**/*.sqlite-wal
+**/.env.local
+**/.env.*.local
+
+# Only the example's tracked dummy defaults and schemas enter this example image.
+**/.env
+**/.env.*
+!**/.env.schema
+!examples/fullstack/env/client/.env
+!examples/fullstack/env/client/.env.production
+!examples/fullstack/env/server/.env
+!examples/fullstack/env/server/.env.production

@@ -77,24 +77,24 @@ await startServer(() => import("./app"));
 
 `startServer(loadApplication, options?)` returns the listening Elysia app. Its application loader must resolve to `{ app }`. Startup:
 
-- Validates Stack-owned and application environment settings before importing application modules.
+- Installs SIGINT/SIGTERM handlers, then validates Stack-owned and application environment settings before importing application modules.
 - Runs managed database migrations in production before application import.
 - Imports the application and, in production with a client enabled, attaches built SPA serving and public runtime environment injection.
 - Awaits registered Elysia modules, validates auth integrations, and starts registered jobs runtimes with datastore readiness before listening.
-- Listens using environment-derived `HOST` and `PORT`, and installs shutdown handling for SIGINT/SIGTERM.
+- Listens using environment-derived `HOST` and `PORT`.
 
 This order lets database/auth modules use validated environment accessors at module scope. Preserve the deferred import instead of statically importing `app` into the listening entry.
 
 `StartServerOptions` contains:
 
-| Option               | Default and use                                                                                                               |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `env.server`         | `env/server`; select a custom server schema directory.                                                                        |
-| `env.client`         | `env/client`; set `false` for an explicitly backend-only host.                                                                |
-| `assets`             | `dist/client`; built browser directory for production serving.                                                                |
-| `apiPrefix`          | `/api`; reserved API namespace whose misses stay 404s.                                                                        |
-| `transformIndexHtml` | Optional async/sync HTML transformation before Stack injects public runtime configuration. Applied once at startup.           |
-| `onStop(status)`     | Replaces the default `app.stop()` action on SIGINT/SIGTERM; explicitly stop the app and close application-owned clients here. |
+| Option                | Default and use                                                                                                                                          |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `env.server`          | `env/server`; select a custom server schema directory.                                                                                                   |
+| `env.client`          | `env/client`; set `false` for an explicitly backend-only host.                                                                                           |
+| `assets`              | `dist/client`; built browser directory for production serving.                                                                                           |
+| `apiPrefix`           | `/api`; reserved API namespace whose misses stay 404s.                                                                                                   |
+| `transformIndexHtml`  | Optional async/sync HTML transformation before Stack injects public runtime configuration. Applied once at startup.                                      |
+| `onStop(status, app)` | Receives the acquired Elysia app on signal shutdown or on a subsequent startup failure. Stop the app if listening and close application-owned resources. |
 
 For direct backend-only use:
 
@@ -106,15 +106,15 @@ An installed Stack CLI also selects backend-only serving from detected capabilit
 
 ## Shutdown and resource ownership
 
-Stack awaits registered Jobs Block cleanup during signal shutdown, including before a custom `onStop` action. Application-owned database clients, native queues created outside that Block, and other connections still need their owner's cleanup. An Elysia `onStop` hook can initiate cleanup when resource lifetime matches the app; native Elysia does not await asynchronous stop hooks, so explicitly await cleanup when ordering dependencies matters. When overriding Stack's signal action, stop the HTTP app as well:
+On signal shutdown Stack stops accepting HTTP requests, waits for admitted requests, and closes this app’s registered jobs producer before calling `onStop`. Worker replicas handle their own termination signals. Application-owned database clients, native queues created outside that Block, and other connections still need their owner's cleanup. An Elysia `onStop` hook can initiate cleanup when resource lifetime matches the app; native Elysia does not await asynchronous stop hooks, so explicitly await cleanup when ordering dependencies matters. When overriding Stack's signal action, stop the HTTP app as well:
 
 ```ts
 import { startServer } from "@prinpo/stack/server";
 
-const app = await startServer(() => import("./app"), {
-  onStop: async () => {
+await startServer(() => import("./app"), {
+  onStop: async (_status, app) => {
     try {
-      await app.stop();
+      if (app.server) await app.stop();
     } finally {
       const { client } = await import("./database");
       await client.close();
@@ -123,7 +123,7 @@ const app = await startServer(() => import("./app"), {
 });
 ```
 
-Here `./database` is the application's module exporting its client. Stack guards against repeated signal cleanup, sets exit status 130 for SIGINT and 143 for SIGTERM, and removes its handlers after stopping. A failed cleanup reports the error, sets status 1, and attempts to stop the app. Calling `app.stop()` directly also removes Stack's signal handlers; custom signal cleanup runs only for Stack's signal path.
+Here `./database` is the application's module exporting its client. Stack guards against repeated signal cleanup, sets exit status 130 for SIGINT and 143 for SIGTERM, and removes its handlers after stopping. A failed cleanup reports the error, sets status 1, and attempts to stop the app. If startup fails after the loader returns the app, Stack closes registered jobs and invokes `onStop(1, app)`, even if HTTP never opened. Calling Elysia’s `app.stop()` directly runs the native stop hooks.
 
 ## Raw typed Eden client
 

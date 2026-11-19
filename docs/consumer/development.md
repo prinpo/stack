@@ -10,7 +10,7 @@ related:
 
 # Development tooling and services
 
-Use `bunx --no-install stack dev` from the application root to run detected capabilities as one development session. `src/index.html` enables the frontend and `src/server/index.ts` enables the backend. A frontend-only or backend-only application omits the other entry. See [application patterns](application-patterns.md) for configuration and layout, and [CLI diagnosis](cli.md) for checking detection.
+Use `bunx --no-install stack dev` from the application root to run detected capabilities as one development session. `src/index.html` enables the frontend and `src/server/index.ts` enables the backend. `src/server/worker.ts` enables a dedicated jobs worker. Each entry can run on its own. See [application patterns](application-patterns.md) for configuration and layout, and [CLI diagnosis](cli.md) for checking detection.
 
 ## Toolchain and public origin
 
@@ -22,22 +22,30 @@ File-route generation owns generated route output. Keep generated files out of f
 
 ## Watching and session ownership
 
-Stack launches Vite+ for browser development and Bun's code watcher for the backend. Frontend/backend output has distinct labels, including stderr, and screen clearing is disabled. Native tool colors are preserved in terminals. `NO_COLOR` disables colors; `FORCE_COLOR` can force them.
+A worker-only application uses `stack dev` for watched development. With HTTP and worker entries, `stack dev` runs the backend in producer-only mode and starts the worker entry in its own process. Edits under `src/server/` and changes to shared files imported by either entry under `src/` drain and restart the managed backend and worker. Vite handles browser-only edits. Compose stays available throughout the reload.
+
+In applications without a worker entry, Stack launches Vite+ for browser development and Bun's code watcher for the backend. Frontend/backend output has distinct labels, including stderr, and screen clearing is disabled. Native tool colors are preserved in terminals. `NO_COLOR` disables colors; `FORCE_COLOR` can force them.
 
 An unexpected child exit stops its siblings and fails the session. Ctrl+C stops application processes, then managed Compose services. Use one managed development session for an application rather than starting conflicting copies on the same ports.
 
-| Change                                                             | Development behavior                                                                                |
-| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| Browser source/routes                                              | Native Vite/React/router tooling handles updates                                                    |
-| Backend imports/source                                             | Bun code watcher reloads the backend                                                                |
-| Files under an existing `env/server/` in a backend application     | Stack restarts backend and frontend so the derived proxy target refreshes                           |
-| Client schema sources                                              | Vite tracks schema configuration dependencies; dynamic client values are read when HTML is prepared |
-| Newly created schema directories or external server-schema imports | Restart `stack dev` manually                                                                        |
-| `docker-compose.dev.yml`                                           | Restart `stack dev` manually                                                                        |
+| Change                                                               | Development behavior                                                                                       |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Browser source/routes                                                | Native Vite/React/router tooling handles updates                                                           |
+| Backend imports/source                                               | Stack drains HTTP and worker on source edits when a worker entry exists. Otherwise Bun reloads the backend |
+| Files under an existing `env/server/` with a backend or worker entry | Stack restarts every detected application process with refreshed settings                                  |
+| Client schema sources                                                | Vite tracks schema configuration dependencies; dynamic client values are read when HTML is prepared        |
+| Newly created schema directories or external server-schema imports   | Restart `stack dev` manually                                                                               |
+| `docker-compose.dev.yml`                                             | Restart `stack dev` manually                                                                               |
 
 Compose dependencies stay running while application processes restart. Stack does not provide general infrastructure reconfiguration or recovery after readiness succeeds.
 
-Managed backend termination and server-environment restarts allow `JOBS_SHUTDOWN_TIMEOUT_MS` plus 2,500 milliseconds of connection-cleanup time before forcing the process group to exit. The CLI resolves only that setting to select the budget, leaving unrelated credentials to backend startup. Native Bun source reloads do not provide a Stack-owned asynchronous drain boundary; active jobs may be interrupted and recovered as stalled. See [jobs lifecycle](jobs.md#standalone-runtime-and-shutdown).
+Managed backend termination and server-environment restarts allow `JOBS_SHUTDOWN_TIMEOUT_MS` plus 2,500 milliseconds of connection-cleanup time before forcing the process group to exit. The CLI resolves only that setting to select the budget, leaving unrelated credentials to backend startup. Worker-enabled projects use the same graceful shutdown on source edits. Restart the session manually for changes to worker dependencies outside the application source tree. See [jobs lifecycle](jobs.md#standalone-runtime-and-shutdown).
+
+## Preview a local build
+
+From the application root, run `stack build` followed by `stack preview` to serve the built application locally. In the Stack repository, use `bun run stack build` and `bun run stack preview` for the fullstack example. Open <http://localhost:3000> for the app or <http://localhost:8025> for its Mailpit inbox. Preview uses `NODE_ENV=production` and defaults to the `development` Varlock profile. Use `stack preview --env preview` for an application-owned preview profile. The built HTTP server serves browser assets on its own port (3000 by default). A built worker runs in a separate Bun process.
+
+Put preview dependencies in `docker-compose.preview.yml` at the application root. Stack appends `-preview` to the resolved Compose project name to isolate Compose-managed containers and project-scoped volumes. Bind mounts, external volumes, and volumes with explicit names still use their configured locations. It waits for readiness before launching application processes and stops that project at session exit. Volumes persist. With no preview Compose file, Stack skips Docker. Dev and preview can publish the same host ports, so stop dev first or configure separate ports in both Compose and Varlock.
 
 ## Development Compose dependencies
 

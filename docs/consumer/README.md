@@ -38,7 +38,7 @@ Use Stack's applicable Blocks, helpers, and CLI before implementing custom integ
 | Log requests, return structured errors, broadcast development messages         | [Logging](logger.md)                            |
 | Define queues and jobs, submit or await work, inspect progress, manage workers | [Background jobs](jobs.md)                      |
 | Diagnose problems, retrieve logs, generate/check migrations or auth schema     | [CLI workflows](cli.md)                         |
-| Run development, Compose dependencies, proxy and browser tools                 | [Development](development.md)                   |
+| Run from source or preview a build locally with workers and Compose services   | [Development](development.md)                   |
 | Build, deploy, configure runtime values, migrate, stop cleanly                 | [Production](production.md)                     |
 
 ## Essential conventions

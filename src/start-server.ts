@@ -14,43 +14,26 @@ import {
 } from "./jobs/lifecycle";
 import { type ServeAppPluginsOptions, serveAppPlugin } from "./serve-app";
 
-export type StartServerOptions = ServeAppPluginsOptions & {
+export type StartServerOptions<App extends AnyElysia = AnyElysia> = ServeAppPluginsOptions & {
   env?: ServerEnvOptions;
   /** Replace the default app.stop() action on SIGINT/SIGTERM. Stack owns logging and exit status. */
-  onStop?: (status: number) => void | Promise<void>;
+  onStop?: (status: number, app: App) => void | Promise<void>;
 };
 
 /** Validate configuration before importing application modules or opening a listener. */
 export async function startServer<App extends AnyElysia>(
   loadApplication: () => Promise<{ app: App }>,
-  { env, onStop, ...options }: StartServerOptions = {},
+  { env, onStop, ...options }: StartServerOptions<App> = {},
 ): Promise<App> {
   const selected = process.env._SERVE_CLIENT === "0" ? { ...env, client: false as const } : env;
-  const config = await loadServerEnv(selected);
-  if (config.mode === "production") await migrateProductionDatabase();
-  const { app } = await loadApplication();
-
-  if (config.mode === "production" && selected?.client !== false) {
-    const custom = options.transformIndexHtml;
-    app.use(
-      await serveAppPlugin({
-        ...options,
-        transformIndexHtml: async (html) =>
-          injectClientEnv(
-            custom ? await custom(html) : html,
-            config.clientValues,
-            config.clientKeys,
-          ),
-      }),
-    );
-  }
-
+  const acquired = Promise.withResolvers<App | undefined>();
+  let application: App | undefined;
   let stopping = false;
   const shutdown = async (status: number) => {
     if (stopping) return;
     stopping = true;
     process.exitCode = status;
-    const grace = applicationJobsShutdownTimeout(app);
+    const grace = application ? applicationJobsShutdownTimeout(application) : 30000;
     if (grace !== undefined) {
       // Unref keeps normal cleanup fast; the deadline also bounds non-cooperative handlers.
       setTimeout(
@@ -60,22 +43,31 @@ export async function startServer<App extends AnyElysia>(
     }
     console.error(chalkStderr.red("Stopping..."));
     try {
-      await closeApplicationJobs(app);
-      if (onStop) await onStop(status);
-      else await app.stop();
+      const app = await acquired.promise;
+      if (!app) return;
+      try {
+        await app.server?.stop(false);
+      } finally {
+        try {
+          await closeApplicationJobs(app);
+        } finally {
+          if (onStop) await onStop(status, app);
+          else if (app.server) await app.stop();
+        }
+      }
     } catch (error) {
       console.error(error);
       process.exitCode = 1;
       // A failed custom action must not leave the HTTP listener running.
       try {
-        await app.stop();
+        if (application?.server) await application.stop();
       } catch {
         /* Preserve the original shutdown failure. */
       }
     } finally {
       removeSignals();
-      // Bun's code watcher can outlive the app. Tell the managed session cleanup is complete.
-      if (process.env._STACK_BROWSER_LOG_IPC === "1" && process.connected)
+      // Release the managed process group as soon as application cleanup completes.
+      if (process.env._STACK_LOCAL_SESSION === "1" && process.connected)
         process.send?.({ type: "stack:shutdown-complete" }, () => {});
     }
   };
@@ -89,20 +81,53 @@ export async function startServer<App extends AnyElysia>(
     process.off("SIGINT", interrupt);
     process.off("SIGTERM", terminate);
   };
-  app.onStop(() => {
-    if (!stopping) removeSignals();
-  });
-  await app.modules;
-  try {
-    await validateApplicationAuth(app);
-    await startApplicationJobs(app);
-    app.listen({ hostname: config.host, port: config.port });
-  } catch (error) {
-    await closeApplicationJobs(app);
-    throw error;
-  }
   process.on("SIGINT", interrupt);
   process.on("SIGTERM", terminate);
-  console.log(`API listening at ${app.server?.url}`);
-  return app;
+  try {
+    const config = await loadServerEnv(selected);
+    if (config.mode === "production") await migrateProductionDatabase();
+    const { app } = await loadApplication();
+    application = app;
+    acquired.resolve(app);
+    if (stopping) return app;
+
+    if (config.mode === "production" && selected?.client !== false) {
+      const custom = options.transformIndexHtml;
+      app.use(
+        await serveAppPlugin({
+          ...options,
+          transformIndexHtml: async (html) =>
+            injectClientEnv(
+              custom ? await custom(html) : html,
+              config.clientValues,
+              config.clientKeys,
+            ),
+        }),
+      );
+    }
+
+    app.onStop(() => {
+      if (!stopping) removeSignals();
+    });
+    await app.modules;
+    await validateApplicationAuth(app);
+    if (stopping) return app;
+    await startApplicationJobs(app);
+    if (stopping) return app;
+    app.listen({ hostname: config.host, port: config.port });
+    console.log(`API listening at ${app.server?.url}`);
+    return app;
+  } catch (error) {
+    acquired.resolve(undefined);
+    if (stopping && application) return application;
+    removeSignals();
+    if (application) {
+      try {
+        await closeApplicationJobs(application);
+      } finally {
+        await onStop?.(1, application);
+      }
+    }
+    throw error;
+  }
 }

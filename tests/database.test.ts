@@ -637,3 +637,30 @@ test("the full-stack example upgrades old notes and loads notebook relations in 
     { id: 2, text: "related note", notebookId: 1, notebook: { id: 1, name: "Work" } },
   ]);
 }, 30_000);
+
+test("worker-only preview applies built migrations before importing the worker", async () => {
+  const cwd = await project({
+    "schema.ts": schema,
+    "drizzle.config.ts": config,
+    "env/server/.env.schema": "# @dynamic @required\nDATABASE_URL=sqlite://worker.sqlite\n",
+    "src/server/worker.ts": `
+      import { Database } from "bun:sqlite";
+      const db = new Database("worker.sqlite", { readonly: true });
+      const row = db.query("select count(*) as count from messages").get();
+      await Bun.write("worker-ready", String(row.count));
+      setInterval(() => {}, 1000);
+    `,
+  });
+  expect(run(cwd, ["db", "generate"]).status).toBe(0);
+  expect(run(cwd, ["build"]).status).toBe(0);
+  for (const name of ["src", "schema.ts", "drizzle.config.ts", "migrations"])
+    await rm(join(cwd, name), { recursive: true });
+  const app = launch(cwd, ["preview"], {});
+  await expect
+    .poll(() => readFile(join(cwd, "worker-ready"), "utf8").catch(() => app.output()), {
+      timeout: 5000,
+    })
+    .toBe("0");
+  app.child.kill("SIGTERM");
+  expect((await once(app.child, "exit"))[0]).toBe(143);
+});

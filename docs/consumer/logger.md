@@ -61,6 +61,8 @@ Global scope propagates hooks, and Elysia deduplicates the shared plugin. Local 
 
 Native utilities for scripts, jobs, and immediate logging remain available from `@prinpo/stack/logger`, including `initLogger`, `log`, `createLogger`, `createError`, and `parseError`. This Elysia adapter provides its request logger through context; upstream framework-specific async accessors are not bound to it.
 
+Job handlers receive an attempt logger as `job.logger`, also available as `context.logger` when using `defineJobContext`. Add business identifiers with `logger.set({ operationId })`. Configure logging in each worker process or sandbox that emits events. See [job events and database results](jobs.md#job-logging-and-database-results).
+
 ## Return a typed failure
 
 **Return `apiError(status, fields)`** from the route. It advertises a native Elysia status-response return type to Eden while throwing a native evlog error internally. The integration records the error and serializes its public response:

@@ -89,3 +89,27 @@ test("required helpers refresh outgoing cookies and reuse the request session", 
   expect(await response.json()).toEqual({ same: true, email: "refresh@example.com" });
   expect(response.headers.getSetCookie().join(" ")).toContain("session_token=");
 });
+
+test.each([
+  { baseURL: "http://localhost", basePath: "/account", expected: "/account" },
+  { baseURL: "http://localhost/login/api", expected: "/login/api" },
+  {
+    baseURL: { allowedHosts: ["localhost"], fallback: "http://localhost/other" },
+    basePath: "/identity",
+    expected: "/identity",
+  },
+])("mounts auth at $expected alongside a browser fallback", async ({ expected, ...options }) => {
+  const auth = betterAuth({
+    ...options,
+    secret: "test-secret-at-least-thirty-two-characters",
+  });
+  const app = new Elysia().use(createAuthHelpers(auth).elysia()).all("/*", () => "browser shell");
+  const response = await app.handle(new Request(`http://localhost${expected}/get-session`));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toBeNull();
+  for (const path of ["/", "/auth"]) {
+    expect(await (await app.handle(new Request(`http://localhost${path}`))).text()).toBe(
+      "browser shell",
+    );
+  }
+});

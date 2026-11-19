@@ -1,9 +1,13 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import type { Job } from "bullmq";
 
 import type { AnyJob } from "./types";
+import type { ProcessingJob } from "./worker";
 
-function progressValue(value: unknown, phases: readonly string[] | undefined, reading = false) {
+export function progressValue(
+  value: unknown,
+  phases: readonly string[] | undefined,
+  reading = false,
+) {
   if (reading && value === 0) return { phase: "processing", percent: 0 };
   if (!value || typeof value !== "object" || !("percent" in value))
     throw new TypeError("Job progress requires a percent value");
@@ -47,7 +51,7 @@ export async function validateInput(definition: AnyJob, input: unknown, name: st
 }
 
 /** Keep the transported input in BullMQ; expose the validated view to application code. */
-export function jobView(job: Job<unknown, unknown>, definition: AnyJob, data: unknown) {
+export function jobView<T extends ProcessingJob>(job: T, definition: AnyJob, data: unknown) {
   let parsed = data;
   return new Proxy(job, {
     get(target, key) {

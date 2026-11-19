@@ -13,7 +13,9 @@ const main = defineCommand({
   subCommands: {
     dev: () => import("./lifecycle").then((module) => module.dev),
     build: () => import("./lifecycle").then((module) => module.build),
+    preview: () => import("./lifecycle").then((module) => module.preview),
     start: () => import("./lifecycle").then((module) => module.start),
+    worker: () => import("./worker").then((module) => module.default),
     logs: () => import("./logs").then((module) => module.default),
     env: () => import("./env").then((module) => module.default),
     doctor: () => import("./doctor").then((module) => module.default),

@@ -1,8 +1,7 @@
-import { defineJob } from "@prinpo/stack/jobs";
+import { formatMessageInput } from "../../../validation/messages";
+import { appJob } from "../../context";
 
-import { formatMessageInput } from "../validation/messages";
-
-export const formatMessage = defineJob({
+export const formatMessage = appJob({
   input: formatMessageInput,
   phases: ["formatting"],
   handler: async (job) => {

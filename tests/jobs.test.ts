@@ -2,6 +2,7 @@ import { Queue, createJobs, defineJob, defineQueue, z } from "@prinpo/stack/jobs
 import { createJobsClient } from "@prinpo/stack/jobs/client";
 import { afterAll, afterEach, beforeAll, expect, test } from "vite-plus/test";
 
+import { createWorkerRuntime } from "../src/jobs/runtime";
 import { testRedis } from "./test-utils/redis";
 
 let redis: ReturnType<typeof testRedis>;
@@ -16,6 +17,96 @@ afterAll(() => {
   redis?.close();
 });
 
+test.each(["default", "sync", "async"] as const)(
+  "%s job IDs use the same generator for add and run",
+  async (mode) => {
+    let calls = 0;
+    const allocate = () => `custom-${++calls}`;
+    const runtime = createWorkerRuntime({
+      name: crypto.randomUUID(),
+      connection: redis.connection,
+      queues: {
+        work: defineQueue(crypto.randomUUID(), {
+          jobs: { identify: defineJob({ input: z.string(), handler: (job) => job.id }) },
+        }),
+      },
+      generateJobId:
+        mode === "default" ? undefined : mode === "sync" ? allocate : async () => allocate(),
+    });
+    runtimes.push(runtime);
+    await runtime.start();
+    const work = runtime.client.work;
+    const explicit = await work.add.identify("manual", { jobId: "manual-id" });
+    expect(explicit.id).toBe("manual-id");
+    expect(calls).toBe(0);
+    const queued = await work.add.identify("queued");
+    const ran = await work.run.identify("waited", { timeoutMs: 3000 });
+    if (mode === "default") {
+      expect(z.uuidv7().safeParse(queued.id).success).toBe(true);
+      expect(z.uuidv7().safeParse(ran).success).toBe(true);
+      expect(queued.id).not.toBe(ran);
+    } else {
+      expect([queued.id, ran]).toEqual(["custom-1", "custom-2"]);
+      expect(calls).toBe(2);
+    }
+  },
+);
+
+test("failed, invalid and abandoned ID allocations never enqueue work", async () => {
+  const pending = Promise.withResolvers<string>();
+  const entered = Promise.withResolvers<void>();
+  let allocate = async () => "";
+  const runtime = createJobs({
+    name: crypto.randomUUID(),
+    connection: redis.connection,
+    operationTimeoutMs: 100,
+    queues: {
+      work: defineQueue(crypto.randomUUID(), {
+        jobs: { echo: defineJob({ input: z.string(), handler: (job) => job.data }) },
+      }),
+    },
+    generateJobId: () => allocate(),
+  });
+  runtimes.push(runtime);
+  await runtime.start();
+  const work = runtime.client.work;
+  for (const id of ["", "42", "queue:id"]) {
+    allocate = async () => id;
+    await expect(work.add.echo("data")).rejects.toThrow("generateJobId");
+    await expect(work.run.echo("data", { timeoutMs: 500 })).rejects.toThrow("generateJobId");
+  }
+  allocate = async () => {
+    throw new Error("allocator unavailable");
+  };
+  await expect(work.add.echo("data")).rejects.toThrow("allocator unavailable");
+  allocate = () => {
+    entered.resolve();
+    return pending.promise;
+  };
+  const controller = new AbortController();
+  const run = work.run.echo("data", { timeoutMs: 500, signal: controller.signal });
+  await entered.promise;
+  controller.abort(new Error("cancel allocation"));
+  await expect(run).rejects.toThrow("cancel allocation");
+  await expect(work.add.echo("data")).rejects.toThrow("ID generation timeout");
+  pending.resolve("late-id");
+  expect(await runtime.native("work").queue.getWaitingCount()).toBe(0);
+
+  const closingAllocation = Promise.withResolvers<string>();
+  const allocating = Promise.withResolvers<void>();
+  allocate = () => {
+    allocating.resolve();
+    return closingAllocation.promise;
+  };
+  const closed = expect(work.run.echo("data", { timeoutMs: 500 })).rejects.toThrow(
+    "runtime is closed",
+  );
+  await allocating.promise;
+  await runtime.close();
+  await closed;
+  closingAllocation.resolve("after-close");
+});
+
 test("a backend submits a job and waits for its inferred result", async () => {
   const emails = defineQueue(`emails-${crypto.randomUUID()}`, {
     jobs: {
@@ -25,7 +116,7 @@ test("a backend submits a job and waits for its inferred result", async () => {
       }),
     },
   });
-  const runtime = createJobs({
+  const runtime = createWorkerRuntime({
     name: crypto.randomUUID(),
     queues: { emails },
     connection: redis.connection,
@@ -48,7 +139,7 @@ test("serialized input is validated before enqueueing and transformed independen
       }),
     },
   });
-  const runtime = createJobs({
+  const runtime = createWorkerRuntime({
     name: crypto.randomUUID(),
     queues: { numbers },
     connection: redis.connection,
@@ -69,7 +160,7 @@ test("retrieval checks job identity and exposes validated data without changing 
       other: defineJob({ input: z.boolean(), handler: async (job) => job.data }),
     },
   });
-  const runtime = createJobs({
+  const runtime = createWorkerRuntime({
     name: crypto.randomUUID(),
     queues: { work },
     connection: redis.connection,
@@ -108,7 +199,7 @@ test("progress always has a phase and percent and custom phases are checked", as
       }),
     },
   });
-  const runtime = createJobs({
+  const runtime = createWorkerRuntime({
     name: crypto.randomUUID(),
     queues: { work },
     connection: redis.connection,
@@ -146,7 +237,7 @@ test("a type-only client resolves the registered runtime and rejects calls outsi
   const name = crypto.randomUUID();
   const client = createJobsClient<typeof queues>({ name });
   await expect(client.work.add.echo("before startup")).rejects.toThrow("not started");
-  const runtime = createJobs({ name, queues, connection: redis.connection });
+  const runtime = createWorkerRuntime({ name, queues, connection: redis.connection });
   runtimes.push(runtime);
   await runtime.start();
   expect(await client.work.run.echo("hello", { timeoutMs: 3000 })).toEqual({ echoed: "hello" });
@@ -158,7 +249,7 @@ test("malformed external jobs fail without retrying and cannot be retrieved as v
   const work = defineQueue(`external-${crypto.randomUUID()}`, {
     jobs: { echo: defineJob({ input: z.string(), handler: async (job) => job.data }) },
   });
-  const runtime = createJobs({
+  const runtime = createWorkerRuntime({
     name: crypto.randomUUID(),
     queues: { work },
     connection: redis.connection,
@@ -178,7 +269,9 @@ test("malformed external jobs fail without retrying and cannot be retrieved as v
 
 test("native job options layer queue defaults, job defaults, and submission overrides", async () => {
   const work = defineQueue(`defaults-${crypto.randomUUID()}`, {
-    defaultJobOptions: { attempts: 2, delay: 60_000, backoff: { type: "fixed", delay: 10 } },
+    options: {
+      defaultJobOptions: { attempts: 2, delay: 60_000, backoff: { type: "fixed", delay: 10 } },
+    },
     jobs: {
       echo: defineJob({
         input: z.string(),
@@ -187,7 +280,7 @@ test("native job options layer queue defaults, job defaults, and submission over
       }),
     },
   });
-  const runtime = createJobs({
+  const runtime = createWorkerRuntime({
     name: crypto.randomUUID(),
     queues: { work },
     connection: redis.connection,
@@ -206,20 +299,21 @@ test("run rejects an invalid timeout before submitting work", async () => {
   const work = defineQueue(`timeout-${crypto.randomUUID()}`, {
     jobs: { echo: defineJob({ input: z.string(), handler: async (job) => job.data }) },
   });
-  const runtime = createJobs({
+  const runtime = createWorkerRuntime({
     name: crypto.randomUUID(),
     queues: { work },
     connection: redis.connection,
   });
   runtimes.push(runtime);
   await runtime.start();
-  await expect(
-    runtime.client.work.run.echo("hello", { timeoutMs: 0, job: { jobId: "invalid-timeout" } }),
-  ).rejects.toThrow("timeoutMs");
-  expect(await runtime.client.work.getJob("invalid-timeout")).toBeUndefined();
+  await expect(runtime.client.work.run.echo("hello", { timeoutMs: 0 })).rejects.toThrow(
+    "timeoutMs",
+  );
+  expect(await runtime.native("work").queue.count()).toBe(0);
 });
 
 test("a run timeout stops waiting while the accepted job can still complete", async () => {
+  const accepted = Promise.withResolvers<string | undefined>();
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -229,13 +323,14 @@ test("a run timeout stops waiting while the accepted job can still complete", as
       echo: defineJob({
         input: z.string(),
         handler: async (job) => {
+          accepted.resolve(job.id);
           await gate;
           return job.data;
         },
       }),
     },
   });
-  const runtime = createJobs({
+  const runtime = createWorkerRuntime({
     name: crypto.randomUUID(),
     queues: { work },
     connection: redis.connection,
@@ -243,16 +338,17 @@ test("a run timeout stops waiting while the accepted job can still complete", as
   runtimes.push(runtime);
   await runtime.start();
   try {
-    await expect(
-      runtime.client.work.run.echo("hello", { timeoutMs: 100, job: { jobId: "still-running" } }),
-    ).rejects.toThrow();
+    await expect(runtime.client.work.run.echo("hello", { timeoutMs: 250 })).rejects.toThrow(
+      "completion timeout",
+    );
   } finally {
     release();
   }
+  const id = await accepted.promise;
   await expect
-    .poll(async () => (await runtime.client.work.getJob.echo("still-running"))?.getState())
+    .poll(async () => (await runtime.client.work.getJob.echo(id!))?.getState())
     .toBe("completed");
-  expect((await runtime.client.work.getJob.echo("still-running"))?.returnvalue).toBe("hello");
+  expect((await runtime.client.work.getJob.echo(id!))?.returnvalue).toBe("hello");
 });
 
 test("run observes native retries, terminal failures, and automatically removed results", async () => {
@@ -267,7 +363,7 @@ test("run observes native retries, terminal failures, and automatically removed 
       }),
     },
   });
-  const runtime = createJobs({
+  const runtime = createWorkerRuntime({
     name: crypto.randomUUID(),
     queues: { work },
     connection: redis.connection,
@@ -298,26 +394,24 @@ test("a runtime rejects competing definitions for one native queue before openin
   ).toThrow("Duplicate queue");
 });
 
-test("reused job IDs retain the stored input and cannot return another job kind's result", async () => {
+test("add with a reused ID returns the stored input and rejects another job kind", async () => {
   const work = defineQueue(`identity-${crypto.randomUUID()}`, {
     jobs: {
       text: defineJob({ input: z.string(), handler: async (job) => ({ text: job.data }) }),
       number: defineJob({ input: z.number(), handler: async (job) => ({ number: job.data }) }),
     },
   });
-  const runtime = createJobs({
+  const runtime = createWorkerRuntime({
     name: crypto.randomUUID(),
     queues: { work },
     connection: redis.connection,
   });
   runtimes.push(runtime);
   await runtime.start();
-  await runtime.client.work.run.text("first", { timeoutMs: 1000, job: { jobId: "shared" } });
+  await runtime.client.work.add.text("first", { jobId: "shared" });
   const duplicate = await runtime.client.work.add.text("second", { jobId: "shared" });
   expect(duplicate.data).toBe("first");
-  await expect(
-    runtime.client.work.run.number(42, { timeoutMs: 1000, job: { jobId: "shared" } }),
-  ).rejects.toThrow("job kind");
+  await expect(runtime.client.work.add.number(42, { jobId: "shared" })).rejects.toThrow("job kind");
   await runtime.client.work.add.text("pending", {
     delay: 60_000,
     deduplication: { id: "shared-dedup" },
@@ -346,7 +440,7 @@ test("closing a runtime promptly rejects its unfinished run calls and releases t
       }),
     },
   });
-  const runtime = createJobs({
+  const runtime = createWorkerRuntime({
     name: crypto.randomUUID(),
     queues: { work },
     connection: redis.connection,
@@ -367,4 +461,139 @@ test("closing a runtime promptly rejects its unfinished run calls and releases t
   await runtime.close();
   await expect.poll(() => outcome, { timeout: 300 }).toContain("closed");
   await running;
+});
+
+test("run rejects coalescing options and owns a fresh execution identity", async () => {
+  const work = defineQueue(crypto.randomUUID(), {
+    jobs: { echo: defineJob({ input: z.string(), handler: async (job) => job.data }) },
+  });
+  const runtime = createWorkerRuntime({
+    name: crypto.randomUUID(),
+    queues: { work },
+    connection: redis.connection,
+    logging: false,
+  });
+  runtimes.push(runtime);
+  await runtime.start();
+  const customId = { jobId: "retained" };
+  const deduplication = { deduplication: { id: "shared" } };
+  await runtime.client.work.add.echo("original", customId);
+  await expect(
+    runtime.client.work.run.echo("new", {
+      timeoutMs: 1000,
+      // @ts-expect-error exercise the runtime guard for untyped callers
+      job: customId,
+    }),
+  ).rejects.toThrow("fresh job");
+  await expect(
+    runtime.client.work.run.echo("new", {
+      timeoutMs: 1000,
+      // @ts-expect-error exercise the runtime guard for untyped callers
+      job: deduplication,
+    }),
+  ).rejects.toThrow("fresh job");
+  await expect(runtime.client.work.run.echo("new", { timeoutMs: 1000 })).resolves.toBe("new");
+  expect((await runtime.client.work.getJob.echo("retained"))?.data).toBe("original");
+});
+
+test("run transports JSON results and normalizes a void handler to null", async () => {
+  const work = defineQueue(crypto.randomUUID(), {
+    jobs: {
+      value: defineJob({
+        input: z.string(),
+        handler: async () => ({
+          date: new Date("2026-01-01T00:00:00Z"),
+          invalid: new Date("invalid"),
+          omitted: undefined,
+          items: [undefined, Infinity],
+          nested: { toJSON: () => ({ text: "encoded" }) },
+        }),
+      }),
+      empty: defineJob({ input: z.string(), handler: async () => {} }),
+    },
+  });
+  const runtime = createWorkerRuntime({
+    name: crypto.randomUUID(),
+    queues: { work },
+    connection: redis.connection,
+    logging: false,
+  });
+  runtimes.push(runtime);
+  await runtime.start();
+  expect(await runtime.client.work.run.value("x", { timeoutMs: 1000 })).toEqual({
+    date: "2026-01-01T00:00:00.000Z",
+    invalid: null,
+    items: [null, null],
+    nested: { text: "encoded" },
+  });
+  expect(await runtime.client.work.run.empty("x", { timeoutMs: 1000 })).toBeNull();
+});
+
+test("aborting a run releases the wait while accepted work remains queued", async () => {
+  const work = defineQueue(crypto.randomUUID(), {
+    jobs: { echo: defineJob({ input: z.string(), handler: async (job) => job.data }) },
+  });
+  const runtime = createJobs({
+    name: crypto.randomUUID(),
+    queues: { work },
+    connection: redis.connection,
+    logging: false,
+  });
+  runtimes.push(runtime);
+  await runtime.start();
+  const signal = new AbortController();
+  const outcome = runtime.client.work.run.echo("x", {
+    timeoutMs: 5000,
+    signal: signal.signal,
+  });
+  const rejection = expect(outcome).rejects.toThrow("stop waiting");
+  const queue = runtime.native("work").queue;
+  await expect.poll(() => queue.getWaitingCount()).toBe(1);
+  signal.abort(new Error("stop waiting"));
+  await rejection;
+  expect(await queue.getWaitingCount()).toBe(1);
+});
+
+test("job logging reports retries and persisted completion without attaching payloads", async () => {
+  const { initLogger } = await import("@prinpo/stack/logger");
+  const events: import("@prinpo/stack/logger").DrainContext[] = [];
+  initLogger({
+    silent: true,
+    drain: (ctx) => {
+      events.push(ctx);
+    },
+  });
+  try {
+    const work = defineQueue(crypto.randomUUID(), {
+      jobs: {
+        echo: defineJob({
+          input: z.string(),
+          handler: async (job) => {
+            job.logger.set({ operationId: "business-operation" });
+            if (job.attemptsMade === 0) throw new Error("retry me");
+            return job.data;
+          },
+        }),
+      },
+    });
+    const runtime = createWorkerRuntime({
+      name: crypto.randomUUID(),
+      queues: { work },
+      connection: redis.connection,
+    });
+    runtimes.push(runtime);
+    await runtime.start();
+    expect(
+      await runtime.client.work.run.echo("private-payload-marker", {
+        timeoutMs: 2000,
+        job: { attempts: 2 },
+      }),
+    ).toBe("private-payload-marker");
+    await expect.poll(() => events.some((ctx) => ctx.event.event === "job.completed")).toBe(true);
+    expect(events.some((ctx) => ctx.event.event === "job.retrying")).toBe(true);
+    expect(events.some((ctx) => ctx.event.operationId === "business-operation")).toBe(true);
+    expect(JSON.stringify(events)).not.toContain("private-payload-marker");
+  } finally {
+    initLogger({ silent: true });
+  }
 });

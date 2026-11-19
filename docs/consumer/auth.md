@@ -90,7 +90,7 @@ export const auth = betterAuth({
 export const authHelpers = createAuthHelpers(auth);
 ```
 
-Declare `BETTER_AUTH_SECRET` as sensitive, dynamic, and required in the server environment schema. Declare `BETTER_AUTH_URL` as a dynamic required URL. Read credentials through the generated server environment module; see [environment configuration](env.md). Load the runtime instance only after `startServer` initializes the environment. Its default native auth endpoint prefix is `/api/auth`; the Elysia helper mounts the native handler.
+Declare `BETTER_AUTH_SECRET` as sensitive, dynamic, and required in the server environment schema. Declare `BETTER_AUTH_URL` as a dynamic required URL. Read credentials through the generated server environment module; see [environment configuration](env.md). Load the runtime instance only after `startServer` initializes the environment. The Elysia helper mounts the native handler under the configured Better Auth path (default `/api/auth`). It honors a custom `basePath` or a path in `baseURL`, so the rest of the app can serve API and browser routes.
 
 ## Schema generation and database integration
 
@@ -134,7 +134,7 @@ Each callback preserves native arguments and awaits the supplied sender. During 
 
 Supplying a sender enables transport only; it does not enable an auth method. Sender failures retain native behavior. Console delivery alone does not establish successful email transport. Built applications disable development delivery regardless of runtime mode.
 
-For production, pass application email callbacks into the helpers and plugin options. Keep runtime transport/credentials out of generation-time imports; runtime composition may replace the callback or plugin configuration while retaining the same schema-producing options. Applications own email provider selection, message contents, and transport configuration.
+For production, pass application email callbacks into the helpers and plugin options. Keep runtime transport/credentials out of generation-time imports; runtime composition may replace the callback or plugin configuration while retaining the same schema-producing options. Applications own email provider selection, message contents, and transport configuration. The fullstack example reads its Mailpit endpoint from the generated server `ENV.EXAMPLE_AUTH_MAIL_URL`. Local build preview starts Mailpit through Compose and exercises real delivery to its inbox.
 
 `authHelpers.elysia()` registers a validation gate that `startServer` awaits after native plugin initialization and before listening. A configured wrapped flow without a sender fails production/built startup. Standalone native hosts must `await authHelpers.validate()` at their corresponding pre-listen boundary; it awaits native context initialization before calling `validateAuthDelivery`. The lower-level function takes already-composed native options and does not initialize plugins itself. Builds and schema generation need no senders. Native callbacks outside Stack's wrappers retain their native behavior.
 

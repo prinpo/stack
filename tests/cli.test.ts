@@ -48,6 +48,15 @@ function run(cwd: string, args: string[], overrides: NodeJS.ProcessEnv = {}) {
   });
 }
 
+test.each([
+  ["dev", "--workers=separate"],
+  ["worker", "--dev"],
+])("%s rejects the removed %s flag", async (command, flag) => {
+  const result = run(await project(), [command, flag]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(`Unexpected arguments: ${flag}`);
+});
+
 test("doctor explains inferred capabilities without resolving application credentials", async () => {
   const cwd = await project({
     "src/index.html": "<html><head></head></html>",
@@ -112,10 +121,11 @@ test.each(["codegen", "load", "run"])(
   },
 );
 
-test("doctor reports development Compose presence without invoking Docker or parsing configuration", async () => {
+test("doctor reports local Compose files without invoking Docker or parsing configuration", async () => {
   const cwd = await project({
     "src/server/index.ts": "",
     "docker-compose.dev.yml": "malformed compose file",
+    "docker-compose.preview.yml": "another malformed compose file",
     "env/server/.env.schema": "# @import(./missing)\n# ---\n",
     "bin/docker": "#!/bin/sh\nprintf invoked > docker-invoked\nexit 99\n",
   });
@@ -129,7 +139,9 @@ test("doctor reports development Compose presence without invoking Docker or par
   });
   const human = run(cwd, ["doctor"], env);
   expect(human.status, human.stderr).toBe(0);
-  expect(human.stdout).toContain("Development dependencies");
+  expect(human.stdout).toContain("Local dependencies");
+  expect(JSON.parse(result.stdout).previewCompose.enabled).toBe(true);
+  expect(human.stdout).toContain("Found docker-compose.preview.yml");
   expect(human.stdout).toContain("Found docker-compose.dev.yml");
   await expect(readFile(join(cwd, "docker-invoked"))).rejects.toThrow();
 });
@@ -144,7 +156,7 @@ test.each(["alias", "directory"])("doctor does not enable Compose for an %s", as
     reason: "Missing docker-compose.dev.yml",
   });
   const human = run(cwd, ["doctor"]);
-  expect(human.stdout).toContain("○ Docker Compose");
+  expect(human.stdout).toContain("○ Development Compose");
   expect(human.stdout).toContain("Missing docker-compose.dev.yml");
 });
 
@@ -244,7 +256,7 @@ test("backend builds clear stale frontend output and start from a successful man
   const build = run(cwd, ["build"]);
   expect(build.status, build.stdout + build.stderr).toBe(0);
   expect(JSON.parse(await readFile(join(cwd, "dist/manifest.json"), "utf8"))).toMatchObject({
-    version: 1,
+    version: 2,
     frontend: false,
     backend: true,
   });
@@ -298,48 +310,52 @@ function launch(cwd: string, args: string[], env: NodeJS.ProcessEnv) {
   return { child, output: () => output };
 }
 
-test("frontend-only production startup hydrates staging values without backend credentials or sources", async () => {
-  const cwd = await project({
-    "src/index.html": "<html><head></head><body>Built frontend</body></html>",
-    "src/public/asset.txt": "static asset",
-    "env/server/.env.schema":
-      "# @redact=false @preventLeaks=false\n# ---\nCLI_SECRET=exec(`exit 97`)\n",
-    "env/client/.env.schema":
-      "# @redact=false @preventLeaks=false\n# ---\n# @public @dynamic @required\nCLI_PUBLIC=\n",
-    "env/client/.env.staging": "CLI_PUBLIC=staging-public\n",
-  });
-  const result = run(cwd, ["build"]);
-  expect(result.status, result.stdout + result.stderr).toBe(0);
-  await rm(join(cwd, "src/index.html"));
-  const port = await freePort();
-  const app = launch(cwd, ["start", "--env", "staging"], { PORT: String(port) });
-  const origin = `http://127.0.0.1:${port}`;
-  await expect
-    .poll(async () => {
-      try {
-        return (await fetch(origin)).status;
-      } catch {
-        return app.output();
-      }
-    })
-    .toBe(200);
-  const html = await fetch(origin + "/nested/route", { headers: { accept: "text/html" } });
-  expect(await html.text()).toContain("staging-public");
-  expect(html.headers.get("cache-control")).toBe("no-store");
-  expect(await (await fetch(origin + "/asset.txt")).text()).toBe("static asset");
-  const head = await fetch(origin + "/index.html", { method: "HEAD" });
-  expect(head.status).toBe(200);
-  expect(await head.text()).toBe("");
-  expect((await fetch(origin + "/missing.js", { headers: { accept: "text/html" } })).status).toBe(
-    404,
-  );
-  expect((await fetch(origin + "/api/missing", { headers: { accept: "text/html" } })).status).toBe(
-    404,
-  );
-  expect(await readFile(join(cwd, "dist/client/index.html"), "utf8")).not.toContain(
-    "staging-public",
-  );
-}, 30_000);
+test.each(["start", "preview"])(
+  "%s serves built frontend-only assets and staging values without backend credentials or sources",
+  async (command) => {
+    const cwd = await project({
+      "src/index.html": "<html><head></head><body>Built frontend</body></html>",
+      "src/public/asset.txt": "static asset",
+      "env/server/.env.schema":
+        "# @redact=false @preventLeaks=false\n# ---\nCLI_SECRET=exec(`exit 97`)\n",
+      "env/client/.env.schema":
+        "# @redact=false @preventLeaks=false\n# ---\n# @public @dynamic @required\nCLI_PUBLIC=\n",
+      "env/client/.env.staging": "CLI_PUBLIC=staging-public\n",
+    });
+    const result = run(cwd, ["build"]);
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    await rm(join(cwd, "src/index.html"));
+    const port = await freePort();
+    const app = launch(cwd, [command, "--env", "staging"], { PORT: String(port) });
+    const origin = `http://127.0.0.1:${port}`;
+    await expect
+      .poll(async () => {
+        try {
+          return (await fetch(origin)).status;
+        } catch {
+          return app.output();
+        }
+      })
+      .toBe(200);
+    const html = await fetch(origin + "/nested/route", { headers: { accept: "text/html" } });
+    expect(await html.text()).toContain("staging-public");
+    expect(html.headers.get("cache-control")).toBe("no-store");
+    expect(await (await fetch(origin + "/asset.txt")).text()).toBe("static asset");
+    const head = await fetch(origin + "/index.html", { method: "HEAD" });
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe("");
+    expect((await fetch(origin + "/missing.js", { headers: { accept: "text/html" } })).status).toBe(
+      404,
+    );
+    expect(
+      (await fetch(origin + "/api/missing", { headers: { accept: "text/html" } })).status,
+    ).toBe(404);
+    expect(await readFile(join(cwd, "dist/client/index.html"), "utf8")).not.toContain(
+      "staging-public",
+    );
+  },
+  30_000,
+);
 
 test("client compilation uses APP_ENV independently of Vite mode and stays on Bun", async () => {
   const cwd = await project({
@@ -570,7 +586,8 @@ test("explicit startup selection discards incompatible inherited snapshots while
 
 test("startup rejects directories in place of advertised build artifacts with rebuild instructions", async () => {
   const cwd = await project({
-    "dist/manifest.json": '{"version":1,"backend":true,"frontend":false}',
+    "dist/manifest.json":
+      '{"version":2,"backend":true,"frontend":false,"worker":false,"database":false}',
   });
   await mkdir(join(cwd, "dist/server/index.js"), { recursive: true });
   const result = run(cwd, ["start"]);
@@ -605,7 +622,11 @@ test("successful builds summarize the enabled area with measured artifact size, 
   const cwd = await project({ "src/server/index.ts": 'console.log("backend");' });
   const result = run(cwd, ["build"]);
   expect(result.status, result.stderr).toBe(0);
-  const bytes = (await readFile(join(cwd, "dist/server/index.js"))).byteLength;
+  const bytes = (
+    await Promise.all(
+      ["index.js", "src/server/index.ts"].map((file) => readFile(join(cwd, "dist/server", file))),
+    )
+  ).reduce((total, file) => total + file.byteLength, 0);
   expect(result.stdout).toContain("Build complete");
   expect(result.stdout).toContain(`Stack v${version}`);
   expect(result.stdout).toMatch(
@@ -613,4 +634,29 @@ test("successful builds summarize the enabled area with measured artifact size, 
   );
   expect(result.stdout).not.toContain("Frontend");
   expect(result.stdout).toMatch(/Total\s+\d+(?:\.\d+)? B\s+\d+(?:\.\d+)? (?:ms|s)/);
+});
+
+test("worker-only project detection and invalid processor build diagnostics", async () => {
+  const cwd = await project({ "src/server/worker.ts": "console.log('worker-only')" });
+  const doctor = run(cwd, ["doctor", "--json"]);
+  expect(doctor.status).toBe(0);
+  expect(JSON.parse(doctor.stdout).worker.enabled).toBe(true);
+  expect(run(cwd, ["build"]).status).toBe(0);
+  expect(run(cwd, ["start"]).stderr).toContain("Run stack worker");
+  await writeFile(join(cwd, "src/server/worker.ts"), "import './bad-queue'");
+  await writeFile(join(cwd, "src/server/bad-queue.ts"), "export default (");
+  const invalid = run(cwd, ["build"]);
+  expect(invalid.status).toBe(1);
+  expect(invalid.stderr).toContain("bad-queue.ts");
+});
+
+test("build names a relative runtime dependency outside the application", async () => {
+  const root = await project({
+    "shared.ts": "export const value=42;",
+    "app/src/server/worker.ts": "import {value} from '../../../shared';console.log(value);",
+  });
+  const result = run(join(root, "app"), ["build"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("shared.ts");
+  await expect(readFile(join(root, "app/dist/manifest.json"))).rejects.toThrow();
 });

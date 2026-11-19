@@ -2,10 +2,10 @@
 title: Stack CLI for agents
 description: Select Stack commands to inspect application structure, retrieve logs, validate configuration, generate schemas and migrations, and run application lifecycles.
 type: workflow
-topics: [cli, diagnostics, logs, migrations, authentication, environment]
+topics: [cli, diagnostics, logs, migrations, authentication, environment, preview, workers]
 related:
   title: Related
-  links: [development.md, production.md, env.md, logger.md, database.md, auth.md]
+  links: [development.md, production.md, jobs.md, env.md, logger.md, database.md, auth.md]
 ---
 
 # Stack CLI for agents
@@ -22,18 +22,19 @@ For direct execution, `bun --no-env-file` also disables Bun dotenv loading.
 
 ## Choose a command by evidence needed
 
-| Task                                       | Command                                               | What the result establishes                                                             |
-| ------------------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Inspect a new or unfamiliar application    | `bunx --no-install stack doctor --json`               | Detected entry points, schema directories, Compose, database migrations, and auth files |
-| Inspect recent request failures            | `bunx --no-install stack logs errors --json`          | Persisted local error events                                                            |
-| Trace one request                          | `bunx --no-install stack logs <request-id> --json`    | Persisted events selected by the native request selector                                |
-| Watch a reproduction                       | `bunx --no-install stack logs --follow --json`        | New local events as newline-delimited JSON                                              |
-| Inspect configuration                      | `bunx --no-install stack env load --agent`            | The native effective server configuration report                                        |
-| Check auth generation drift                | `bunx --no-install stack auth check`                  | Generated auth schema matches current configuration                                     |
-| Inspect auth configuration                 | `bunx --no-install stack auth info`                   | JSON config/schema paths, adapter, and enabled plugin IDs                               |
-| Generate SQL after schema changes          | `bunx --no-install stack db generate --name <change>` | New native Drizzle migration artifacts                                                  |
-| Check migration history                    | `bunx --no-install stack db check`                    | Native Drizzle migration consistency checks                                             |
-| Apply migrations to a development database | `bunx --no-install stack db migrate`                  | Native migrator completed against the selected database                                 |
+| Task                                       | Command                                               | What the result establishes                                                                  |
+| ------------------------------------------ | ----------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Inspect a new or unfamiliar application    | `bunx --no-install stack doctor --json`               | Detected entry points, schema directories, Compose, database migrations, and auth files      |
+| Verify a built worker before deployment    | `bunx --no-install stack worker --check`              | Server configuration, datastore and handler initialization succeed in a fresh worker process |
+| Inspect recent request failures            | `bunx --no-install stack logs errors --json`          | Persisted local error events                                                                 |
+| Trace one request                          | `bunx --no-install stack logs <request-id> --json`    | Persisted events selected by the native request selector                                     |
+| Watch a reproduction                       | `bunx --no-install stack logs --follow --json`        | New local events as newline-delimited JSON                                                   |
+| Inspect configuration                      | `bunx --no-install stack env load --agent`            | The native effective server configuration report                                             |
+| Check auth generation drift                | `bunx --no-install stack auth check`                  | Generated auth schema matches current configuration                                          |
+| Inspect auth configuration                 | `bunx --no-install stack auth info`                   | JSON config/schema paths, adapter, and enabled plugin IDs                                    |
+| Generate SQL after schema changes          | `bunx --no-install stack db generate --name <change>` | New native Drizzle migration artifacts                                                       |
+| Check migration history                    | `bunx --no-install stack db check`                    | Native Drizzle migration consistency checks                                                  |
+| Apply migrations to a development database | `bunx --no-install stack db migrate`                  | Native migrator completed against the selected database                                      |
 
 Use the actual command exit status when deciding whether a step succeeded. Stack preserves native tool output and failure statuses; its own diagnostics go to stderr. Use leaf-command `--help` to discover native flags rather than guessing them.
 
@@ -44,11 +45,11 @@ bunx --no-install stack doctor --json
 bunx --no-install stack doctor --auth-config src/server/auth/options.ts --auth-schema src/server/database/auth.generated.ts --json
 ```
 
-Doctor is offline and structural: it imports no application configuration, starts no services, resolves no credentials, and connects to no database. Its JSON has `frontend`, `backend`, `env`, `database`, `auth`, and `compose` sections. Inspect each section's `enabled`, `ready`, and `reason` fields where present. `env.client` and `env.server` are directory-presence booleans. `compose.enabled` and `compose.reason` explain exact-file detection.
+Doctor is offline and structural: it imports no application configuration, starts no services, resolves no credentials, and connects to no database. Its JSON has `frontend`, `backend`, `worker`, `env`, `database`, `auth`, `compose`, and `previewCompose` sections. Inspect each section's `enabled`, `ready`, and `reason` fields where present. `env.client` and `env.server` are directory-presence booleans. `compose` reports the development Compose file and `previewCompose` reports the preview file.
 
 Respond to findings at their actual boundary:
 
-- No application detected: add the intended entry at `src/index.html` and/or `src/server/index.ts`.
+- If doctor finds no application, add the entry for the intended capability. Use `src/index.html` for a frontend, `src/server/index.ts` for HTTP, or `src/server/worker.ts` for a worker.
 - Legacy root `index.html`: move it into `src/` and update its module URL and public assets; see [application patterns](application-patterns.md).
 - Enabled database has no migrations: inspect the schema/config, generate and review a migration, then rerun doctor. Development can run before migrations exist; production build/start require them.
 - Auth files missing: inspect the configured paths and use `auth info`, `auth generate`, and `auth check`; see [authentication](auth.md).
@@ -136,12 +137,36 @@ bunx --no-install stack auth secret
 ```sh
 bunx --no-install stack dev
 bunx --no-install stack build
+bunx --no-install stack preview
+bunx --no-install stack preview --env preview
 bunx --no-install stack start
 bunx --no-install stack start --env staging
+bunx --no-install stack worker --check --env staging
+bunx --no-install stack worker --env staging
 bunx --no-install stack --help
 bunx --no-install stack --version
 ```
 
-`dev` uses `NODE_ENV=development`; `build` and `start` use `production`. All three accept `--env` and reject extra arguments. Profile precedence is explicit `--env`, inherited `APP_ENV`, then command mode. `APP_ENV` chooses `.env.<profile>` files independently of Vite's mode. Utility commands retain the inherited `NODE_ENV`, defaulting to development, and accept `--env` where documented. Doctor and secret generation need no profile.
+| Command         | Purpose                                        | `NODE_ENV`  | Default Varlock profile |
+| --------------- | ---------------------------------------------- | ----------- | ----------------------- |
+| `stack dev`     | Develop from source with watching              | development | development             |
+| `stack build`   | Build deployable artifacts                     | production  | production              |
+| `stack preview` | Run the last build and local services together | production  | development             |
+| `stack start`   | Run the HTTP process in production             | production  | production              |
+| `stack worker`  | Run a jobs worker in production                | production  | production              |
+
+For these commands, `--env` takes precedence over inherited `APP_ENV`, then the default in the table applies. The profile selects runtime files for both the app and worker. Browser values compiled into the build keep their build-time values.
+
+### Local build preview
+
+After `stack build`, run `stack preview` from the application root. Stack reads the successful build manifest, starts dependencies from `docker-compose.preview.yml` if present, and waits for Compose readiness. Bun runs the built app locally. When both HTTP and a worker are present, preview waits for the HTTP entry to finish startup, including Stack’s database migrations, before launching the worker as a separate process. Frontend-only, backend-only and worker-only builds use the same command. In a worker-only build with the Database Block, preview applies the packaged migrations before importing the worker.
+
+Preview runs without a source watcher. Rebuild after source edits and restart preview after runtime configuration changes. Ctrl+C stops HTTP, drains the worker, and stops the preview Compose project. A child startup failure or unexpected exit also ends the session.
 
 Read [development](development.md) for process/watch/Compose behavior and [production](production.md) for build artifacts, startup, migrations, and shutdown. Interactive scaffolding, production Docker orchestration, and Windows CLI support are outside the supported command surface.
+
+## Jobs workers
+
+`stack dev` detects `src/server/worker.ts` and runs it as a dedicated process alongside any frontend and backend entries. It starts Compose first, labels each process's output, drains the backend and worker on server source or shared dependency edits, and stops Compose after the application processes exit. A worker-only project uses the same command.
+
+`stack doctor --json` reports the worker entry. `stack build` packages it. Run `stack worker [--env profile]` to consume jobs from the successful build, or `stack worker --check` to verify readiness and cleanup without consumption. Deploy worker replicas independently of HTTP.

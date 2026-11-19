@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { type Server, createServer } from "node:net";
 
-import { developmentComposeFile, isFile } from "./project";
+import { developmentComposeFile, isFile, previewComposeFile } from "./project";
 import { stop } from "./tools";
 
 async function docker(
@@ -48,10 +48,11 @@ async function docker(
   }
 }
 
-/** Manage infrastructure for one development session, without loading app configuration. */
-export function developmentCompose() {
-  const enabled = isFile(developmentComposeFile);
-  const args = ["compose", "-f", developmentComposeFile];
+/** Manage infrastructure for one local session, without loading app configuration. */
+export function sessionCompose(mode: "dev" | "preview") {
+  const file = mode === "dev" ? developmentComposeFile : previewComposeFile;
+  const enabled = isFile(file);
+  const args = ["compose", "-f", file];
   let target: string[] = [];
   let projectName = "";
   let started = false;
@@ -60,7 +61,7 @@ export function developmentCompose() {
     async start(signal: AbortSignal) {
       if (!enabled) return 0;
       for (const [check, message] of [
-        [["--version"], "Docker CLI is unavailable. Install Docker before running stack dev."],
+        [["--version"], `Docker CLI is unavailable. Install Docker before running stack ${mode}.`],
         [
           ["compose", "version"],
           "Docker Compose is unavailable. Install the Docker Compose plugin.",
@@ -109,10 +110,10 @@ export function developmentCompose() {
         typeof project.name !== "string"
       )
         throw new Error("Docker Compose did not return a project name.");
-      projectName = project.name;
+      projectName = mode === "preview" ? `${project.name}-preview` : project.name;
       args.push("--project-name", projectName);
       const key = createHash("sha256")
-        .update(JSON.stringify([daemon.stdout.trim(), project.name]))
+        .update(JSON.stringify([daemon.stdout.trim(), projectName]))
         .digest("hex");
       const server = createServer((socket) => socket.destroy());
       try {
@@ -126,7 +127,7 @@ export function developmentCompose() {
         if (!(error instanceof Error && "code" in error && error.code === "EADDRINUSE"))
           throw error;
         console.error(
-          `Another Stack development session is managing Compose project ${project.name}.`,
+          `Another Stack ${mode === "dev" ? "development" : mode} session is managing Compose project ${projectName}.`,
         );
         return 1;
       }

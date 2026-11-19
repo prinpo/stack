@@ -1,4 +1,4 @@
-export type JobOperation = "add" | "run" | "getJob";
+export type JobOperation = "add" | "run" | "getJob" | "inspect";
 export type Dispatcher = (
   queue: string,
   operation: JobOperation,

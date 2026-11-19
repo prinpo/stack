@@ -12,6 +12,7 @@ import { queryRoutes } from "./routes/queries";
 export const app = new Elysia()
   .use(openapi())
   .use(setupPlugin)
+  .get("/api/health", () => ({ status: "ok" }))
   .get("/api/profile", ({ user, session }) => ({ user, session }), { auth: true })
   .use(errorRoutes)
   .use(jobRoutes)

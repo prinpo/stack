@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
+import { readBuildManifest } from "../build-manifest";
 import { isFile } from "../files";
 
 export { isFile } from "../files";
@@ -36,16 +37,8 @@ export function inspectDatabase() {
 }
 
 /** Built capabilities come only from the successful manifest, never source presence. */
-export function builtDatabase() {
-  const manifest: unknown = JSON.parse(readFileSync("dist/manifest.json", "utf8"));
-  if (
-    !manifest ||
-    typeof manifest !== "object" ||
-    !("version" in manifest) ||
-    manifest.version !== 1
-  )
-    throw new Error("Invalid build manifest. Run stack build.");
-  if (!("database" in manifest) || manifest.database === false) return false;
+export function builtDatabase(manifest = readBuildManifest()) {
+  if (manifest.database === false) return false;
   const database = manifest.database;
   if (
     !database ||

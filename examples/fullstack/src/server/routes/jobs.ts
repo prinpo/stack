@@ -1,7 +1,7 @@
 import { Elysia } from "@prinpo/stack/server";
 
 import { setupPlugin } from "../plugins/setup";
-import { formatMessageInput } from "../validation/messages";
+import { formatMessageInput, saveMessageInput } from "../validation/messages";
 
 export const jobRoutes = new Elysia()
   .use(setupPlugin)
@@ -19,18 +19,22 @@ export const jobRoutes = new Elysia()
     { body: formatMessageInput },
   )
   .get("/api/jobs/format/:id", async ({ params, jobs, apiError }) => {
-    const job = await jobs.utilities.getJob.formatMessage(params.id);
-    if (!job)
+    const job = await jobs.utilities.inspect.formatMessage(params.id);
+    if (job.state === "missing")
       return apiError(404, {
         message: "Job not found",
         code: "JOB_NOT_FOUND",
         data: { jobId: params.id },
       });
-    return {
-      id: job.id,
-      data: job.data,
-      progress: job.progress,
-      state: await job.getState(),
-      result: job.returnvalue,
-    };
-  });
+    return job;
+  })
+  .post(
+    "/api/jobs/messages",
+    async ({ body, jobs }) => {
+      const job = await jobs.utilities.add.saveMessage(body, {
+        jobId: `message-${body.operationId}`,
+      });
+      return { id: job.id, operationId: body.operationId };
+    },
+    { body: saveMessageInput },
+  );

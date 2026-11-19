@@ -26,6 +26,15 @@ export function testRedis() {
     "no",
   );
   try {
+    const deadline = Date.now() + 10_000;
+    while (true) {
+      const ready = spawnSync("docker", ["exec", id, "redis-cli", "ping"], {
+        encoding: "utf8",
+        timeout: 2000,
+      });
+      if (ready.status === 0 && ready.stdout.trim() === "PONG") break;
+      if (Date.now() >= deadline) throw new Error("Ephemeral Redis did not become ready");
+    }
     let closed = false;
     const address = run("port", id, "6379/tcp");
     const port = Number(address.split(":").at(-1));

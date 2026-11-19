@@ -23,6 +23,7 @@ export async function stopProcessGroup(
   child: ChildProcess,
   signal: NodeJS.Signals = "SIGTERM",
   timeoutMs = 2000,
+  signalLeaderFirst = false,
 ) {
   if (!child.pid) return;
   const cleanedUp = (message: unknown) => {
@@ -35,7 +36,8 @@ export async function stopProcessGroup(
       signalGroup(child, "SIGKILL");
   };
   child.on("message", cleanedUp);
-  signalGroup(child, signal);
+  if (signalLeaderFirst) child.kill(signal);
+  else signalGroup(child, signal);
   const timeout = setTimeout(() => signalGroup(child, "SIGKILL"), timeoutMs);
   try {
     if (child.exitCode === null && child.signalCode === null)

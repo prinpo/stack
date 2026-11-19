@@ -2,20 +2,22 @@ import type { ChildProcess } from "node:child_process";
 
 import { defineCommand, showUsage } from "citty";
 import { existsSync, watch } from "node:fs";
-import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { buildManifestVersion, readBuildManifest } from "../build-manifest";
 import { builtDatabase } from "../database/files";
 import { serverEnvPaths } from "../env/paths";
 import { loadStaticEnv, readJobsShutdownTimeout } from "../env/server";
 import { jobsCleanupTimeoutMs } from "../jobs/lifecycle";
-import { developmentCompose } from "./compose";
+import { sessionCompose } from "./compose";
 import { buildDatabase } from "./database-build";
 import { frontendArguments, frontendEnvironment } from "./frontend";
 import { environment, profileArgs, takeOptions } from "./options";
 import { type Area, type BuildResult, buildSummary, heading, intro, restartNotice } from "./output";
-import { capabilities, isFile, outputs } from "./project";
+import { builtHttpEntry, builtWorkerEntry, capabilities, outputs, workerEntry } from "./project";
+import { buildRuntime, runtimeInputs } from "./runtime-build";
 import { runBun, spawnBun, stop } from "./tools";
 
 function lifecycleCommand(
@@ -23,9 +25,16 @@ function lifecycleCommand(
   description: string,
   action: (env: NodeJS.ProcessEnv) => Promise<void>,
 ) {
+  const mode = name === "dev" ? "development" : "production";
+  const defaultProfile = name === "preview" ? "development" : mode;
   const command = defineCommand({
     meta: { name, description },
-    args: profileArgs,
+    args: {
+      env: {
+        ...profileArgs.env,
+        description: `Environment profile (defaults to APP_ENV or ${defaultProfile})`,
+      },
+    },
     async run({ rawArgs }) {
       if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
         await showUsage(command, { meta: { name: "stack" } });
@@ -34,10 +43,7 @@ function lifecycleCommand(
       const { values, rest } = takeOptions(rawArgs, ["env"]);
       if (rest.length) throw new Error(`Unexpected arguments: ${rest.join(" ")}`);
       await action(
-        environment(
-          typeof values.env === "string" ? values.env : undefined,
-          name === "dev" ? "development" : "production",
-        ),
+        environment(typeof values.env === "string" ? values.env : undefined, mode, defaultProfile),
       );
     },
   });
@@ -93,73 +99,37 @@ export const build = lifecycleCommand(
         bytes: await outputSize(outputs.client),
       });
     }
-    if (app.backend) {
+    const { worker } = app;
+    if (app.backend || worker) {
       const backendStarted = performance.now();
-      heading("backend", "Building Bun server");
+      const area = app.backend ? "backend" : "worker";
+      heading(area, "Packaging Bun runtime modules");
       if (!database) await loadStaticEnv(serverEnvPaths(), { values: env, profile: env.APP_ENV });
-      await runBun(
-        [
-          "build",
-          "--target",
-          "bun",
-          "--packages",
-          "external",
-          "--banner",
-          'import "@prinpo/stack/browser-log/built"; process.env._STACK_DATABASE_BUILT = "1";',
-          "src/server/index.ts",
-          "--outdir",
-          outputs.server,
-        ],
-        env,
-        "inherit",
-        "backend",
-      );
+      await buildRuntime(app.backend, worker);
       const milliseconds = performance.now() - backendStarted;
       results.push({
-        area: "backend",
+        area,
         directory: outputs.server,
         milliseconds,
         bytes: await outputSize(outputs.server),
       });
     }
     await mkdir("dist", { recursive: true });
-    await writeFile(outputs.manifest, JSON.stringify({ version: 1, ...app, database }) + "\n");
+    await writeFile(
+      outputs.manifest,
+      JSON.stringify({ version: buildManifestVersion, ...app, database }) + "\n",
+    );
     buildSummary(results, performance.now() - started, env.APP_ENV ?? "production");
   },
 );
 
 export const start = lifecycleCommand(
   "start",
-  "Start the successful build with runtime configuration",
+  "Run the built HTTP server in production",
   async (env) => {
-    let manifest: unknown;
-    try {
-      manifest = JSON.parse(await readFile(outputs.manifest, "utf8"));
-    } catch {
-      throw new Error("Missing or invalid dist/manifest.json. Run stack build before starting.");
-    }
-    if (
-      !manifest ||
-      typeof manifest !== "object" ||
-      !("version" in manifest) ||
-      manifest.version !== 1 ||
-      !("frontend" in manifest) ||
-      typeof manifest.frontend !== "boolean" ||
-      !("backend" in manifest) ||
-      typeof manifest.backend !== "boolean" ||
-      (!manifest.frontend && !manifest.backend)
-    )
-      throw new Error("Invalid build manifest. Run stack build before starting.");
-    for (const [enabled, path] of [
-      [manifest.frontend, `${outputs.client}/index.html`],
-      [manifest.backend, outputs.entry],
-    ] as const)
-      if (enabled && !isFile(path))
-        throw new Error(`Build artifact missing or invalid: ${path}. Run stack build.`);
-    builtDatabase();
-    const entry = manifest.backend
-      ? outputs.entry
-      : fileURLToPath(new URL("../start-frontend.ts", import.meta.url));
+    const manifest = readBuildManifest();
+    const entry = builtHttpEntry(manifest);
+    builtDatabase(manifest);
     const startup = {
       ...env,
       _SERVE_CLIENT: manifest.frontend ? "1" : "0",
@@ -174,139 +144,245 @@ export const start = lifecycleCommand(
   },
 );
 
+type LocalCommand = { area: Area; args: string[]; waitForHttp?: boolean };
+
+function developmentCommands(app: ReturnType<typeof capabilities>) {
+  const commands: LocalCommand[] = [];
+  if (app.worker) commands.push({ area: "worker", args: [workerEntry] });
+  if (app.backend)
+    commands.push({
+      area: "backend",
+      args: [
+        ...(app.worker ? [] : ["--watch", "--no-clear-screen"]),
+        "--preload",
+        fileURLToPath(new URL("../browser-log/preload.ts", import.meta.url)),
+        "src/server/index.ts",
+      ],
+    });
+  if (app.frontend)
+    commands.push({
+      area: "frontend",
+      args: [...frontendArguments("dev"), "--strictPort", "--clearScreen", "false"],
+    });
+  return commands;
+}
+
+function previewCommands(app: ReturnType<typeof readBuildManifest>) {
+  const commands: LocalCommand[] = [];
+  const database = builtDatabase(app);
+  const http = app.frontend || app.backend;
+  if (http) {
+    const entry = builtHttpEntry(app);
+    commands.push({
+      area: app.backend ? "backend" : "frontend",
+      args: app.worker
+        ? [
+            fileURLToPath(new URL("./preview-http.ts", import.meta.url)),
+            ...(app.backend ? [resolve(entry)] : []),
+          ]
+        : [entry],
+      waitForHttp: app.worker,
+    });
+  }
+  if (app.worker)
+    commands.push({
+      area: "worker",
+      args: [
+        ...(!http && database
+          ? ["--preload", fileURLToPath(new URL("./preview-migrate.ts", import.meta.url))]
+          : []),
+        builtWorkerEntry(app),
+      ],
+    });
+  return commands;
+}
+
 export const dev = lifecycleCommand(
   "dev",
   "Run detected capabilities with native code watching",
-  async (env) => {
+  (env) => {
     const app = capabilities();
-    intro("dev", env.APP_ENV);
-    const commands: { area: Area; args: string[] }[] = [];
-    if (app.backend)
-      commands.push({
-        area: "backend",
-        args: [
-          "--watch",
-          "--no-clear-screen",
-          "--preload",
-          fileURLToPath(new URL("../browser-log/preload.ts", import.meta.url)),
-          "src/server/index.ts",
-        ],
-      });
-    if (app.frontend)
-      commands.push({
-        area: "frontend",
-        args: [...frontendArguments("dev"), "--strictPort", "--clearScreen", "false"],
-      });
-    let children: ChildProcess[] = [];
-    const gracePeriods = new WeakMap<ChildProcess, number>();
-    const stopChild = (child: ChildProcess) =>
-      stop(child, "SIGTERM", gracePeriods.get(child) ?? 2000);
-    const compose = developmentCompose();
-    const cancellation = new AbortController();
-    let launched = false;
-    let closing = false;
-    let finish!: (status: number) => void;
-    const completed = new Promise<number>((done) => {
-      finish = done;
-    });
-    const close = (status: number) => {
-      if (!closing) {
-        closing = true;
-        cancellation.abort(status);
-        finish(status);
-      }
-    };
-    const launch = async () => {
-      const grace = app.backend
+    return localSession("dev", env, app, developmentCommands(app));
+  },
+);
+export const preview = lifecycleCommand(
+  "preview",
+  "Run the last build locally with preview services and workers",
+  (env) => {
+    const app = readBuildManifest();
+    return localSession("preview", env, app, previewCommands(app));
+  },
+);
+
+async function localSession(
+  mode: "dev" | "preview",
+  env: NodeJS.ProcessEnv,
+  app: ReturnType<typeof capabilities>,
+  commands: LocalCommand[],
+) {
+  const watching = mode === "dev";
+  intro(mode, env.APP_ENV);
+  let children: ChildProcess[] = [];
+  const areas = new WeakMap<ChildProcess, Area>();
+  const gracePeriods = new WeakMap<ChildProcess, number>();
+  const stopChild = (child: ChildProcess) =>
+    stop(child, "SIGTERM", gracePeriods.get(child) ?? 2000, app.worker && gracePeriods.has(child));
+  const stopChildren = async (previous: ChildProcess[]) => {
+    // HTTP requests already waiting for jobs can finish while the worker is available.
+    await Promise.all(previous.filter((child) => areas.get(child) !== "worker").map(stopChild));
+    await Promise.all(previous.filter((child) => areas.get(child) === "worker").map(stopChild));
+  };
+  const compose = sessionCompose(mode);
+  const cancellation = new AbortController();
+  let launched = false;
+  let closing = false;
+  let finish!: (status: number) => void;
+  const completed = new Promise<number>((done) => {
+    finish = done;
+  });
+  const close = (status: number) => {
+    if (!closing) {
+      closing = true;
+      cancellation.abort(status);
+      finish(status);
+    }
+  };
+  let imports: Set<string> | undefined;
+  const launch = async (targets = commands) => {
+    const grace =
+      app.backend || app.worker
         ? await readJobsShutdownTimeout({ profile: env.APP_ENV, values: env })
         : 0;
-      if (closing) return;
-      launched = true;
-      const developmentEnv = { ...env, _STACK_BROWSER_LOG_IPC: "1" };
-      for (const command of commands) {
-        const child = spawnBun(
-          command.args,
-          command.area === "frontend" ? frontendEnvironment(developmentEnv) : developmentEnv,
-          "inherit",
-          command.area,
-        );
-        children.push(child);
-        if (command.area === "backend")
-          gracePeriods.set(child, Math.min(2_147_483_647, grace + jobsCleanupTimeoutMs));
-        if (command.area === "backend")
-          child.on("message", (message) => {
-            if (
-              message &&
-              typeof message === "object" &&
-              "type" in message &&
-              message.type === "stack:browser-log"
-            )
-              for (const receiver of children)
-                if (receiver !== child && receiver.connected) receiver.send(message, () => {});
-          });
-        child.once("error", (error) => {
-          console.error(error.message);
-          close(1);
-        });
-        child.once("exit", (code) => {
-          if (children.includes(child)) close(code || 1);
-        });
-      }
+    if (watching && app.worker) {
+      // If the graph is incomplete, watch all source and let Bun report startup errors.
+      const inputs = await runtimeInputs(app.backend, true).catch(() => undefined);
+      imports = inputs && new Set(Object.keys(inputs).map((path) => resolve(path)));
+    }
+    if (closing) return;
+    launched = true;
+    const sessionEnv = {
+      ...env,
+      _STACK_LOCAL_SESSION: "1",
+      ...(!watching && { _STACK_DATABASE_BUILT: "1", _SERVE_CLIENT: app.frontend ? "1" : "0" }),
     };
-    const interrupt = () => close(130);
-    const terminate = () => close(143);
-    process.on("SIGINT", interrupt);
-    process.on("SIGTERM", terminate);
-    let restarting = Promise.resolve();
-    let debounce: ReturnType<typeof setTimeout> | undefined;
-    const watcher =
-      app.backend && existsSync("env/server")
-        ? watch("env/server", { recursive: true }, (_, file) => {
-            const changedPath = file ? join("env/server", file) : "env/server";
-            clearTimeout(debounce);
-            debounce = setTimeout(() => {
-              restarting = restarting
-                .then(async () => {
-                  const previous = children;
-                  children = [];
-                  await Promise.all(previous.map(stopChild));
-                  if (!closing && launched) {
-                    restartNotice(changedPath, commands.length > 1);
-                    await launch();
-                  }
-                })
-                .catch((error) => {
-                  console.error(error);
-                  close(1);
-                });
-            }, 100);
+    for (const command of targets) {
+      const child = spawnBun(
+        command.args,
+        watching && command.area === "frontend" ? frontendEnvironment(sessionEnv) : sessionEnv,
+        "inherit",
+        command.area,
+        watching || command.area === "backend" || command.waitForHttp,
+      );
+      children.push(child);
+      areas.set(child, command.area);
+      if (!watching || command.area !== "frontend")
+        gracePeriods.set(child, Math.min(2_147_483_647, grace + jobsCleanupTimeoutMs));
+      if (watching && command.area === "backend")
+        child.on("message", (message) => {
+          if (
+            message &&
+            typeof message === "object" &&
+            "type" in message &&
+            message.type === "stack:browser-log"
+          )
+            for (const receiver of children)
+              if (receiver !== child && receiver.connected) receiver.send(message, () => {});
+        });
+      child.once("error", (error) => {
+        console.error(error.message);
+        close(1);
+      });
+      child.once("exit", (code) => {
+        if (children.includes(child)) close(code || 1);
+      });
+      if (command.waitForHttp) {
+        const ready = Promise.withResolvers<void>();
+        const onReady = (message: unknown) => {
+          if (message === "stack:http-ready") ready.resolve();
+        };
+        child.on("message", onReady);
+        await Promise.race([ready.promise, completed]);
+        child.off("message", onReady);
+        if (closing) return;
+      }
+    }
+  };
+  const interrupt = () => close(130);
+  const terminate = () => close(143);
+  process.on("SIGINT", interrupt);
+  process.on("SIGTERM", terminate);
+  let restarting = Promise.resolve();
+  let debounce: ReturnType<typeof setTimeout> | undefined;
+  let restartFrontend = false;
+  const directories = watching
+    ? [
+        ...((app.backend || app.worker) && existsSync("env/server") ? ["env/server"] : []),
+        ...(app.worker ? ["src"] : []),
+      ]
+    : [];
+  const watchers = directories.map((directory) =>
+    watch(directory, { recursive: true }, (_, file) => {
+      const changedPath = file ? join(directory, file) : directory;
+      const sourceEdit = directory === "src";
+      if (
+        sourceEdit &&
+        file &&
+        file.split(sep)[0] !== "server" &&
+        imports &&
+        !imports.has(resolve(changedPath))
+      )
+        return;
+      if (!sourceEdit) restartFrontend = true;
+      clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        const fullRestart = restartFrontend;
+        restartFrontend = false;
+        restarting = restarting
+          .then(async () => {
+            const previous = children.filter(
+              (child) => fullRestart || areas.get(child) !== "frontend",
+            );
+            children = children.filter((child) => !previous.includes(child));
+            await stopChildren(previous);
+            if (!closing && launched) {
+              restartNotice(changedPath, commands.length > 1);
+              await launch(
+                commands.filter((command) => fullRestart || command.area !== "frontend"),
+              );
+            }
           })
-        : undefined;
-    watcher?.on("error", (error) => {
+          .catch((error) => {
+            console.error(error);
+            close(1);
+          });
+      }, 100);
+    }),
+  );
+  for (const watcher of watchers)
+    watcher.on("error", (error) => {
       console.error(error.message);
       close(1);
     });
-    try {
-      const startupStatus = await compose.start(cancellation.signal);
-      if (startupStatus !== 0 || closing) {
-        process.exitCode = startupStatus || Number(cancellation.signal.reason);
-        return;
-      }
-      await launch();
-      const status = await completed;
-      process.exitCode = status;
-    } finally {
-      clearTimeout(debounce);
-      watcher?.close();
-      await restarting;
-      await Promise.all(children.map(stopChild));
-      const cleanupStatus = await compose.stop();
-      if (cleanupStatus !== 0) {
-        console.error("Failed to stop development Compose services.");
-        process.exitCode ||= cleanupStatus;
-      }
-      process.off("SIGINT", interrupt);
-      process.off("SIGTERM", terminate);
+  try {
+    const startupStatus = await compose.start(cancellation.signal);
+    if (startupStatus !== 0 || closing) {
+      process.exitCode = startupStatus || Number(cancellation.signal.reason);
+      return;
     }
-  },
-);
+    await launch();
+    const status = await completed;
+    process.exitCode = status;
+  } finally {
+    clearTimeout(debounce);
+    for (const watcher of watchers) watcher.close();
+    await restarting;
+    await stopChildren(children);
+    const cleanupStatus = await compose.stop();
+    if (cleanupStatus !== 0) {
+      console.error(`Failed to stop ${watching ? "development" : "preview"} Compose services.`);
+      process.exitCode ||= cleanupStatus;
+    }
+    process.off("SIGINT", interrupt);
+    process.off("SIGTERM", terminate);
+  }
+}

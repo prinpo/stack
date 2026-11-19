@@ -1,5 +1,7 @@
 # Derive job clients from BullMQ job definitions
 
+[ADR 0023](0023-run-independent-workers-with-native-json-results.md) extends this initial scope with transported result types, independently scaled workers, process/thread sandboxes, and worker build artifacts. Other deferrals below remain in effect.
+
 Build the Jobs Block on BullMQ with Redis as the initial datastore. Define each job's input schema alongside its handler, infer its result from the handler, and derive the producer API from those definitions rather than maintaining parallel producer and worker contracts. Producers initially run in backend code and connect directly to Redis; submitting work does not require an HTTP jobs service.
 
 Validate inputs before accepting submitted work and at the worker boundary because queued data can outlive a deployment or arrive from another producer. Accept Standard Schema validators, with Stack's existing Zod dependency as the preferred validator. Invalid worker inputs and unknown job names are unrecoverable job failures, while ordinary handler failures retain configurable BullMQ retry behavior.

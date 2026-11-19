@@ -42,12 +42,13 @@ export function spawnBun(
   env: NodeJS.ProcessEnv,
   stdout: "inherit" | "ignore" = "inherit",
   area?: Area,
+  ipc = false,
 ) {
   const child = spawnBunProcess(args, area ? labeledEnvironment(env) : env, [
     "inherit",
     area && stdout === "inherit" ? "pipe" : stdout,
     area ? "pipe" : "inherit",
-    ...(env._STACK_BROWSER_LOG_IPC === "1" ? ["ipc" as const] : []),
+    ...(ipc ? ["ipc" as const] : []),
   ]);
   if (area && child.stdout) forwardLines(child.stdout, process.stdout, area);
   if (area && child.stderr) forwardLines(child.stderr, process.stderr, area, true);

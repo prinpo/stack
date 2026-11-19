@@ -8,6 +8,7 @@ import { version } from "../../package.json";
 const areas = {
   frontend: { title: "Frontend", tone: "cyan" },
   backend: { title: "Backend", tone: "magenta" },
+  worker: { title: "Worker", tone: "yellow" },
 } as const;
 export type Area = keyof typeof areas;
 export const color = new Chalk({ level: process.env.NO_COLOR ? 0 : chalk.level });

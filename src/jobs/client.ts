@@ -15,13 +15,14 @@ export function createJobsClient<Q extends QueueDefinitions>({
       get(_, alias) {
         if (typeof alias !== "string" || alias === "then") return undefined;
         if (!queues.has(alias)) {
-          const named = (operation: "add" | "run" | "getJob") => ({
+          const named = (operation: "add" | "run" | "getJob" | "inspect") => ({
             get(_: unknown, job: string | symbol) {
               if (typeof job !== "string" || job === "then") return undefined;
               return (...args: unknown[]) => dispatchJob(name, alias, operation, job, args);
             },
           });
           queues.set(alias, {
+            inspect: new Proxy({}, named("inspect")),
             add: new Proxy({}, named("add")),
             run: new Proxy({}, named("run")),
             getJob: new Proxy(
