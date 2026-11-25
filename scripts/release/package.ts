@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { devDependencies } from "../../package.json";
+import { dependencies, devDependencies } from "../../package.json";
 import { generateDatabaseExports } from "../generate-database-exports";
 import { command } from "./command";
 import { validateInitializer } from "./initializer";
@@ -104,6 +104,8 @@ if (await response.text() !== "packed" || isStructuredApiError(null)) throw new 
     const cli = join(consumer, "node_modules/.bin/stack");
     if (!command([cli, "--version"], consumer, env).includes(version))
       throw new Error("Installed CLI reports the wrong version");
+    if (command([cli, "i18n", "--version"], consumer, env).trim() !== dependencies.gt)
+      throw new Error("Installed i18n command reports the wrong GT version");
 
     // Add the application's UI peers and toolchain only after backend-only validation.
     const packageRoot = join(consumer, "node_modules/@prinpo/stack");

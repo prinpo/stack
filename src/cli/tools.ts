@@ -5,16 +5,17 @@ import { dirname, resolve } from "node:path";
 import { spawnBunProcess, stopProcessGroup as stop } from "../processes";
 import { type Area, forwardLines, labeledEnvironment } from "./output";
 
-const require = createRequire(import.meta.url);
-
 export { stop };
 
 /** Resolve the installed package's executable, including packages with private manifests. */
 export function tool(name: string, executable: string) {
-  const resolver = name === "vite-plus" ? createRequire(resolve("package.json")) : require;
   let directory: string;
   try {
-    directory = dirname(resolver.resolve(name));
+    directory = dirname(
+      name === "vite-plus"
+        ? createRequire(resolve("package.json")).resolve(name)
+        : Bun.resolveSync(name, import.meta.dir),
+    );
   } catch {
     throw new Error(
       `Missing ${name}. Install the application's development tooling before running this command.`,

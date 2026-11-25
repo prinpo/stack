@@ -26,6 +26,8 @@ type ApiPath<T, TPrefix extends string> = TPrefix extends `/${infer Rest}`
 interface ApiClientConfig {
   /** Native Treaty configuration, including headers and fetcher. */
   treaty?: Treaty.Config;
+  /** Active locale for requests without an explicit Accept-Language header. */
+  getLocale?: () => string;
   /** Native QueryClient configuration. Each factory call owns its cache. */
   query?: QueryClientConfig;
 }
@@ -65,7 +67,24 @@ export function createApiClient<TApp extends AnyElysia, TPrefix extends string =
   origin: string,
   options: ApiClientConfig & { prefix?: TPrefix } = {},
 ): ApiClient<TApp, TPrefix> {
-  const client = treaty<TApp>(origin, options.treaty);
+  const { getLocale, treaty: treatyOptions } = options;
+  const onRequest = treatyOptions?.onRequest;
+  const client = treaty<TApp>(
+    origin,
+    getLocale
+      ? {
+          ...treatyOptions,
+          onRequest: [
+            (_path, request) => {
+              const headers = new Headers(request.headers);
+              if (!headers.has("Accept-Language")) headers.set("Accept-Language", getLocale());
+              return { headers };
+            },
+            ...(Array.isArray(onRequest) ? onRequest : onRequest ? [onRequest] : []),
+          ],
+        }
+      : treatyOptions,
+  );
   const queryClient = new QueryClient(options.query);
   const proxy = createEdenOptionsProxy<TApp>({ client });
   const segments = (options.prefix ?? "").split("/").filter(Boolean);

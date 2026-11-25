@@ -15,3 +15,6 @@ _Avoid_: Preset, template
 **Jobs Block**:
 The Block for defining, submitting, and processing background work with a shared, type-safe contract.
 _Avoid_: Jobs server
+
+**i18n Block**:
+The optional Block for localizing an application's frontend and backend with application-owned translations.

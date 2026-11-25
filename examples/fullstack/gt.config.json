@@ -1,0 +1,10 @@
+{
+  "defaultLocale": "en",
+  "locales": ["pl"],
+  "localeRouting": true,
+  "files": {
+    "json": {
+      "include": ["src/i18n/{client,server}/[locale].json"]
+    }
+  }
+}

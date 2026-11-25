@@ -10,7 +10,15 @@ export default defineConfig({
         test: {
           name: "stack",
           include: ["tests/**/*.test.{ts,tsx}"],
-          exclude: ["tests/eden-query/**"],
+          exclude: ["tests/eden-query/**", "tests/i18n-*.test.tsx"],
+        },
+      },
+      {
+        resolve: { conditions: ["browser", "module", "development|production"] },
+        test: {
+          name: "i18n-browser",
+          include: ["tests/i18n-*.test.tsx"],
+          server: { deps: { inline: ["gt-react"] } },
         },
       },
       {

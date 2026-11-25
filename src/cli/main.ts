@@ -21,6 +21,7 @@ const main = defineCommand({
     env: () => import("./env").then((module) => module.default),
     doctor: () => import("./doctor").then((module) => module.default),
     auth: () => import("./auth").then((module) => module.default),
+    i18n: () => import("./i18n").then((module) => module.default),
     db: () => import("./database").then((module) => module.default),
   },
 });

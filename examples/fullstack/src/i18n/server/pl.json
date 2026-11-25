@@ -1,0 +1,9 @@
+{
+  "errors": {
+    "ORDER_CONFIRMED": {
+      "message": "To przykładowe zamówienie zostało już potwierdzone",
+      "why": "Zamówienie można potwierdzić tylko raz",
+      "fix": "Otwórz istniejące zamówienie"
+    }
+  }
+}

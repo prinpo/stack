@@ -5,7 +5,7 @@ import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { version } from "../package.json";
+import { dependencies, version } from "../package.json";
 import { createTestDirectory } from "./test-utils/directory";
 
 const cli = resolve("src/cli/main.ts");
@@ -70,6 +70,52 @@ test("doctor explains inferred capabilities without resolving application creden
     env: { client: false, server: true },
     compose: { enabled: false, reason: "Missing docker-compose.dev.yml" },
   });
+});
+
+test("doctor reports the default and target locales from gt.config.json", async () => {
+  const cwd = await project({
+    "src/index.html": "",
+    "gt.config.json": '{"defaultLocale":"en","locales":["pl","en"]}',
+  });
+  const result = run(cwd, ["doctor", "--json"]);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).i18n).toMatchObject({
+    enabled: true,
+    defaultLocale: "en",
+    locales: ["en", "pl"],
+  });
+  expect(run(cwd, ["doctor"]).stdout).toContain("en (default), pl");
+});
+
+test("i18n forwards native GT options from the application directory", async () => {
+  const cwd = await project({
+    "package.json": '{"name":"stack-i18n-fixture","private":true}',
+    "translations.json": JSON.stringify({
+      defaultLocale: "en",
+      locales: ["fr-ca"],
+      files: { json: { include: ["src/i18n/client/[locale].json"] } },
+    }),
+    "src/i18n/client/en.json": '{"title":"Welcome"}',
+  });
+  const versionResult = run(cwd, ["i18n", "--version"]);
+  expect(versionResult.status, versionResult.stderr).toBe(0);
+  expect(versionResult.stdout.trim()).toBe(dependencies.gt);
+
+  const result = run(cwd, ["i18n", "translate", "--config", "translations.json", "--dry-run"], {
+    GT_PROJECT_ID: "",
+    GT_API_KEY: "",
+  });
+  expect(result.status, result.stderr).toBe(0);
+  const output = result.stdout + result.stderr;
+  expect(output).toContain("src/i18n/client/en.json");
+  expect(output).toContain("Dry run: No files were sent");
+  expect(await readdir(join(cwd, "src/i18n/client"))).toEqual(["en.json"]);
+});
+
+test("i18n preserves native GT command failures", async () => {
+  const result = run(await project(), ["i18n", "unknown-command"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("unknown command 'unknown-command'");
 });
 
 test.each([false, true])(
