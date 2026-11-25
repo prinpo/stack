@@ -4,6 +4,7 @@ import { readBuildManifest } from "../build-manifest";
 import { builtDatabase } from "../database/files";
 import { environment, profileArgs, takeOptions } from "./options";
 import { builtWorkerEntry } from "./project";
+import { runLifecycleScript } from "./scripts";
 
 const worker = defineCommand({
   meta: { name: "worker", description: "Run a built jobs worker in production" },
@@ -29,6 +30,17 @@ const worker = defineCommand({
       "production",
     );
     if (values.check) env._STACK_JOBS_CHECK = "1";
+    else {
+      const status = await runLifecycleScript(
+        manifest.config.scripts?.worker?.pre,
+        "worker pre",
+        env,
+      );
+      if (status) {
+        process.exitCode = status;
+        return;
+      }
+    }
     env._STACK_DATABASE_BUILT = "1";
     const inherited = Object.fromEntries(
       Object.entries(env).filter(

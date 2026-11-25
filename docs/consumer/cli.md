@@ -61,7 +61,7 @@ bunx --no-install stack doctor --json
 bunx --no-install stack doctor --auth-config src/server/auth/options.ts --auth-schema src/server/database/auth.generated.ts --json
 ```
 
-Doctor is offline and structural: it imports no application configuration, starts no services, resolves no credentials, and connects to no database. Its JSON has `frontend`, `backend`, `worker`, `env`, `database`, `auth`, `i18n`, `compose`, and `previewCompose` sections. Inspect each section's `enabled`, `ready`, and `reason` fields where present. `env.client` and `env.server` are directory-presence booleans. `compose` reports the development Compose file and `previewCompose` reports the preview file.
+Doctor imports and validates the optional `stack.config.ts` and inspects the other conventional files structurally. It resolves no credentials, starts no services, and runs no lifecycle scripts. Its JSON includes `config` with the Stack configuration source and registered scripts. Inspect `enabled`, `ready`, and `reason` where present in `frontend`, `backend`, `worker`, `database`, `auth`, `i18n`, `compose`, and `previewCompose`. `env.client` and `env.server` report directory presence. Compose and database findings distinguish configuration overrides from missing files.
 
 Respond to findings at their actual boundary:
 
@@ -72,7 +72,36 @@ Respond to findings at their actual boundary:
 - i18n reports configured locales from root `gt.config.json`. Fix malformed configuration before rerunning doctor. See the [i18n Block](i18n.md).
 - Optional capability absent: treat it as informational unless the requested feature needs that capability.
 
-Doctor returns nonzero for an absent application, obsolete frontend entry, or enabled database, auth, or i18n capability that is not structurally ready. A green doctor result does not prove schema validity, credential validity, database connectivity, applied migrations, or successful auth delivery. Use the narrower commands below and runtime logs for those questions.
+Doctor returns nonzero for invalid Stack configuration, a missing registered script, an absent application, an obsolete frontend entry, or an enabled database, auth, or i18n capability that lacks a required file. Use the narrower commands below and runtime logs to verify database and authentication behavior.
+
+## Configure lifecycle ownership
+
+Use an optional `stack.config.ts` at the application root. Each omitted option uses Stack's existing conventions. Export data only so doctor and the CLI can import the file without starting services or resolving credentials. Keep deployment values in [Varlock](env.md).
+
+```ts
+import { defineConfig } from "@prinpo/stack/config";
+
+export default defineConfig({
+  compose: { dev: "start-only", preview: "external" },
+  database: "external",
+  scripts: {
+    dev: { pre: "prepare:dev" },
+    preview: { post: "cleanup:preview" },
+  },
+});
+```
+
+Compose defaults to `managed` for both `dev` and `preview`. Use `start-only` to leave the project running or `external` to manage it independently. `database: "external"` leaves migrations under explicit ownership even if a root `drizzle.config.ts` exists. See [Compose dependencies](development.md#development-compose-dependencies) and [the database lifecycle](database.md#migration-ownership-and-diagnostic-boundaries).
+
+Each script name refers to one entry in the app's `package.json`. Stack executes that entry with `/bin/sh` and makes local package binaries available. Register each phase explicitly. Scripts inherit the command's environment, including `APP_ENV` and `NODE_ENV`. Use `stack env run` inside a script that needs Varlock to resolve settings. Compose continues to use Docker's own environment rules.
+
+| Command           | `pre`                                                                | `post`                                                  |
+| ----------------- | -------------------------------------------------------------------- | ------------------------------------------------------- |
+| `dev`, `preview`  | After Compose startup and before app launch                          | After app shutdown and before managed Compose stops     |
+| `build`           | Before building                                                      | After outputs are ready and before manifest publication |
+| `start`, `worker` | Before process handoff, using the script name captured at build time | Deployment supervisor owns actions after process exit   |
+
+Dev and preview run their scripts once per session, including cleanup on an orderly interrupt or a failed `pre`. A failed Compose startup skips both scripts. A failed `post` still allows Compose cleanup and preserves any earlier failure status. Build runs `post` after a successful build and publishes its manifest only when `post` succeeds. `worker --check` runs the readiness check alone. Preview uses its own scripts when launching built processes.
 
 ## Retrieve logs before changing code
 
@@ -110,7 +139,7 @@ Use native Varlock options and output for these operations. Help before `env run
 
 ## Database changes
 
-Root `drizzle.config.ts` enables Stack's one managed database. Use native schema definitions through Stack's [database import paths](database.md).
+By default, root `drizzle.config.ts` enables Stack's one managed database. `database: "external"` leaves schema operations to explicit commands. Use native schema definitions through Stack's [database import paths](database.md).
 
 ```sh
 bunx --no-install stack db generate --name add_notes
@@ -119,7 +148,7 @@ bunx --no-install stack db migrate
 bunx --no-install stack doctor --json
 ```
 
-After changing schema, generate SQL, inspect the resulting files under root `migrations/`, and check the migration history. Apply reviewed migrations to the intended development database explicitly. Commit complete native migration folders, including snapshots. Development does not mutate schemas automatically. Production startup migrates automatically before importing the app or listening.
+After changing schema, generate SQL, inspect the resulting files under root `migrations/`, and check the migration history. Apply reviewed migrations to the intended development database explicitly. Commit complete native migration folders, including snapshots. With the managed policy, production startup applies those migrations before importing the app or listening.
 
 | Command       | Use and configuration boundary                                                                                                 |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------ |

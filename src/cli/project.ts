@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { readBuildManifest } from "../build-manifest";
+import type { ComposePolicy, StackConfig } from "../config/schema";
 
 import { inspectAuth } from "../auth/files";
 import { buildManifestPath } from "../build-manifest";
@@ -14,16 +15,28 @@ import { frontendEntry } from "../project-layout";
 export { isFile } from "../files";
 
 export const workerEntry = "src/server/worker.ts";
-export const previewComposeFile = "docker-compose.preview.yml";
-export const developmentComposeFile = "docker-compose.dev.yml";
+export const composeFiles = {
+  dev: "docker-compose.dev.yml",
+  preview: "docker-compose.preview.yml",
+};
 
-export function inspectProject(auth: { config?: string; schema?: string } = {}) {
+export function inspectCompose(mode: keyof typeof composeFiles, policy?: ComposePolicy) {
+  const file = composeFiles[mode];
+  if (policy === "external")
+    return { enabled: false, reason: `${file} disabled (config override: external)` };
+  const enabled = isFile(file);
+  const override = policy ? ` (config override: ${policy})` : "";
+  return { enabled, reason: `${enabled ? "Found" : "Missing"} ${file}${override}` };
+}
+
+export function inspectProject(
+  auth: { config?: string; schema?: string } = {},
+  config: StackConfig = {},
+) {
   const frontend = isFile(frontendEntry);
   const legacyFrontend = !frontend && isFile("index.html");
   const backend = isFile("src/server/index.ts");
   const worker = isFile(workerEntry);
-  const compose = isFile(developmentComposeFile);
-  const previewCompose = isFile(previewComposeFile);
   return {
     frontend: {
       enabled: frontend,
@@ -38,23 +51,17 @@ export function inspectProject(auth: { config?: string; schema?: string } = {}) 
       enabled: worker,
       reason: `${worker ? "Found" : "Missing"} ${workerEntry}`,
     },
-    previewCompose: {
-      enabled: previewCompose,
-      reason: `${previewCompose ? "Found" : "Missing"} ${previewComposeFile}`,
-    },
+    previewCompose: inspectCompose("preview", config.compose?.preview),
     env: { client: existsSync("env/client"), server: existsSync("env/server") },
-    database: inspectDatabase(),
+    database: inspectDatabase(config.database),
     auth: inspectAuth(auth.config, auth.schema),
     i18n: inspectI18n(),
-    compose: {
-      enabled: compose,
-      reason: `${compose ? "Found" : "Missing"} ${developmentComposeFile}`,
-    },
+    compose: inspectCompose("dev", config.compose?.dev),
   };
 }
 
-export function capabilities() {
-  const project = inspectProject();
+export function capabilities(config: StackConfig) {
+  const project = inspectProject({}, config);
   if (!project.frontend.ready) throw new Error(project.frontend.reason);
   if (!project.frontend.enabled && !project.backend.enabled && !project.worker.enabled)
     throw new Error(

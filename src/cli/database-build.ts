@@ -1,14 +1,16 @@
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import type { DatabasePolicy } from "../config/schema";
+
 import { databaseArtifacts, databaseConfig, inspectDatabase } from "../database/files";
 import { serverEnvPaths } from "../env/paths";
 import { loadStaticEnv } from "../env/server";
 import { runBun } from "./tools";
 
 /** Compile executable config without evaluating it; retain complete native migration history. */
-export async function buildDatabase(env: NodeJS.ProcessEnv) {
-  const database = inspectDatabase();
+export async function buildDatabase(env: NodeJS.ProcessEnv, policy?: DatabasePolicy) {
+  const database = inspectDatabase(policy);
   if (!database.enabled) return false;
   if (!database.ready) throw new Error(database.reason);
   await loadStaticEnv(serverEnvPaths(), { values: env, profile: env.APP_ENV });

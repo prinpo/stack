@@ -1,6 +1,8 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
+import type { DatabasePolicy } from "../config/schema";
+
 import { readBuildManifest } from "../build-manifest";
 import { isFile } from "../files";
 
@@ -20,19 +22,23 @@ export function migrationCount(directory: string) {
 }
 
 /** Inspect conventional files only; never evaluate application configuration. */
-export function inspectDatabase() {
-  const enabled = isFile(databaseConfig);
+export function inspectDatabase(policy?: DatabasePolicy) {
+  const enabled = policy !== "external" && isFile(databaseConfig);
   const count = enabled ? migrationCount(migrationsDirectory) : 0;
+  const reason = !enabled
+    ? `Missing ${databaseConfig}`
+    : count
+      ? `${count} local migration${count === 1 ? "" : "s"}`
+      : "No migrations found; production build/start requires an initial committed migration. Run stack db generate.";
   return {
     enabled,
     directory: migrationsDirectory,
     count,
     ready: !enabled || count > 0,
-    reason: !enabled
-      ? `Missing ${databaseConfig}`
-      : count
-        ? `${count} local migration${count === 1 ? "" : "s"}`
-        : "No migrations found; production build/start requires an initial committed migration. Run stack db generate.",
+    reason:
+      policy === "external"
+        ? `${databaseConfig} disabled (config override: external)`
+        : `${reason}${policy === "managed" ? " (config override: managed)" : ""}`,
   };
 }
 

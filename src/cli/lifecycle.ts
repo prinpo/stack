@@ -6,7 +6,10 @@ import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import type { StackConfig } from "../config/schema";
+
 import { buildManifestVersion, readBuildManifest } from "../build-manifest";
+import { readStackConfig } from "../config/load";
 import { builtDatabase } from "../database/files";
 import { serverEnvPaths } from "../env/paths";
 import { loadStaticEnv, readJobsShutdownTimeout } from "../env/server";
@@ -18,6 +21,7 @@ import { environment, profileArgs, takeOptions } from "./options";
 import { type Area, type BuildResult, buildSummary, heading, intro, restartNotice } from "./output";
 import { builtHttpEntry, builtWorkerEntry, capabilities, outputs, workerEntry } from "./project";
 import { buildRuntime, runtimeInputs } from "./runtime-build";
+import { runLifecycleScript } from "./scripts";
 import { runBun, spawnBun, stop } from "./tools";
 
 function lifecycleCommand(
@@ -68,14 +72,20 @@ export const build = lifecycleCommand(
     const started = performance.now();
     intro("build", env.APP_ENV);
     await rm(outputs.manifest, { force: true });
-    const app = capabilities();
+    const { config } = await readStackConfig();
+    const preStatus = await runLifecycleScript(config.scripts?.build?.pre, "build pre", env);
+    if (preStatus) {
+      process.exitCode = preStatus;
+      return;
+    }
+    const app = capabilities(config);
     const results: BuildResult[] = [];
     await Promise.all(
       [outputs.client, outputs.server, "dist/database"].map((path) =>
         rm(path, { recursive: true, force: true }),
       ),
     );
-    const database = await buildDatabase(env);
+    const database = await buildDatabase(env, config.database);
     if (app.frontend) {
       const frontendStarted = performance.now();
       heading("frontend", "Building browser assets");
@@ -114,10 +124,23 @@ export const build = lifecycleCommand(
         bytes: await outputSize(outputs.server),
       });
     }
+    const postStatus = await runLifecycleScript(config.scripts?.build?.post, "build post", env);
+    if (postStatus) {
+      process.exitCode = postStatus;
+      return;
+    }
     await mkdir("dist", { recursive: true });
     await writeFile(
       outputs.manifest,
-      JSON.stringify({ version: buildManifestVersion, ...app, database }) + "\n",
+      JSON.stringify({
+        version: buildManifestVersion,
+        ...app,
+        database,
+        config: {
+          database: config.database ?? "managed",
+          scripts: { start: config.scripts?.start, worker: config.scripts?.worker },
+        },
+      }) + "\n",
     );
     buildSummary(results, performance.now() - started, env.APP_ENV ?? "production");
   },
@@ -130,6 +153,11 @@ export const start = lifecycleCommand(
     const manifest = readBuildManifest();
     const entry = builtHttpEntry(manifest);
     builtDatabase(manifest);
+    const status = await runLifecycleScript(manifest.config.scripts?.start?.pre, "start pre", env);
+    if (status) {
+      process.exitCode = status;
+      return;
+    }
     const startup = {
       ...env,
       _SERVE_CLIENT: manifest.frontend ? "1" : "0",
@@ -200,17 +228,19 @@ function previewCommands(app: ReturnType<typeof readBuildManifest>) {
 export const dev = lifecycleCommand(
   "dev",
   "Run detected capabilities with native code watching",
-  (env) => {
-    const app = capabilities();
-    return localSession("dev", env, app, developmentCommands(app));
+  async (env) => {
+    const { config } = await readStackConfig();
+    const app = capabilities(config);
+    return localSession("dev", env, app, developmentCommands(app), config);
   },
 );
 export const preview = lifecycleCommand(
   "preview",
   "Run the last build locally with preview services and workers",
-  (env) => {
+  async (env) => {
     const app = readBuildManifest();
-    return localSession("preview", env, app, previewCommands(app));
+    const { config } = await readStackConfig();
+    return localSession("preview", env, app, previewCommands(app), config);
   },
 );
 
@@ -219,6 +249,7 @@ async function localSession(
   env: NodeJS.ProcessEnv,
   app: ReturnType<typeof capabilities>,
   commands: LocalCommand[],
+  config: StackConfig,
 ) {
   const watching = mode === "dev";
   intro(mode, env.APP_ENV);
@@ -232,8 +263,11 @@ async function localSession(
     await Promise.all(previous.filter((child) => areas.get(child) !== "worker").map(stopChild));
     await Promise.all(previous.filter((child) => areas.get(child) === "worker").map(stopChild));
   };
-  const compose = sessionCompose(mode);
+  const compose = sessionCompose(mode, config.compose?.[mode]);
+  const scripts = config.scripts?.[mode];
   const cancellation = new AbortController();
+  let postCancellation: AbortController | undefined;
+  let runPost = false;
   let launched = false;
   let closing = false;
   let finish!: (status: number) => void;
@@ -307,8 +341,12 @@ async function localSession(
       }
     }
   };
-  const interrupt = () => close(130);
-  const terminate = () => close(143);
+  const signalSession = (status: number) => {
+    postCancellation?.abort(status);
+    close(status);
+  };
+  const interrupt = () => signalSession(130);
+  const terminate = () => signalSession(143);
   process.on("SIGINT", interrupt);
   process.on("SIGTERM", terminate);
   let restarting = Promise.resolve();
@@ -369,20 +407,46 @@ async function localSession(
       process.exitCode = startupStatus || Number(cancellation.signal.reason);
       return;
     }
-    await launch();
-    const status = await completed;
-    process.exitCode = status;
+    runPost = true;
+    const preStatus = await runLifecycleScript(
+      scripts?.pre,
+      `${mode} pre`,
+      env,
+      cancellation.signal,
+    );
+    if (preStatus) close(preStatus);
+    if (!closing) await launch();
+    process.exitCode = await completed;
+  } catch (error) {
+    process.exitCode ||= 1;
+    throw error;
   } finally {
-    clearTimeout(debounce);
-    for (const watcher of watchers) watcher.close();
-    await restarting;
-    await stopChildren(children);
-    const cleanupStatus = await compose.stop();
-    if (cleanupStatus !== 0) {
-      console.error(`Failed to stop ${watching ? "development" : "preview"} Compose services.`);
-      process.exitCode ||= cleanupStatus;
+    try {
+      clearTimeout(debounce);
+      for (const watcher of watchers) watcher.close();
+      await restarting;
+      await stopChildren(children);
+      if (runPost && scripts?.post) {
+        postCancellation = new AbortController();
+        const status = await runLifecycleScript(
+          scripts.post,
+          `${mode} post`,
+          env,
+          postCancellation.signal,
+        );
+        process.exitCode ||= status;
+      }
+    } finally {
+      try {
+        const status = await compose.stop();
+        if (status) {
+          console.error(`Failed to stop ${watching ? "development" : "preview"} Compose services.`);
+          process.exitCode ||= status;
+        }
+      } finally {
+        process.off("SIGINT", interrupt);
+        process.off("SIGTERM", terminate);
+      }
     }
-    process.off("SIGINT", interrupt);
-    process.off("SIGTERM", terminate);
   }
 }

@@ -2,7 +2,9 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { type Server, createServer } from "node:net";
 
-import { developmentComposeFile, isFile, previewComposeFile } from "./project";
+import type { ComposePolicy } from "../config/schema";
+
+import { composeFiles, inspectCompose } from "./project";
 import { stop } from "./tools";
 
 async function docker(
@@ -49,9 +51,9 @@ async function docker(
 }
 
 /** Manage infrastructure for one local session, without loading app configuration. */
-export function sessionCompose(mode: "dev" | "preview") {
-  const file = mode === "dev" ? developmentComposeFile : previewComposeFile;
-  const enabled = isFile(file);
+export function sessionCompose(mode: "dev" | "preview", policy: ComposePolicy = "managed") {
+  const file = composeFiles[mode];
+  const { enabled } = inspectCompose(mode, policy);
   const args = ["compose", "-f", file];
   let target: string[] = [];
   let projectName = "";
@@ -139,7 +141,7 @@ export function sessionCompose(mode: "dev" | "preview") {
     },
     async stop() {
       try {
-        if (!started) return 0;
+        if (!started || policy !== "managed") return 0;
         started = false;
         // Target existing resources even if the Compose file changed or disappeared.
         return (

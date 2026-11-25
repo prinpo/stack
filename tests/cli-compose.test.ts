@@ -128,6 +128,90 @@ test("development waits for the whole Compose project and stops app processes be
   expect(await events(cwd)).toContain("app-stop\nstop\n");
 });
 
+test.each([false, true])(
+  "development runs session scripts around app execution (pre fails=%s)",
+  async (preFails) => {
+    const cwd = await fixture();
+    await writeFile(
+      join(cwd, "stack.config.ts"),
+      'export default { scripts: { dev: { pre: "prepare:dev", post: "postprepare:dev" } } };',
+    );
+    await writeFile(
+      join(cwd, "package.json"),
+      JSON.stringify({
+        scripts: {
+          "prepare:dev": `printf 'pre\\n' >> events; exit ${preFails ? 17 : 0}`,
+          "postprepare:dev": "printf 'post\\n' >> events; exit 23",
+        },
+      }),
+    );
+    const app = launch(cwd);
+    await expect.poll(() => events(cwd)).toContain("up\n");
+    expect(await events(cwd)).not.toContain("pre\n");
+    await writeFile(join(cwd, "ready"), "");
+    if (!preFails) {
+      await expect.poll(() => events(cwd)).toContain("pre\napp-start\n");
+      app.child.kill("SIGINT");
+    }
+    expect(await app.exited, app.output()).toBe(preFails ? 17 : 130);
+    expect(await events(cwd)).toContain(
+      preFails ? "up\npre\npost\nstop\n" : "app-stop\npost\nstop\n",
+    );
+    if (preFails) expect(await events(cwd)).not.toContain("app-start");
+  },
+);
+
+test("external development Compose policy makes no Docker calls", async () => {
+  const cwd = await fixture();
+  await writeFile(join(cwd, "stack.config.ts"), 'export default { compose: { dev: "external" } };');
+  const app = launch(cwd);
+  await expect.poll(() => events(cwd)).toContain("app-start\n");
+  app.child.kill("SIGTERM");
+  expect(await app.exited, app.output()).toBe(143);
+  expect(await events(cwd)).toBe("app-start\napp-stop\n");
+});
+
+test("interrupting the pre script still runs post before Compose teardown", async () => {
+  const cwd = await fixture();
+  await writeFile(join(cwd, "ready"), "");
+  await writeFile(
+    join(cwd, "stack.config.ts"),
+    'export default { scripts: { dev: { pre: "prepare:dev", post: "cleanup:dev" } } };',
+  );
+  await writeFile(
+    join(cwd, "package.json"),
+    JSON.stringify({
+      scripts: {
+        "prepare:dev": "printf 'pre\\n' >> events; sleep 60",
+        "cleanup:dev": "printf 'post\\n' >> events",
+      },
+    }),
+  );
+  const app = launch(cwd);
+  await expect.poll(() => events(cwd)).toContain("pre\n");
+  app.child.kill("SIGINT");
+  expect(await app.exited, app.output()).toBe(130);
+  expect(await events(cwd)).toContain("pre\npost\nstop\n");
+  expect(await events(cwd)).not.toContain("app-start");
+});
+
+test.each([false, true])("start-only never stops Compose when startup fails=%s", async (fails) => {
+  const cwd = await fixture();
+  await writeFile(
+    join(cwd, "stack.config.ts"),
+    'export default { compose: { dev: "start-only" } };',
+  );
+  await writeFile(join(cwd, "ready"), "");
+  const app = launch(cwd, { FIXTURE_FAIL: fails ? "up" : undefined });
+  if (!fails) {
+    await expect.poll(() => events(cwd)).toContain("up\napp-start\n");
+    app.child.kill("SIGTERM");
+  }
+  expect(await app.exited, app.output()).toBe(fails ? 17 : 143);
+  expect(await events(cwd)).toContain("up\n");
+  expect((await events(cwd)).split("\n")).not.toContain("stop");
+});
+
 test.each(["docker", "compose", "context", "info", "config"])(
   "a failed %s prerequisite prevents app startup and does not stop existing services",
   async (operation) => {
@@ -389,6 +473,39 @@ test("preview validates its build before starting Compose", async () => {
   expect(await app.exited).toBe(1);
   expect(app.output()).toContain("Run stack build");
   expect(await events(cwd)).toBe("");
+});
+
+test("preview reads current Compose policy and scripts independently of the build", async () => {
+  const cwd = await fixture();
+  await writeFile(join(cwd, "docker-compose.preview.yml"), "services: {}");
+  await writeFile(
+    join(cwd, "stack.config.ts"),
+    'export default { scripts: { start: { pre: "prepare:start" } } };',
+  );
+  await writeFile(
+    join(cwd, "package.json"),
+    JSON.stringify({
+      scripts: {
+        "prepare:start": "printf 'start-pre\\n' >> events",
+        "prepare:preview": "printf 'preview-pre\\n' >> events",
+        "cleanup:preview": "printf 'preview-post\\n' >> events",
+      },
+    }),
+  );
+  const build = spawnSync(bun, ["--no-env-file", cli, "build"], { cwd, encoding: "utf8" });
+  expect(build.status, build.stderr).toBe(0);
+  await writeFile(
+    join(cwd, "stack.config.ts"),
+    `export default {
+    compose: { preview: "external" },
+    scripts: { preview: { pre: "prepare:preview", post: "cleanup:preview" } }
+  };`,
+  );
+  const app = launch(cwd, {}, [], "preview");
+  await expect.poll(() => events(cwd)).toContain("app-start\n");
+  app.child.kill("SIGINT");
+  expect(await app.exited, app.output()).toBe(130);
+  expect(await events(cwd)).toBe("preview-pre\napp-start\napp-stop\npreview-post\n");
 });
 
 test("a failed HTTP preview skips the worker and stops Compose", async () => {

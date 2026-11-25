@@ -8,7 +8,7 @@ import { createSpaHandler, isApiPath } from "./spa";
 
 /** Serve a built SPA with startup-only public configuration, without an Elysia app. */
 export async function startFrontend() {
-  const database = hasProductionDatabase();
+  const database = await hasProductionDatabase();
   const config = database ? await loadServerEnv({ client: false }) : await readServerConnection();
   if (database) await migrateProductionDatabase();
   const snapshot = await readClientEnv({ profile: config.profile });

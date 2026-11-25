@@ -1,7 +1,9 @@
 import { defineCommand, showUsage } from "citty";
 
+import { readStackConfig } from "../config/load";
 import { color, intro } from "./output";
 import { inspectProject } from "./project";
+import { inspectLifecycleScripts } from "./scripts";
 
 const command = defineCommand({
   meta: { description: "Explain the detected application structure" },
@@ -15,10 +17,25 @@ const command = defineCommand({
       await showUsage(command, { meta: { name: "stack" } });
       return;
     }
-    const project = inspectProject({ config: args["auth-config"], schema: args["auth-schema"] });
-    if (args.json) console.log(JSON.stringify(project));
+    const stack = await readStackConfig();
+    const project = inspectProject(
+      { config: args["auth-config"], schema: args["auth-schema"] },
+      stack.config,
+    );
+    const scripts = inspectLifecycleScripts(stack.config);
+    if (args.json)
+      console.log(JSON.stringify({ ...project, config: { source: stack.source, scripts } }));
     else {
       intro("doctor");
+      section("Stack configuration", [
+        { label: "Source", present: stack.source !== "defaults", detail: stack.source },
+        ...scripts.map(({ command, phase, name, ready }) => ({
+          label: `${command} ${phase}`,
+          present: ready,
+          error: !ready,
+          detail: ready ? name : `${name} is missing from package.json scripts`,
+        })),
+      ]);
       section("Application capabilities", [
         {
           label: "Frontend",
@@ -92,6 +109,7 @@ const command = defineCommand({
     if (
       (!project.frontend.enabled && !project.backend.enabled && !project.worker.enabled) ||
       !project.frontend.ready ||
+      scripts.some((script) => !script.ready) ||
       !project.database.ready ||
       !project.auth.ready ||
       !project.i18n.ready

@@ -41,6 +41,7 @@
     "./src/jobs/bun-redis.ts"
   ],
   "exports": {
+    "./config": "./src/config.ts",
     "./jobs": "./src/jobs.ts",
     "./jobs/client": "./src/jobs/client.ts",
     "./jobs/elysia": "./src/jobs/elysia.ts",

@@ -45,13 +45,13 @@ Managed backend termination and server-environment restarts allow `JOBS_SHUTDOWN
 
 From the application root, run `stack build` followed by `stack preview` to serve the built application locally. In the Stack repository, use `bun run stack build` and `bun run stack preview` for the fullstack example. Open <http://localhost:3000> for the app or <http://localhost:8025> for its Mailpit inbox. Preview uses `NODE_ENV=production` and defaults to the `development` Varlock profile. Use `stack preview --env preview` for an application-owned preview profile. The built HTTP server serves browser assets on its own port (3000 by default). A built worker runs in a separate Bun process.
 
-Put preview dependencies in `docker-compose.preview.yml` at the application root. Stack appends `-preview` to the resolved Compose project name to isolate Compose-managed containers and project-scoped volumes. Bind mounts, external volumes, and volumes with explicit names still use their configured locations. It waits for readiness before launching application processes and stops that project at session exit. Volumes persist. With no preview Compose file, Stack skips Docker. Dev and preview can publish the same host ports, so stop dev first or configure separate ports in both Compose and Varlock.
+Put preview dependencies in `docker-compose.preview.yml` at the application root. Stack appends `-preview` to the resolved Compose project name to isolate Compose-managed containers and project-scoped volumes. Bind mounts, external volumes, and volumes with explicit names still use their configured locations. Preview uses the same policies as development, selected independently in `compose.preview`. Dev and preview can publish the same host ports, so stop dev first or configure separate ports in both Compose and Varlock.
 
 ## Development Compose dependencies
 
 Put optional development dependencies in exactly `docker-compose.dev.yml` at the application root. This behavior is independent of whether the app uses Stack's Database Block. Without that file, `stack dev` performs no Docker checks or operations.
 
-With the file present, Stack checks Docker CLI, Compose, and daemon access, then starts the whole Compose project and waits before launching application processes. The native readiness timeout is 120 seconds; image pulls and builds can take additional time. Define healthchecks for dependencies that must accept connections before the application starts. A service without a healthcheck only needs to be running to satisfy Compose waiting.
+With the file present and Stack managing startup, Stack checks Docker CLI, Compose, and daemon access, then starts the whole Compose project and waits before launching application processes. The native readiness timeout is 120 seconds. Image pulls and builds can take additional time. Define healthchecks for dependencies that must accept connections before the application starts. A service without a healthcheck only needs to be running to satisfy Compose waiting.
 
 ```yaml
 services:
@@ -64,9 +64,13 @@ services:
 
 Configure images, volumes, healthchecks, ports, profiles, and service environments through Docker Compose's native configuration. Stack uses normal Compose selection; it does not choose services or activate additional profiles. Application Varlock files are not automatically loaded or forwarded to Compose. Configure Compose's own environment mechanism explicitly when needed.
 
-The session owns the whole Compose project and stops it on exit, including services that were already running before Stack started. Containers and volumes are preserved. Only one Stack session may manage the same Docker daemon/Compose project; its lock is released on process exit.
+Set `compose.dev` or `compose.preview` in [Stack configuration](cli.md#configure-lifecycle-ownership) to choose the policy for that session.
 
-Once startup begins, interrupted or failed Compose startup triggers a stop attempt, including partially started services. Prerequisite-check failures alone do not trigger a stop. Shutdown stops application processes first, then makes one bounded Compose cleanup attempt. Cleanup errors are reported without hiding an earlier error or interrupt; cleanup failure makes an otherwise successful session fail. Manually paused containers retain Compose's native behavior.
+- `managed` starts and stops the whole Compose project, including services that were already running. Containers and volumes are preserved.
+- `start-only` starts the project and waits for readiness. Services stay running after the session or a partial startup.
+- `external` leaves all Compose operations to the developer.
+
+Both policies that start Compose hold a lock for the same Docker daemon and project for the duration of the session. Once managed startup begins, interrupted or failed startup triggers a stop attempt, including partially started services. Prerequisite-check failures leave the existing project alone. Shutdown stops application processes, runs the registered `post` script, and makes one bounded managed Compose cleanup attempt. Cleanup failure makes an otherwise successful session fail and preserves earlier failures and interrupts.
 
 ## Development diagnosis and explicit browser logs
 

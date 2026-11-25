@@ -20,7 +20,7 @@ related:
 
 # Database Block
 
-Use this Block for native Drizzle queries, schema definitions, and a managed migration lifecycle. Stack owns exact `drizzle-orm@1.0.0-rc.5` and `drizzle-kit@1.0.0-rc.5` dependencies. A root `drizzle.config.ts` enables one managed database. Applications choose the dialect, runtime client, relations, and connection options; any additional databases remain application-managed.
+Use this Block for native Drizzle queries, schema definitions, and a managed migration lifecycle. Stack owns exact `drizzle-orm@1.0.0-rc.5` and `drizzle-kit@1.0.0-rc.5` dependencies. A root `drizzle.config.ts` enables one managed database by default. Applications choose the dialect, runtime client, relations, and connection options. Additional databases remain application-managed.
 
 ## Public imports and upstream documentation
 
@@ -126,13 +126,15 @@ Use [CLI database operations](cli.md) for generation, review, application, inspe
 
 Commit complete timestamped migration folders, including SQL and snapshots. Review generated SQL before applying it. Development, including watched restarts, never automatically generates, migrates, or pushes a schema. Auth schema generation and SQL migration generation are separate operations.
 
-| Operation                           | Configuration and effect                                                                 |
-| ----------------------------------- | ---------------------------------------------------------------------------------------- |
-| `generate`, `check`, `up`, `export` | Static server configuration; no dynamic credentials or database connection.              |
-| `migrate`, `push`, `pull`, `studio` | Validated selected server environment; database-connected native operation.              |
-| `doctor`                            | Structural inspection only; no config import, credentials, connection, or Kit execution. |
+| Operation                           | Configuration and effect                                                        |
+| ----------------------------------- | ------------------------------------------------------------------------------- |
+| `generate`, `check`, `up`, `export` | Static server configuration; no dynamic credentials or database connection.     |
+| `migrate`, `push`, `pull`, `studio` | Validated selected server environment; database-connected native operation.     |
+| `doctor`                            | Reads Stack configuration and reports the migration policy and local artifacts. |
 
-`check` checks local migration history rather than live drift. `up` converts old local migration formats rather than applying pending migrations. `doctor` reports local migration count, not pending count. Enabled database support with missing/empty migrations fails doctor and blocks production build/start; development can still run.
+`check` checks local migration history rather than live drift. `up` converts old local migration formats rather than applying pending migrations. `doctor` reports local migration count. With a managed database, missing migrations fail doctor and block production build and startup. Development can still run.
+
+Use `database: "external"` in [Stack configuration](cli.md#configure-lifecycle-ownership) when the application owns schema changes. Stack skips automatic migration checks, packaging, and execution even with a root `drizzle.config.ts`. Explicit `stack db` commands remain available.
 
 An initial code-first migration creates tables; it does not enroll a database previously created with `push` or copy its data. Adopt existing databases through deliberate native baseline/reconciliation work. Native custom SQL migrations remain available for application-owned backfills. `pull --init` changes local migration history, and `push --force` retains its native destructive semantics.
 

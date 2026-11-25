@@ -72,6 +72,62 @@ test("doctor explains inferred capabilities without resolving application creden
   });
 });
 
+test("doctor distinguishes disabled Compose and migration discovery from missing files", async () => {
+  const cwd = await project({
+    "src/server/index.ts": "",
+    "docker-compose.dev.yml": "services: {}",
+    "drizzle.config.ts": 'throw new Error("operator configuration must not execute");',
+    "stack.config.ts": `import { defineConfig } from "@prinpo/stack/config";
+export default defineConfig({ compose: { dev: "external" }, database: "external" });`,
+  });
+  const result = run(cwd, ["doctor", "--json"]);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    config: { source: "stack.config.ts" },
+    compose: {
+      enabled: false,
+      reason: "docker-compose.dev.yml disabled (config override: external)",
+    },
+    previewCompose: { enabled: false, reason: "Missing docker-compose.preview.yml" },
+    database: { enabled: false, ready: true, reason: expect.stringContaining("config override") },
+  });
+  await writeFile(join(cwd, "stack.config.ts"), 'export default { database: "managed" };');
+  const managed = run(cwd, ["doctor", "--json"]);
+  expect(managed.status).toBe(1);
+  expect(JSON.parse(managed.stdout).database).toMatchObject({
+    enabled: true,
+    ready: false,
+    reason: expect.stringContaining("config override: managed"),
+  });
+});
+
+test("doctor reports missing lifecycle scripts without running configured scripts", async () => {
+  const cwd = await project({
+    "src/server/index.ts": "",
+    "stack.config.ts":
+      'export default { scripts: { dev: { pre: "prepare:dev", post: "cleanup:dev" }, preview: undefined, build: { pre: undefined } } };',
+    "package.json": JSON.stringify({ scripts: { "prepare:dev": "touch script-ran" } }),
+  });
+  const inspection = run(cwd, ["doctor", "--json"]);
+  expect(inspection.status).toBe(1);
+  expect(JSON.parse(inspection.stdout).config.scripts).toEqual([
+    { command: "dev", phase: "pre", name: "prepare:dev", ready: true },
+    { command: "dev", phase: "post", name: "cleanup:dev", ready: false },
+  ]);
+  await expect(readFile(join(cwd, "script-ran"))).rejects.toThrow();
+});
+
+test("doctor rejects a misspelled configuration option", async () => {
+  const cwd = await project({
+    "src/server/index.ts": "",
+    "stack.config.ts": 'export default { compose: { develop: "external" } };',
+  });
+  const result = run(cwd, ["doctor"]);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("Invalid Stack configuration in stack.config.ts");
+  expect(result.stderr).toContain('compose: Unrecognized key: "develop"');
+});
+
 test("doctor reports the default and target locales from gt.config.json", async () => {
   const cwd = await project({
     "src/index.html": "",
@@ -302,7 +358,7 @@ test("backend builds clear stale frontend output and start from a successful man
   const build = run(cwd, ["build"]);
   expect(build.status, build.stdout + build.stderr).toBe(0);
   expect(JSON.parse(await readFile(join(cwd, "dist/manifest.json"), "utf8"))).toMatchObject({
-    version: 2,
+    version: 3,
     frontend: false,
     backend: true,
   });
@@ -315,6 +371,68 @@ test("backend builds clear stale frontend output and start from a successful man
     mode: "production",
     profile: "staging",
   });
+});
+
+test.each([false, true])(
+  "build publishes its manifest only after a successful post script (fails=%s)",
+  async (fails) => {
+    const cwd = await project({
+      "src/server/index.ts": "",
+      "dist/manifest.json": "stale",
+      "stack.config.ts":
+        'export default { scripts: { build: { pre: "prepare:build", post: "finish:build" } } };',
+      "node_modules/.bin/stack-prepare-fixture": `#!/bin/sh\nprintf '%s/%s/%s\\n' "$npm_lifecycle_event" "$APP_ENV" "$NODE_ENV"\n`,
+      "package.json": JSON.stringify({
+        scripts: {
+          "prepare:build": "stack-prepare-fixture > phases",
+          "finish:build": `test -f dist/server/index.js && test ! -e dist/manifest.json && printf 'post\\n' >> phases || exit 39; exit ${fails ? 23 : 0}`,
+        },
+      }),
+    });
+    await chmod(join(cwd, "node_modules/.bin/stack-prepare-fixture"), 0o755);
+    const result = run(cwd, ["build", "--env", "staging"]);
+    expect(result.status, result.stderr).toBe(fails ? 23 : 0);
+    expect(await readFile(join(cwd, "phases"), "utf8")).toBe(
+      "prepare:build/staging/production\npost\n",
+    );
+    if (fails) await expect(readFile(join(cwd, "dist/manifest.json"))).rejects.toThrow();
+    else
+      expect(JSON.parse(await readFile(join(cwd, "dist/manifest.json"), "utf8")).version).toBe(3);
+  },
+);
+
+test("production reads startup scripts from the build and skips them in worker readiness checks", async () => {
+  const cwd = await project({
+    "stack.config.ts":
+      'export default { scripts: { start: { pre: "prepare:http" }, worker: { pre: "prepare:worker" } } };',
+    "package.json": JSON.stringify({
+      scripts: {
+        "prepare:http": `printf 'pre-http:%s\\n' "$APP_ENV" >> phases; exit "\${CLI_SCRIPT_STATUS:-0}"`,
+        "prepare:worker": "printf 'pre-worker\\n' >> phases",
+      },
+    }),
+    "src/server/index.ts": 'await Bun.write("http-ran", "http");',
+    "src/server/worker.ts": 'console.log(process.env._STACK_JOBS_CHECK ? "check" : "worker");',
+  });
+  const build = run(cwd, ["build"]);
+  expect(build.status, build.stderr).toBe(0);
+  await rm(join(cwd, "stack.config.ts"));
+  await rm(join(cwd, "src"), { recursive: true });
+  const failure = run(cwd, ["start", "--env", "staging"], { CLI_SCRIPT_STATUS: "17" });
+  expect(failure.status, failure.stderr).toBe(17);
+  await expect(readFile(join(cwd, "http-ran"))).rejects.toThrow();
+  const start = run(cwd, ["start", "--env", "production"]);
+  expect(start.status, start.stderr).toBe(0);
+  expect(await readFile(join(cwd, "http-ran"), "utf8")).toBe("http");
+  const check = run(cwd, ["worker", "--check"]);
+  expect(check.status, check.stderr).toBe(0);
+  expect(check.stdout.trim()).toBe("check");
+  const worker = run(cwd, ["worker"]);
+  expect(worker.status, worker.stderr).toBe(0);
+  expect(worker.stdout.trim()).toBe("worker");
+  expect(await readFile(join(cwd, "phases"), "utf8")).toBe(
+    "pre-http:staging\npre-http:production\npre-worker\n",
+  );
 });
 
 test("a failed rebuild invalidates the previous manifest and cannot start partial output", async () => {
@@ -633,13 +751,38 @@ test("explicit startup selection discards incompatible inherited snapshots while
 test("startup rejects directories in place of advertised build artifacts with rebuild instructions", async () => {
   const cwd = await project({
     "dist/manifest.json":
-      '{"version":2,"backend":true,"frontend":false,"worker":false,"database":false}',
+      '{"version":3,"backend":true,"frontend":false,"worker":false,"database":false,"config":{}}',
   });
   await mkdir(join(cwd, "dist/server/index.js"), { recursive: true });
   const result = run(cwd, ["start"]);
   expect(result.status).not.toBe(0);
-  expect(result.stderr).toContain("Run stack build");
+  expect(result.stderr).toContain(
+    "Build artifact missing or invalid: dist/server/index.js. Run stack build.",
+  );
 });
+
+test.each([
+  [2, {}, "version"],
+  [3, { database: "unrecognized" }, "config.database"],
+])(
+  "start rejects manifest version %s or its invalid lifecycle policy",
+  async (version, config, field) => {
+    const cwd = await project({
+      "dist/manifest.json": JSON.stringify({
+        version,
+        config,
+        backend: true,
+        frontend: false,
+        worker: false,
+        database: false,
+      }),
+    });
+    const result = run(cwd, ["start"]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Invalid build manifest. Run stack build");
+    expect(result.stderr).toContain(field);
+  },
+);
 
 test("development labels complete output lines on their original streams, including final fragments", async () => {
   const port = await freePort();
