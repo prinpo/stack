@@ -12,10 +12,11 @@ afterEach(() => {
 
 test("switching locale loads the selected dictionary and preserves mounted React state", async () => {
   const i18n = createI18nClient({
-    config: { defaultLocale: "en", locales: ["pl", "fr"] },
+    config: { defaultLocale: "en", locales: ["pl-pl", "fr"] },
     source: { heading: "Welcome", help: "Help" },
-    loadDictionary: async (locale) => {
-      expect(locale).toBe("pl");
+    loadDictionary: async (locale, fileLocale) => {
+      expect(locale).toBe("pl-PL");
+      expect(fileLocale).toBe("pl-pl");
       return { heading: "Witaj" };
     },
   });
@@ -29,7 +30,7 @@ test("switching locale loads the selected dictionary and preserves mounted React
         <h1>{t("heading")}</h1>
         <p>{t("help")}</p>
         <button onClick={() => setCount(count + 1)}>{count}</button>
-        <button onClick={() => void setLocale("pl")}>Polski</button>
+        <button onClick={() => void setLocale("pl-PL")}>Polski</button>
       </>
     );
   }
@@ -47,4 +48,5 @@ test("switching locale loads the selected dictionary and preserves mounted React
   await screen.findByRole("heading", { name: "Witaj" });
   expect(screen.getByRole("button", { name: "1" })).toBeTruthy();
   expect(screen.getByText("Help")).toBeTruthy();
+  expect(i18n.getLocale()).toBe("pl-PL");
 });

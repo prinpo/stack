@@ -9,5 +9,7 @@ const catalogs = import.meta.glob<Dictionary>("./client/*.json", { import: "defa
 export const i18n = createI18nClient({
   config,
   source,
-  loadDictionary: (locale) => catalogs[`./client/${locale}.json`]?.() ?? Promise.resolve({}),
+  loadDictionary: (locale, fileLocale) =>
+    (catalogs[`./client/${fileLocale}.json`] ?? catalogs[`./client/${locale}.json`])?.() ??
+    Promise.resolve({}),
 });

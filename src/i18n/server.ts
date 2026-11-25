@@ -32,11 +32,11 @@ export function createI18nServer<const Source extends Dictionary>({
   loadDictionary: DictionaryLoader;
 }) {
   if (initialized) throw new Error("Configure one i18n server per Bun runtime");
-  const config = readI18nConfig(input);
+  const { fileLocales, ...config } = readI18nConfig(input);
   initializeGT({
     ...config,
     dictionary: source,
-    loadDictionary,
+    loadDictionary: (locale) => loadDictionary(locale, fileLocales.get(locale) ?? locale),
     cacheUrl: null,
     runtimeUrl: null,
   });

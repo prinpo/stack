@@ -4,33 +4,38 @@ export interface I18nConfig {
   localeRouting?: boolean;
 }
 
-export type LocaleConfig = ReturnType<typeof readI18nConfig>;
+export type LocaleConfig = Omit<ReturnType<typeof readI18nConfig>, "fileLocales">;
 
 export function readI18nConfig(input: unknown) {
   if (typeof input !== "object" || input === null || !("defaultLocale" in input))
     throw new Error("gt.config.json must declare a defaultLocale");
 
-  const defaultLocale = localeTag(input.defaultLocale);
+  const fileLocales = new Map<string, string>();
+  const defaultLocale = addLocale(input.defaultLocale);
   const locales = "locales" in input ? input.locales : [];
   if (!Array.isArray(locales)) throw new Error("gt.config.json locales must be an array");
   const localeRouting = "localeRouting" in input ? input.localeRouting : false;
   if (typeof localeRouting !== "boolean")
     throw new Error("gt.config.json localeRouting must be a boolean");
 
+  for (const locale of locales) addLocale(locale);
   return {
     defaultLocale,
-    locales: [...new Set([defaultLocale, ...locales.map(localeTag)])],
+    locales: [...fileLocales.keys()],
+    fileLocales,
     localeRouting,
   };
-}
 
-function localeTag(value: unknown) {
-  if (typeof value === "string") {
+  function addLocale(value: unknown) {
+    if (typeof value !== "string")
+      throw new Error(`Invalid locale in gt.config.json: ${String(value)}`);
+    let locale: string;
     try {
-      return new Intl.Locale(value).baseName;
+      locale = new Intl.Locale(value).baseName;
     } catch {
-      // Report the invalid project setting below.
+      throw new Error(`Invalid locale in gt.config.json: ${value}`);
     }
+    if (!fileLocales.has(locale)) fileLocales.set(locale, value);
+    return locale;
   }
-  throw new Error(`Invalid locale in gt.config.json: ${String(value)}`);
 }

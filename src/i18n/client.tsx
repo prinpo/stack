@@ -59,9 +59,9 @@ export function createI18nClient<const Source extends Dictionary>({
   config: I18nConfig;
   source: Source;
   loadDictionary: DictionaryLoader;
-  loadTranslations?: (locale: string) => Promise<Translations>;
+  loadTranslations?: (locale: string, fileLocale: string) => Promise<Translations>;
 }) {
-  const config = readI18nConfig(input);
+  const { fileLocales, ...config } = readI18nConfig(input);
   const client = Symbol();
   type Selection = { locale: string; dictionary: Dictionary; translations: Translations };
   const catalogs = new Map<string, Promise<Selection>>();
@@ -134,11 +134,12 @@ export function createI18nClient<const Source extends Dictionary>({
     });
     let catalog = catalogs.get(locale);
     if (!catalog) {
+      const fileLocale = fileLocales.get(locale) ?? locale;
       catalog = Promise.all([
         Promise.resolve().then(() =>
-          locale === config.defaultLocale ? source : loadDictionary(locale),
+          locale === config.defaultLocale ? source : loadDictionary(locale, fileLocale),
         ),
-        Promise.resolve().then(() => loadTranslations?.(locale) ?? {}),
+        Promise.resolve().then(() => loadTranslations?.(locale, fileLocale) ?? {}),
         initialization,
       ]).then(([dictionary, translations]) => ({ locale, dictionary, translations }));
       catalogs.set(locale, catalog);

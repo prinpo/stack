@@ -6,5 +6,6 @@ import source from "./server/en.json";
 export const i18n = createI18nServer({
   config,
   source,
-  loadDictionary: async (locale) => (await import(`./server/${locale}.json`)).default,
+  loadDictionary: async (_locale, fileLocale) =>
+    (await import(`./server/${fileLocale}.json`)).default,
 });

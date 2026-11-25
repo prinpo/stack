@@ -94,6 +94,7 @@ All command workflows, machine output, flags, help, exit statuses, and diagnosti
 | Diagnostics | `doctor`, `doctor --json`, `logs`, log selectors/filters, `--json`, `--follow`, `--dir`      |
 | Environment | `env load`, `env codegen`, `env run`                                                         |
 | Database    | `db generate`, `migrate`, `push`, `pull`, `studio`, `check`, `up`, `export`                  |
+| i18n        | `i18n`, native GT CLI commands and flags                                                     |
 | Auth        | `auth generate`, `check`, `info`, `secret`                                                   |
 | Discovery   | `--help`, leaf-command help, `--version`                                                     |
 

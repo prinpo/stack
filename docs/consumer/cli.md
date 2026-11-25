@@ -47,6 +47,7 @@ Bun and Git are prerequisites. Linux is tested; the CLI does not reject other pl
 | Inspect configuration                      | `bunx --no-install stack env load --agent`            | The native effective server configuration report                                                            |
 | Check auth generation drift                | `bunx --no-install stack auth check`                  | Generated auth schema matches current configuration                                                         |
 | Inspect auth configuration                 | `bunx --no-install stack auth info`                   | JSON config/schema paths, adapter, and enabled plugin IDs                                                   |
+| Inspect translation inputs                 | `bun stack i18n translate --dry-run`                  | Catalogs selected by the pinned GT CLI                                                                      |
 | Generate SQL after schema changes          | `bunx --no-install stack db generate --name <change>` | New native Drizzle migration artifacts                                                                      |
 | Check migration history                    | `bunx --no-install stack db check`                    | Native Drizzle migration consistency checks                                                                 |
 | Apply migrations to a development database | `bunx --no-install stack db migrate`                  | Native migrator completed against the selected database                                                     |

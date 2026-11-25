@@ -124,6 +124,7 @@
     "file-type": "22.2.0",
     "generaltranslation": "9.5.13",
     "get-tsconfig": "4.14.3",
+    "gt": "2.28.4",
     "gt-node": "1.0.46",
     "gt-react": "11.4.24",
     "openapi-types": "12.1.3",

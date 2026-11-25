@@ -10,14 +10,14 @@ import { logger } from "../src/logger/elysia";
 
 test("API errors expose request-locale guidance and preserve the stable status, code and data", async () => {
   const i18n = createI18nServer({
-    config: { defaultLocale: "en", locales: ["pl", "fr"] },
+    config: { defaultLocale: "en", locales: ["pl-pl", "fr"] },
     source: {
       errors: { ORDER_CONFIRMED: { message: "Order already confirmed", fix: "Open the order" } },
     },
-    loadDictionary: async (locale) => ({
+    loadDictionary: async (_locale, fileLocale) => ({
       errors: {
         ORDER_CONFIRMED: {
-          message: locale === "pl" ? "Zamówienie potwierdzone" : "Commande confirmée",
+          message: fileLocale === "pl-pl" ? "Zamówienie potwierdzone" : "Commande confirmée",
         },
       },
     }),
@@ -57,7 +57,7 @@ test("API errors expose request-locale guidance and preserve the stable status, 
   ]);
 
   expect(polish.status).toBe(409);
-  expect(polish.headers.get("Content-Language")).toBe("pl");
+  expect(polish.headers.get("Content-Language")).toBe("pl-PL");
   expect(polish.headers.get("Vary")).toBe("Origin, Accept-Language");
   expect(await polish.json()).toEqual({
     status: 409,
