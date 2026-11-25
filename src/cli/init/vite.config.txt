@@ -1,15 +1,18 @@
+import { stack } from "@prinpo/stack/vite";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { defineConfig, lazyPlugins } from "vite-plus";
+import { defineConfig } from "vite-plus";
 
 const generated = ["**/auth.generated.ts", "**/routeTree.gen.ts", "src/env-gen/**", "migrations/**/snapshot.json"];
 
 export default defineConfig({
-  plugins: lazyPlugins(async () => {
-    if (process.env.VITEST || !existsSync(new URL("./src/index.html", import.meta.url))) return [];
-    const { stack } = await import("@prinpo/stack/vite");
-    return [stack({ api: existsSync(new URL("./src/server/index.ts", import.meta.url)) ? true : undefined })];
-  }),
+  plugins:
+    !process.env.VITEST && existsSync(new URL("./src/index.html", import.meta.url))
+      ? stack({
+          api: existsSync(new URL("./src/server/index.ts", import.meta.url)) ? true : undefined,
+          router: { enableRouteGeneration: existsSync(new URL("./src/routes", import.meta.url)) },
+        })
+      : [],
   staged: { "*": "bun --bun vp check --fix --no-error-on-unmatched-pattern" },
   test: {
     root: fileURLToPath(new URL(".", import.meta.url)),

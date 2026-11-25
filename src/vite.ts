@@ -6,7 +6,8 @@ import {
   tanStackRouterCodeSplitter,
 } from "@tanstack/router-plugin/vite";
 import react, { type Options as ReactOptions } from "@vitejs/plugin-react";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { apiPrefix, escapeRegExp } from "./api-prefix";
 import { browserLogPlugin } from "./browser-log/vite";
@@ -86,7 +87,18 @@ export function stack(options: StackOptions = {}): PluginOption[] {
           target = url.origin;
         }
         return {
-          resolve: { dedupe: ["react", "react-dom"] },
+          resolve: {
+            dedupe: ["react", "react-dom"],
+            alias: [
+              {
+                find: /^@tanstack\/react-router$/,
+                replacement: Bun.resolveSync(
+                  "@tanstack/react-router",
+                  dirname(fileURLToPath(import.meta.url)),
+                ),
+              },
+            ],
+          },
           // Stack's source TSX wrapper is served directly from node_modules in dev.
           // Prebundle its dependencies before the first transform, including Router's
           // transitive CommonJS store shim, rather than relying on scan timing.
