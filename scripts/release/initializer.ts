@@ -64,7 +64,13 @@ console.log(server.url.origin);
     await symlink(bun, join(bin, "bun"));
     // Exclude user/global package-manager bin directories; every vp must be local.
     const path = `${bin}:/usr/bin:/bin`;
-    const installEnv = { ...env, PATH: path, BUN_CONFIG_REGISTRY: origin, CI: "1" };
+    const installEnv: NodeJS.ProcessEnv = {
+      ...env,
+      PATH: path,
+      BUN_CONFIG_REGISTRY: origin,
+      CI: "1",
+    };
+    delete installEnv.VITEST;
     command(
       [
         "bun",
@@ -129,6 +135,30 @@ console.log(server.url.origin);
     }
     if (!rejected) throw new Error("Generated checks did not catch a TypeScript error");
     await rm(join(app, "src/type-error.ts"));
+    await mkdir(join(app, "src/routes"));
+    await writeFile(
+      join(app, "src/index.html"),
+      '<!doctype html><html><head><title>Stack</title></head><body><div id="root"></div><script type="module" src="/main.tsx"></script></body></html>',
+    );
+    await writeFile(
+      join(app, "src/main.tsx"),
+      'import {createRootAndRender,createRouter} from "@prinpo/stack/react"; import {routeTree} from "./routeTree.gen"; createRootAndRender(createRouter({routeTree}));',
+    );
+    await writeFile(
+      join(app, "src/routes/__root.tsx"),
+      'import {createRootRoute,Outlet} from "@prinpo/stack/react"; export const Route=createRootRoute({component:Outlet});',
+    );
+    await writeFile(
+      join(app, "src/routes/index.tsx"),
+      'import {createFileRoute} from "@prinpo/stack/react"; export const Route=createFileRoute("/")({component:()=> <p>Split route</p>});',
+    );
+    // An isolated install exposes bare imports emitted by the splitter.
+    const bunfig = join(app, "bunfig.toml");
+    await writeFile(bunfig, (await readFile(bunfig, "utf8")).replace('"hoisted"', '"isolated"'));
+    await rm(join(app, "node_modules"), { recursive: true });
+    command(["bun", "install"], app, installEnv);
+    command(["bun", "run", "build"], app, installEnv);
+    await access(join(app, "dist/client/index.html"));
     command([cli, "init", "no-editors"], root, installEnv);
     const plain = await readdir(join(root, "no-editors"));
     if (plain.includes(".zed") || plain.includes(".vscode"))
