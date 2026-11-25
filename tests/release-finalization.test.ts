@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { expect, test } from "vite-plus/test";
 
@@ -43,16 +43,6 @@ async function repository(stableVersion = "0.1.0") {
   git("-c", "commit.gpgsign=false", "commit", "-m", "test: seed repository");
   git("remote", "add", "origin", remote);
   git("push", "-u", "origin", "main");
-  const tools = join(checkout, "node_modules/.bin");
-  await mkdir(tools, { recursive: true });
-  await writeFile(
-    join(tools, "vp"),
-    `#!/usr/bin/env bun
-await Bun.write(process.env.CHECK_MARKER, "checked\\n");
-process.exit(Number(process.env.CHECK_EXIT ?? "0"));
-`,
-  );
-  await chmod(join(tools, "vp"), 0o755);
   return {
     directory,
     checkout,
@@ -64,7 +54,6 @@ process.exit(Number(process.env.CHECK_EXIT ?? "0"));
           ...process.env,
           SOURCE_DIR: checkout,
           RELEASE_VERSION: version,
-          CHECK_MARKER: join(directory, "checked"),
           ...overrides,
         },
         encoding: "utf8",
@@ -81,7 +70,17 @@ test("finalization records the released version on main and rerunning it makes n
     const result = repo.finalize("0.1.1");
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(repo.version()).toBe("0.1.1");
-    expect(await readFile(join(repo.directory, "checked"), "utf8")).toBe("checked\n");
+    expect(
+      repo.git(
+        "--git-dir",
+        repo.remote,
+        "diff-tree",
+        "--no-commit-id",
+        "--name-only",
+        "-r",
+        "main",
+      ),
+    ).toBe("package.json");
     const manifest = JSON.parse(repo.git("--git-dir", repo.remote, "show", "main:package.json"));
     expect(manifest.description).toBe("Preserve this field");
     const head = repo.git("--git-dir", repo.remote, "rev-parse", "main");
@@ -142,12 +141,19 @@ test("finalization never downgrades a newer stable version already recorded on m
   }
 }, 30_000);
 
-test("bookkeeping validation failure leaves origin main untouched", async () => {
+test("a rejected bookkeeping push leaves origin main untouched and reports the rejection", async () => {
   const repo = await repository();
   try {
+    const hook = join(repo.remote, "hooks/pre-receive");
+    await writeFile(
+      hook,
+      "#!/bin/sh\necho 'Required status check \"Check\" is expected.' >&2\nexit 1\n",
+    );
+    await chmod(hook, 0o755);
     const head = repo.git("--git-dir", repo.remote, "rev-parse", "main");
-    const result = repo.finalize("0.1.1", { CHECK_EXIT: "1" });
+    const result = repo.finalize("0.1.1");
     expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('Required status check "Check" is expected.');
     expect(repo.version()).toBe("0.1.0");
     expect(repo.git("--git-dir", repo.remote, "rev-parse", "main")).toBe(head);
   } finally {

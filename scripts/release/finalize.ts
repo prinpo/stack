@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
-import { command } from "./package";
+import { command } from "./command";
 import { normalVersion } from "./policy";
 
 const directory = resolve(process.env.SOURCE_DIR ?? ".");
@@ -23,25 +23,11 @@ async function finalize() {
       console.log(`main already records ${manifest.version}; no version update needed`);
       return;
     }
-    command(["bun", "install", "--frozen-lockfile", "--ignore-scripts"], directory);
     manifest.version = version;
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
-    command(["bun", "install", "--lockfile-only", "--ignore-scripts"], directory);
-    command(["bun", "--bun", "vp", "check"], directory);
-    command(["git", "add", "--", "package.json", "bun.lock"], directory);
+    command(["git", "add", "--", "package.json"], directory);
     command(
-      [
-        "git",
-        "-c",
-        "user.name=github-actions[bot]",
-        "-c",
-        "user.email=41898282+github-actions[bot]@users.noreply.github.com",
-        "-c",
-        "commit.gpgsign=false",
-        "commit",
-        "-m",
-        `chore(release): record v${version}`,
-      ],
+      ["git", "-c", "commit.gpgsign=false", "commit", "-m", `chore(release): record v${version}`],
       directory,
     );
     const push = spawnSync("git", ["push", "origin", "HEAD:main"], {

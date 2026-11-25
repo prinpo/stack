@@ -35,13 +35,13 @@ The source commit must belong to `main` history. The final version must exceed t
 
 ## Automatic stable bookkeeping
 
-After npm submission and GitHub Release publication succeed for **latest**, the **Record stable version** job checks out the current `main`, writes the released version into the root manifest, refreshes `bun.lock` without upgrading dependencies, and runs repository checks. It commits only the manifest and lockfile as `chore(release): record vX.Y.Z`, then pushes with the built-in `GITHUB_TOKEN`. It runs on a GitHub-hosted runner so the PC's preparation runner retains read-only repository access.
+After npm submission and GitHub Release publication succeed for **latest**, the **Record stable version** job checks out the current `main` and commits the released version in `package.json` as `chore(release): record vX.Y.Z`. A short-lived Release App token authenticates the push. The job runs on a GitHub-hosted runner and installs no project dependencies. The Bun lockfile does not record the root package version. Release preparation validates the package before publication, and the App's push triggers normal `main` CI.
 
-The finalizer re-fetches and reapplies the version change if a developer pushes to `main` concurrently. It never force-pushes, makes no duplicate commit on retry, and does not downgrade a newer stable version already recorded on `main`. A failed validation or push leaves the published package and release intact; rerun only the failed finalization job. New nightlies targeting an already shipped patch are blocked until bookkeeping is completed.
+The finalizer re-fetches and reapplies the version change if a developer pushes to `main` concurrently. It never force-pushes, makes no duplicate commit on retry, and does not downgrade a newer stable version already recorded on `main`. A failed push leaves the published package and release intact. Rerun only the failed finalization job. New nightlies targeting an already shipped patch are blocked until bookkeeping is completed.
 
 After releasing `0.1.1`, the manifest records `0.1.1` and the next nightly automatically targets `0.1.2`. After an override to `0.2.0`, it automatically targets `0.2.1`. No development-version bump is needed.
 
-The bookkeeping push does not trigger push CI because it uses `GITHUB_TOKEN`; the finalizer runs checks before committing. The current unprotected `main` permits this without a PAT, release app or new secret. If branch rules change, revisit the automation's push policy. See [GitHub's token-trigger behavior](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+Register a private organization-owned GitHub App with repository **Contents** set to **Read and write** and webhooks disabled. Install it only on `prinpo/stack`. Add its numeric App ID and PEM private key as `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` in the repository's Actions secrets. Grant the App **Always allow** bypass on the `main` ruleset that requires `Check`. Keep branch deletion and force-push protections in a ruleset without that bypass.
 
 ## npm publishing configuration
 
@@ -55,7 +55,7 @@ References: [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/)
 
 ## GitHub tag permissions
 
-The GitHub-hosted publisher uses the built-in `GITHUB_TOKEN` with `contents: write` for tags and GitHub Releases. No personal access token or additional GitHub secret is needed for the normal release flow. npm authentication remains OIDC, and the self-hosted preparation job keeps its read-only token.
+The GitHub-hosted publisher uses the built-in `GITHUB_TOKEN` with `contents: write` for tags and GitHub Releases. npm authentication uses OIDC, and the self-hosted preparation job keeps its read-only token. Only stable bookkeeping uses the Release App.
 
 GitHub may require extra permission when tagging a historical commit whose workflow files differ from the default branch. For this project's normal flow, publish a fresh nightly after workflow changes rather than adding a separate credential for historical tagging. Promotion checks this before publishing and asks for a fresh nightly when needed. See GitHub's [release permissions](https://docs.github.com/en/rest/releases/releases#create-a-release).
 
