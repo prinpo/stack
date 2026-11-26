@@ -154,6 +154,39 @@ function launch(cwd: string, args: string[], overrides: NodeJS.ProcessEnv, direc
   return { child, output: () => output };
 }
 
+test("external database policy applies to source and built production startup", async () => {
+  const cwd = await project({
+    "stack.config.ts": 'export default { database: "external" };',
+    "drizzle.config.ts": 'throw new Error("operator configuration must not execute");',
+    "src/server/index.ts": `import {startServer} from "@prinpo/stack/server"; await startServer(()=>import("./app"),{env:{client:false}});`,
+    "src/server/app.ts": `import {Elysia} from "@prinpo/stack/server"; export const app=new Elysia().get("/ready",()=>"ready");`,
+  });
+  const build = run(cwd, ["build"]);
+  expect(build.status, build.stderr).toBe(0);
+  expect(JSON.parse(await readFile(join(cwd, "dist/manifest.json"), "utf8"))).toMatchObject({
+    version: 3,
+    database: false,
+    config: { database: "external" },
+  });
+  for (const entry of ["src/server/index.ts", "dist/server/index.js"]) {
+    const port = await freePort();
+    const app = launch(cwd, [entry], { NODE_ENV: "production", PORT: String(port) }, true);
+    const exited = once(app.child, "exit");
+    await expect
+      .poll(async () => {
+        try {
+          return await (await fetch(`http://127.0.0.1:${port}/ready`)).text();
+        } catch {
+          return app.output();
+        }
+      })
+      .toBe("ready");
+    app.child.kill("SIGTERM");
+    expect((await exited)[0]).toBe(143);
+    await rm(join(cwd, "stack.config.ts"), { force: true });
+  }
+});
+
 test.each([
   ["SIGTERM", 143, "default"],
   ["SIGINT", 130, "callback"],

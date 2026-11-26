@@ -9,3 +9,5 @@ The development session manages the whole Compose project and stops its services
 Once Compose startup begins, attempt to stop the whole project on failed or interrupted startup, including partial startup. Prerequisite-check failures alone do not trigger a stop. On session shutdown, stop application processes before Compose services. Make one bounded cleanup attempt and print cleanup errors without hiding the original failure or interrupt status; cleanup failure makes an otherwise successful exit unsuccessful.
 
 Initially, leave manually paused containers to Compose's normal behavior and report resulting startup or readiness errors rather than automatically unpausing them. Changes to the Compose file require restarting `stack dev`; do not watch the file or automatically reconfigure infrastructure during a session.
+
+[ADR 0028](0028-allow-explicit-stack-lifecycle-configuration.md) retains this behavior as the managed default and adds start-only and external policies.

@@ -21,18 +21,18 @@ bunx --no-install stack build --env staging
 
 Build sets `NODE_ENV=production`, chooses `APP_ENV` from `--env`, inherited `APP_ENV`, or production, and validates static settings without resolving dynamic deployment credentials. Classify deployment-specific settings as dynamic; a static setting with a dynamic dependency fails validation. See [environment](env.md) for schema rules.
 
-Stack removes the previous manifest and its owned client, server, and database outputs. It builds browser code through the local Vite+ toolchain and uses Bun to validate server and worker entry points before packaging their modules. It writes `dist/manifest.json` after a successful build. The summary reports Stack version, profile, uncompressed output bytes, and build times.
+Stack removes the previous manifest and its owned client, server, and database outputs. It builds browser code through the local Vite+ toolchain and uses Bun to validate server and worker entry points before packaging their modules. It writes `dist/manifest.json` after the build and any registered `post` script succeed. The summary reports Stack version, profile, uncompressed output bytes, and build times.
 
-| Artifact             | Purpose                                                                                |
-| -------------------- | -------------------------------------------------------------------------------------- |
-| `dist/manifest.json` | Version 2 manifest declaring frontend, backend, worker, and managed database artifacts |
-| `dist/client/`       | Browser files, including the HTML shell and assets                                     |
-| `dist/server/`       | Packaged application modules under `src/`, plus `index.js` when an HTTP backend exists |
-| `dist/database/`     | Built database config and complete migration folders when enabled                      |
+| Artifact             | Purpose                                                                                                    |
+| -------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `dist/manifest.json` | Version 3 manifest declaring artifacts, database ownership, and registered production startup script names |
+| `dist/client/`       | Browser files, including the HTML shell and assets                                                         |
+| `dist/server/`       | Packaged application modules under `src/`, plus `index.js` when an HTTP backend exists                     |
+| `dist/database/`     | Built database config and complete migration folders when enabled                                          |
 
 Keep application runtime dependencies installed: server builds externalize packages. Ship the manifest, enabled artifacts, required environment schemas/files, and any application-owned runtime assets. Public files are separate from server output. Ship the complete `dist/server/` tree. The backend launcher imports `dist/server/src/server/index.ts`, and the worker command runs `dist/server/src/server/worker.ts`. Bun resolves deferred imports and relative processor URLs from that tree. Keep runtime path aliases and `baseUrl` targets inside the application. Successful build does not prove production credentials or connections are valid.
 
-When root `drizzle.config.ts` enables the database, build requires existing migrations and packages complete native folders, including snapshots. Generate and inspect migrations before building; see [database](database.md) and [CLI migration commands](cli.md).
+When root `drizzle.config.ts` enables the managed database, build requires existing migrations and packages complete native folders, including snapshots. With `database: "external"`, the application owns those operations. See [database](database.md) and [CLI migration commands](cli.md).
 
 ## Startup and reusable artifacts
 
@@ -41,9 +41,9 @@ bunx --no-install stack start
 bunx --no-install stack start --env staging
 ```
 
-Start requires a valid `dist/manifest.json` and its advertised artifacts. Missing/invalid artifacts are errors; rerun build rather than relying on stale output detection. Start sets production mode and the chosen deployment profile, then hands off to Bun running the built backend or Stack's frontend-only server. The CLI is not an ongoing process supervisor.
+Start requires a current `dist/manifest.json` and its advertised artifacts. Rebuild when upgrading from a version 2 manifest. Start sets production mode and the chosen deployment profile, runs the registered `pre` script if present, then hands off to Bun running the built backend or Stack's frontend-only server. Ship the app's `package.json` and any files and dependencies used by its registered startup scripts. The deployment supervises the resulting process.
 
-Standard backend [startup](backend.md) resolves and validates server configuration before importing application modules. Production resolves public client dynamic values separately and injects them into an in-memory HTML shell before browser modules evaluate. Static public client values remain compiled into the browser artifact. Rebuild older manifests before deploying with the current CLI.
+Standard backend [startup](backend.md) resolves and validates server configuration before importing application modules. Production resolves public client dynamic values separately and injects them into an in-memory HTML shell before browser modules evaluate. Static public client values remain compiled into the browser artifact.
 
 The same artifact can run under different dynamic settings; configuration changes require restarting startup.
 
@@ -53,9 +53,9 @@ Frontend-only startup reads connection settings and public client dynamics witho
 
 ## Migrations and auth readiness
 
-When a managed database is enabled, `stack start` runs its packaged migrations before application import and listening. This includes frontend-only applications with database configuration. Migration failure prevents startup. Direct built backend execution through standard `startServer` also follows the production migration boundary.
+When a managed database is enabled, `stack start` runs its packaged migrations before application import and listening. This includes frontend-only applications with database configuration. Migration failure prevents startup. A built backend launched through Bun also reads the database policy from its manifest. A direct source launch in production reads that policy from `stack.config.ts`. Both honor `database: "external"`.
 
-Do not replace this with development `push` or a private application migration runner. Stack does not coordinate simultaneous migrations across replicas; the deployment owns rollout coordination and recovery. Provision/reset/seed operations remain application/native workflows.
+The deployment owns rollout coordination and recovery, including avoiding simultaneous managed migrations across replicas. Provision, reset, and seed operations remain application workflows.
 
 Standard backend startup waits for plugins and checks registered auth configuration before opening the listener. Enabled wrapped auth delivery flows need production senders; development console delivery does not satisfy that requirement. See [authentication](auth.md). `doctor`, `auth check`, and successful SQL generation do not prove those runtime requirements.
 

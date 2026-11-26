@@ -2,7 +2,9 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { type Server, createServer } from "node:net";
 
-import { developmentComposeFile, isFile, previewComposeFile } from "./project";
+import type { ComposePolicy } from "../config/schema";
+
+import { composeFiles, inspectCompose } from "./project";
 import { stop } from "./tools";
 
 async function docker(
@@ -48,20 +50,21 @@ async function docker(
   }
 }
 
-/** Manage infrastructure for one local session, without loading app configuration. */
-export function sessionCompose(mode: "dev" | "preview") {
-  const file = mode === "dev" ? developmentComposeFile : previewComposeFile;
-  const enabled = isFile(file);
+type ComposeMode = keyof typeof composeFiles;
+
+function composeProject(mode: ComposeMode, command: string) {
+  const file = composeFiles[mode];
   const args = ["compose", "-f", file];
   let target: string[] = [];
   let projectName = "";
-  let started = false;
   let lock: Server | undefined;
   return {
-    async start(signal: AbortSignal) {
-      if (!enabled) return 0;
+    async acquire(signal: AbortSignal) {
       for (const [check, message] of [
-        [["--version"], `Docker CLI is unavailable. Install Docker before running stack ${mode}.`],
+        [
+          ["--version"],
+          `Docker CLI is unavailable. Install Docker before running stack ${command}.`,
+        ],
         [
           ["compose", "version"],
           "Docker Compose is unavailable. Install the Docker Compose plugin.",
@@ -127,38 +130,78 @@ export function sessionCompose(mode: "dev" | "preview") {
         if (!(error instanceof Error && "code" in error && error.code === "EADDRINUSE"))
           throw error;
         console.error(
-          `Another Stack ${mode === "dev" ? "development" : mode} session is managing Compose project ${projectName}.`,
+          `Another Stack ${mode === "dev" ? "development" : mode} session or command is managing Compose project ${projectName}.`,
         );
         return 1;
       }
-      if (signal.aborted) return Number(signal.reason);
-      started = true;
+      return signal.aborted ? Number(signal.reason) : 0;
+    },
+    async up(signal: AbortSignal) {
       return (
         await docker([...target, ...args, "up", "--wait", "--wait-timeout", "120"], { signal })
       ).status;
     },
+    async stop(signal?: AbortSignal) {
+      // Target existing resources by name, even if the Compose file changed during a session.
+      return (
+        await docker(
+          [...target, "compose", "--project-name", projectName, "stop", "--timeout", "10"],
+          {
+            signal,
+            timeout: 30_000,
+          },
+        )
+      ).status;
+    },
+    async release() {
+      if (!lock) return;
+      const server = lock;
+      lock = undefined;
+      await new Promise<void>((done, reject) =>
+        server.close((error) => (error ? reject(error) : done())),
+      );
+    },
+  };
+}
+
+/** Manage infrastructure for one local session, without loading app configuration. */
+export function sessionCompose(mode: ComposeMode, policy: ComposePolicy = "managed") {
+  const { enabled } = inspectCompose(mode, policy);
+  const project = composeProject(mode, mode);
+  let started = false;
+  return {
+    async start(signal: AbortSignal) {
+      if (!enabled) return 0;
+      const status = await project.acquire(signal);
+      if (status || signal.aborted) return status || Number(signal.reason);
+      started = true;
+      return project.up(signal);
+    },
     async stop() {
       try {
-        if (!started) return 0;
+        if (!started || policy !== "managed") return 0;
         started = false;
-        // Target existing resources even if the Compose file changed or disappeared.
-        return (
-          await docker(
-            [...target, "compose", "--project-name", projectName, "stop", "--timeout", "10"],
-            {
-              timeout: 30_000,
-            },
-          )
-        ).status;
+        return await project.stop();
       } finally {
-        if (lock) {
-          const server = lock;
-          lock = undefined;
-          await new Promise<void>((done, reject) =>
-            server.close((error) => (error ? reject(error) : done())),
-          );
-        }
+        await project.release();
       }
     },
   };
+}
+
+export async function runComposeOperation(
+  mode: ComposeMode,
+  operation: "up" | "down",
+  signal: AbortSignal,
+) {
+  const { enabled, reason } = inspectCompose(mode);
+  if (!enabled) throw new Error(`${reason}. Add it to the application root.`);
+  const project = composeProject(mode, `docker ${operation}`);
+  try {
+    const status = await project.acquire(signal);
+    if (status) return status;
+    return operation === "up" ? await project.up(signal) : await project.stop(signal);
+  } finally {
+    await project.release();
+  }
 }

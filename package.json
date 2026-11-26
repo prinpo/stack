@@ -19,21 +19,7 @@
   ],
   "files": [
     "src",
-    "docs/consumer/README.md",
-    "docs/consumer/capabilities.md",
-    "docs/consumer/application-patterns.md",
-    "docs/consumer/frontend.md",
-    "docs/consumer/backend.md",
-    "docs/consumer/eden-query.md",
-    "docs/consumer/env.md",
-    "docs/consumer/database.md",
-    "docs/consumer/auth.md",
-    "docs/consumer/logger.md",
-    "docs/consumer/jobs.md",
-    "docs/consumer/i18n.md",
-    "docs/consumer/cli.md",
-    "docs/consumer/development.md",
-    "docs/consumer/production.md"
+    "docs/consumer"
   ],
   "type": "module",
   "sideEffects": [
@@ -41,6 +27,7 @@
     "./src/jobs/bun-redis.ts"
   ],
   "exports": {
+    "./config": "./src/config.ts",
     "./jobs": "./src/jobs.ts",
     "./jobs/client": "./src/jobs/client.ts",
     "./jobs/elysia": "./src/jobs/elysia.ts",

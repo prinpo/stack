@@ -17,6 +17,7 @@ const main = defineCommand({
     preview: () => import("./lifecycle").then((module) => module.preview),
     start: () => import("./lifecycle").then((module) => module.start),
     worker: () => import("./worker").then((module) => module.default),
+    docker: () => import("./docker").then((module) => module.default),
     logs: () => import("./logs").then((module) => module.default),
     env: () => import("./env").then((module) => module.default),
     doctor: () => import("./doctor").then((module) => module.default),

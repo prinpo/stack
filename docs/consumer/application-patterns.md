@@ -41,7 +41,8 @@ app/
 ├── bunfig.toml
 ├── tsconfig.json
 ├── vite.config.ts
-├── drizzle.config.ts           # only with a managed database
+├── stack.config.ts             # optional lifecycle overrides
+├── drizzle.config.ts           # enables managed migrations by default
 ├── docker-compose.dev.yml      # optional services for stack dev
 ├── docker-compose.preview.yml  # optional services for stack preview
 ├── env/
