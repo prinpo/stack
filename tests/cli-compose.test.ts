@@ -79,7 +79,7 @@ function launch(
   cwd: string,
   env: NodeJS.ProcessEnv = {},
   args: string[] = [],
-  command: "dev" | "preview" = "dev",
+  command: "dev" | "preview" | "docker" = "dev",
 ) {
   const child = spawn(bun, ["--no-env-file", cli, command, ...args], {
     cwd,
@@ -115,6 +115,64 @@ async function events(cwd: string) {
     return "";
   }
 }
+
+test.each([
+  [[], "docker-compose.dev.yml", "reports"],
+  [["--profile", "preview"], "docker-compose.preview.yml", "reports-preview"],
+] as const)(
+  "explicit Compose commands target %s and preserve containers on down",
+  async (args, file, name) => {
+    const cwd = await fixture();
+    await writeFile(join(cwd, "docker-compose.preview.yml"), "services: {}");
+    await writeFile(
+      join(cwd, "stack.config.ts"),
+      'export default { compose: { dev: "external", preview: "external" } };',
+    );
+    await rm(join(cwd, "src"), { recursive: true });
+    const env = { FIXTURE_PROJECT: "reports" };
+    const up = launch(cwd, env, ["up", ...args], "docker");
+    await expect.poll(() => events(cwd)).toContain("up\n");
+    expect(up.child.exitCode).toBeNull();
+    await writeFile(join(cwd, "ready"), "");
+    expect(await up.exited, up.output()).toBe(0);
+    expect(await events(cwd)).not.toMatch(/(?:stop|app-start)\n/);
+    const down = launch(cwd, env, ["down", ...args], "docker");
+    expect(await down.exited, down.output()).toBe(0);
+    const commands = (await readFile(join(cwd, "docker-commands"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line).args);
+    expect(commands.find((args) => args.includes("up"))).toEqual(
+      expect.arrayContaining(["-f", file, "--project-name", name, "--wait"]),
+    );
+    expect(commands.at(-1)).toEqual(expect.arrayContaining(["--project-name", name, "stop"]));
+    expect(commands.at(-1)).not.toContain("down");
+  },
+);
+
+test("explicit Compose down leaves an active Stack session's services alone", async () => {
+  const cwd = await fixture();
+  await writeFile(join(cwd, "ready"), "");
+  const dev = launch(cwd);
+  await expect.poll(() => events(cwd)).toContain("app-start\n");
+  const down = launch(cwd, {}, ["down"], "docker");
+  expect(await down.exited, down.output()).toBe(1);
+  expect(down.output()).toContain("is managing Compose project");
+  expect((await events(cwd)).split("\n")).not.toContain("stop");
+  dev.child.kill("SIGTERM");
+  expect(await dev.exited, dev.output()).toBe(143);
+});
+
+test("explicit Compose commands fail before calling Docker for a missing file or unknown profile", async () => {
+  const cwd = await fixture();
+  const missing = launch(cwd, {}, ["up", "--profile=preview"], "docker");
+  expect(await missing.exited, missing.output()).toBe(1);
+  expect(missing.output()).toContain("Missing docker-compose.preview.yml");
+  const invalid = launch(cwd, {}, ["down", "--profile", "production"], "docker");
+  expect(await invalid.exited, invalid.output()).toBe(1);
+  expect(invalid.output()).toContain('Unknown Compose profile "production"');
+  expect(await events(cwd)).toBe("");
+});
 
 test("development waits for the whole Compose project and stops app processes before its services", async () => {
   const cwd = await fixture();

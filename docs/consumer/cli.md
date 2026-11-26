@@ -103,6 +103,21 @@ Each script name refers to one entry in the app's `package.json`. Stack executes
 
 Dev and preview run their scripts once per session, including cleanup on an orderly interrupt or a failed `pre`. A failed Compose startup skips both scripts. A failed `post` still allows Compose cleanup and preserves any earlier failure status. Build runs `post` after a successful build and publishes its manifest only when `post` succeeds. `worker --check` runs the readiness check alone. Preview uses its own scripts when launching built processes.
 
+## Start and stop local dependencies
+
+Run these commands from the application root to control Compose on its own.
+
+```sh
+bunx --no-install stack docker up
+bunx --no-install stack docker down
+bunx --no-install stack docker up --profile preview
+bunx --no-install stack docker down --profile preview
+```
+
+The default `development` profile uses `docker-compose.dev.yml`. The `preview` profile uses `docker-compose.preview.yml` with Stack's usual `-preview` project suffix. `up` waits for Compose readiness and leaves services running. `down` stops the project and preserves its containers and volumes. Both work with `external` session policies and refuse to operate while another Stack command or session holds the project's lock.
+
+Here `--profile` selects the local Stack project. Use Docker Compose's environment settings, such as `COMPOSE_PROFILES` for native service profiles or `COMPOSE_ENV_FILES` for additional env files. See [Docker Compose environment variables](https://docs.docker.com/compose/how-tos/environment-variables/envvars/).
+
 ## Retrieve logs before changing code
 
 ```sh

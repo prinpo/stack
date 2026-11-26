@@ -68,7 +68,7 @@ Set `compose.dev` or `compose.preview` in [Stack configuration](cli.md#configure
 
 - `managed` starts and stops the whole Compose project, including services that were already running. Containers and volumes are preserved.
 - `start-only` starts the project and waits for readiness. Services stay running after the session or a partial startup.
-- `external` leaves all Compose operations to the developer.
+- `external` leaves Compose under the developer's control. Use [explicit `stack docker up` and `stack docker down` commands](cli.md#start-and-stop-local-dependencies) to manage those services independently.
 
 Both policies that start Compose hold a lock for the same Docker daemon and project for the duration of the session. Once managed startup begins, interrupted or failed startup triggers a stop attempt, including partially started services. Prerequisite-check failures leave the existing project alone. Shutdown stops application processes, runs the registered `post` script, and makes one bounded managed Compose cleanup attempt. Cleanup failure makes an otherwise successful session fail and preserves earlier failures and interrupts.
 
