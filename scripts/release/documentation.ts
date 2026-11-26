@@ -30,22 +30,23 @@ function headingIds(markdown: string) {
 
 /** Check the documentation consumers actually receive, after tarball installation. */
 async function validateDocumentation(packageRoot: string) {
-  const manifest = JSON.parse(await readFile(resolve(packageRoot, "package.json"), "utf8"));
-  const files: string[] = manifest.files.filter((file: string) => file.startsWith("docs/"));
+  const files = await Array.fromAsync(
+    new Bun.Glob("docs/**/*").scan({ cwd: packageRoot, dot: true }),
+  );
   if (
     !files.includes("docs/consumer/README.md") ||
     !files.includes("docs/consumer/capabilities.md")
   )
     throw new Error(
-      "Installed package must declare its documentation entry point and capability map",
+      "Installed package must include its documentation entry point and capability map",
     );
 
-  for await (const file of new Bun.Glob("**/*").scan({ cwd: resolve(packageRoot, "docs") })) {
-    if (!files.includes(`docs/${file}`))
-      throw new Error(`Unexpected non-consumer documentation in installed package: docs/${file}`);
+  for (const file of files) {
+    if (!file.startsWith("docs/consumer/"))
+      throw new Error(`Unexpected non-consumer documentation in installed package: ${file}`);
   }
 
-  for (const file of [...files, "README.md"]) {
+  for (const file of [...files.filter((file) => file.endsWith(".md")), "README.md"]) {
     const path = resolve(packageRoot, file);
     const markdown = await readFile(path, "utf8");
     const links: string[] = [];
