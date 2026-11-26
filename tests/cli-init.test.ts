@@ -42,7 +42,7 @@ test("init rejects dangling destination symlinks", async () => {
   expect(await readdir(cwd)).toEqual(["my-app"]);
 });
 
-test("failed installs retain the empty project with actionable recovery instructions", async () => {
+test("failed installs retain the starter with actionable recovery instructions", async () => {
   const cwd = await project();
   const result = run(cwd, ["my-app", "--no-editor"], {
     BUN_CONFIG_REGISTRY: "http://127.0.0.1:1",
@@ -57,7 +57,15 @@ test("failed installs retain the empty project with actionable recovery instruct
   );
   const files = await readdir(resolve(cwd, "my-app"));
   expect(files).toContain(".git");
-  expect(files).not.toContain("src");
+  expect((await readdir(resolve(cwd, "my-app/src"))).sort()).toEqual([
+    "index.html",
+    "main.tsx",
+    "routes",
+  ]);
+  expect((await readdir(resolve(cwd, "my-app/src/routes"))).sort()).toEqual([
+    "__root.tsx",
+    "index.tsx",
+  ]);
   expect(files).not.toContain(".zed");
 });
 

@@ -81,20 +81,26 @@ console.log(server.url.origin);
       installEnv,
     );
     const result = command(
-      [cli, "init", "empty-app", "--editor", "zed", "--editor", "vscode"],
+      [cli, "init", "starter-app", "--editor", "zed", "--editor", "vscode"],
       root,
       installEnv,
     );
     if (!result.includes("Ready")) throw new Error("Initializer did not finish");
-    const app = join(root, "empty-app");
+    const app = join(root, "starter-app");
     const pkg = JSON.parse(await readFile(join(app, "package.json"), "utf8"));
     const installed = JSON.parse(
       await readFile(join(app, "node_modules/@prinpo/stack/package.json"), "utf8"),
     );
     if (pkg.dependencies["@prinpo/stack"] !== version || installed.version !== version)
       throw new Error("Initializer did not pin its own release");
-    if ((await readdir(app)).includes("src"))
-      throw new Error("Initializer generated application source");
+    for (const file of [
+      "src/index.html",
+      "src/main.tsx",
+      "src/routes/__root.tsx",
+      "src/routes/index.tsx",
+      "src/routeTree.gen.ts",
+    ])
+      await access(join(app, file));
     await access(join(app, ".zed/settings.json"));
     await access(join(app, ".vscode/extensions.json"));
     if (
@@ -113,10 +119,8 @@ console.log(server.url.origin);
     command(["bun", "--bun", "vp", "fmt", "--check"], app, installEnv);
     command(["git", "add", "README.md"], app, installEnv);
     command(["git", "hook", "run", "pre-commit"], app, installEnv);
-    // Both public test locations remain discoverable after a browser entry exists.
-    await mkdir(join(app, "src"));
+    // The starter's Vite plugins must leave both test locations discoverable.
     await mkdir(join(app, "tests"));
-    await writeFile(join(app, "src/index.html"), "<html></html>");
     for (const location of ["src", "tests"]) {
       await writeFile(
         join(app, location, "probe.test.ts"),
@@ -135,23 +139,6 @@ console.log(server.url.origin);
     }
     if (!rejected) throw new Error("Generated checks did not catch a TypeScript error");
     await rm(join(app, "src/type-error.ts"));
-    await mkdir(join(app, "src/routes"));
-    await writeFile(
-      join(app, "src/index.html"),
-      '<!doctype html><html><head><title>Stack</title></head><body><div id="root"></div><script type="module" src="/main.tsx"></script></body></html>',
-    );
-    await writeFile(
-      join(app, "src/main.tsx"),
-      'import {createRootAndRender,createRouter} from "@prinpo/stack/react"; import {routeTree} from "./routeTree.gen"; createRootAndRender(createRouter({routeTree}));',
-    );
-    await writeFile(
-      join(app, "src/routes/__root.tsx"),
-      'import {createRootRoute,Outlet} from "@prinpo/stack/react"; export const Route=createRootRoute({component:Outlet});',
-    );
-    await writeFile(
-      join(app, "src/routes/index.tsx"),
-      'import {createFileRoute} from "@prinpo/stack/react"; export const Route=createFileRoute("/")({component:()=> <p>Split route</p>});',
-    );
     // An isolated install exposes bare imports emitted by the splitter.
     const bunfig = join(app, "bunfig.toml");
     await writeFile(bunfig, (await readFile(bunfig, "utf8")).replace('"hoisted"', '"isolated"'));

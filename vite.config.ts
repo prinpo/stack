@@ -9,6 +9,8 @@ export default defineConfig({
     "*": "vp check --fix --no-error-on-unmatched-pattern",
   },
   test: {
+    // Bun's child IPC lacks the channel.unref() that Vitest's forks pool uses.
+    pool: "threads",
     projects: [
       {
         test: {

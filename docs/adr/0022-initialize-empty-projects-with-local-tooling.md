@@ -1,5 +1,7 @@
 # Initialize empty projects with local tooling
 
+[ADR 0029](0029-initialize-projects-with-a-tanstack-router-frontend.md) revises the application source scope of this decision.
+
 Provide an interactive `bunx @prinpo/stack init` command that creates a new project with local Vite+, Stack, TypeScript, compatible React peers, application-owned tooling configuration, and an agent-documentation pointer. Install the exact Stack version running the initializer, including prerelease versions, so initialization uses that release's tested tooling rather than independently selecting the latest versions.
 
 This narrows ADR 0002's exclusion of generators and brings interactive project initialization from ADR 0010 into scope. Initialization creates project infrastructure without application source, routes, HTML, server, database, or example tests. Developers and agents assemble the applicable Blocks afterward; initialization does not select an application template.

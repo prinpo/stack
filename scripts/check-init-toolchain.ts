@@ -6,7 +6,7 @@ import { devDependencies, devEngines } from "../package.json";
 import review from "../src/cli/init/editors/review.json";
 import toolchain from "../src/cli/init/toolchain.json";
 
-// Detect changes, never import or execute Vite+'s private generator.
+// Detect changes by reading Vite+'s private generator as text.
 for (const [name, version] of Object.entries(toolchain)) {
   const expected =
     name === "bun"
@@ -22,7 +22,9 @@ let generator: string | undefined;
 for (const name of await readdir(distribution)) {
   if (!name.endsWith(".js")) continue;
   const source = await readFile(new URL(name, distribution), "utf8");
-  const region = source.split("//#region src/utils/editor.ts\n")[1]?.split("//#endregion")[0];
+  const region = source.match(
+    /^\/\/ src\/utils\/editor\.ts\n([\s\S]*?)(?=^(?:\/\/ (?:src\/|\.\.\/)|export \{))/m,
+  )?.[1];
   if (region) {
     generator = region;
     break;

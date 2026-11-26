@@ -1,7 +1,7 @@
 import { staticPlugin } from "@elysiajs/static";
 import { type AnyElysia, Elysia, NotFoundError } from "elysia";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 import { escapeRegExp, apiPrefix as normalizeApiPrefix } from "./api-prefix";
 import { createSpaHandler } from "./spa";
@@ -41,8 +41,9 @@ async function serveAppPlugin({
           ".DS_Store",
           ".git",
           ".env",
-          new RegExp(`^${escapeRegExp(resolve(directory, "index.html"))}$`),
-          new RegExp(`^${escapeRegExp(resolve(directory, `.${prefix}`))}(?:[/\\\\]|$)`),
+          // The static plugin matches asset-relative paths with a leading separator.
+          new RegExp(`^${escapeRegExp(join(sep, "index.html"))}$`),
+          new RegExp(`^${escapeRegExp(join(sep, prefix))}(?:[/\\\\]|$)`),
         ],
         maxAge: 0,
         directive: "no-cache",

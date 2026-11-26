@@ -29,9 +29,11 @@ These are reference conventions, not a scaffolding walkthrough. Use [the capabil
 
 ## New project setup
 
-Prefer `bunx @prinpo/stack init` from the parent directory. The initializer supplies the version-matched local Vite+ toolchain, React peers, configuration, Git hooks, and agent documentation pointer without application source. See [initializer usage](cli.md#initialize-an-empty-project) for editor selection and unattended arguments. The manifest below is a reference for integrating Stack into an existing application.
+Prefer `bunx @prinpo/stack init` from the parent directory. The initializer supplies a TanStack Router frontend, the version-matched local Vite+ toolchain, React peers, Git hooks, and an agent-documentation pointer. See [initializer usage](cli.md#initialize-a-project) for editor selection and unattended arguments. The manifest below is a reference for integrating Stack into an existing application.
 
 Initialized projects use Vitest through `vite-plus/test`, discovering tests under `src/` and `tests/`. Empty suites pass. Run `bun run check`, `bun run test`, `bun run fmt`, and `bun run lint`; all resolve the application-local toolchain. Keep this configuration when adding application files. Generated files are excluded from formatting/linting, while TypeScript still sees generated modules.
+
+When upgrading an existing application to this toolchain and running Vitest with Bun, set `test.pool` to `"threads"` in its Vite configuration. Vitest 5.1.1's forks pool requires a child-process IPC method unavailable in Bun 1.4.5.
 
 ## Recommended layout
 
@@ -114,20 +116,20 @@ This complete full-stack manifest shows the tested toolchain for this Stack docu
     "react-dom": "19.3.1"
   },
   "devDependencies": {
-    "@types/bun": "1.4.4",
-    "@types/react": "19.3.0",
+    "@types/bun": "1.4.5",
+    "@types/react": "19.3.3",
     "@types/react-dom": "19.3.0",
     "typescript": "7.0.2",
-    "vite": "npm:@voidzero-dev/vite-plus-core@1.2.0",
-    "vite-plus": "1.2.0"
+    "vite": "npm:@voidzero-dev/vite-plus-core@8.3.8001",
+    "vite-plus": "1.8.0"
   },
   "overrides": {
-    "vite": "npm:@voidzero-dev/vite-plus-core@1.2.0"
+    "vite": "npm:@voidzero-dev/vite-plus-core@8.3.8001"
   },
   "devEngines": {
     "packageManager": {
       "name": "bun",
-      "version": "1.4.4",
+      "version": "1.4.5",
       "onFail": "download"
     }
   }
