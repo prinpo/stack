@@ -1,5 +1,9 @@
 import { defineConfig } from "vite-plus";
 
+const integrationTests =
+  "tests/{cli,cli-compose,database,env-runtime,env-vite,jobs,jobs-lifecycle,jobs-regressions,jobs-workers}.test.ts";
+const smokeTests = "tests/package-release.test.ts";
+
 export default defineConfig({
   staged: {
     "*": "vp check --fix --no-error-on-unmatched-pattern",
@@ -10,9 +14,11 @@ export default defineConfig({
         test: {
           name: "stack",
           include: ["tests/**/*.test.{ts,tsx}"],
-          exclude: ["tests/eden-query/**", "tests/i18n-*.test.tsx"],
+          exclude: ["tests/eden-query/**", "tests/i18n-*.test.tsx", integrationTests, smokeTests],
         },
       },
+      { test: { name: "integration", include: [integrationTests] } },
+      { test: { name: "smoke", include: [smokeTests] } },
       {
         resolve: { conditions: ["browser", "module", "development|production"] },
         test: {

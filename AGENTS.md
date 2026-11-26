@@ -8,7 +8,14 @@ Install with `bun install --frozen-lockfile` when dependencies are missing or de
 
 `bun --bun vp <name>` runs a Vite+ built-in; `bun --bun vp run <name>` runs a `package.json` script or `vite.config.ts` task. Check those files before choosing a command. From the root, `bun run dev` starts Stack's full-stack example; `bun --bun vp dev` starts Vite directly.
 
-After changes, run `bun --bun vp check`, `bun --bun vp test`, and relevant project scripts/tasks such as `bun run example:check`. Package scripts can use bare `vp` because their PATH includes local binaries.
+### Local tests
+
+- During edits, run the relevant files with `bun --bun vp test run <file>`. Add `-t '<test name>'` for a single case.
+- Before handoff, run `bun run test`, `bun --bun vp check`, and any affected integration or smoke tests. Run `bun run example:check` for example changes and `bun run stack build` for changes to its build. Use `bun run test:integration` or `bun run test:smoke` to run a whole group. CI runs every project with `bun --bun vp test run`.
+- For an optional branch check, run `bun run test:changed [base]` (default `origin/main`). It reports which test files it selected and widens to all projects for shared or unclassified inputs.
+- For changes to subprocesses, generated fixtures, migrations, or packaged files, use the [test selection inventory](docs/research/test-workflow.md#where-to-look-when-selecting-tests) to identify the suites to run. Vitest's import graph misses these dependencies.
+
+### Tooling reference
 
 For tooling issues, inspect `bun --version`, `bun --bun vp --version`, and `bun --bun vp toolchain`. Use `bun --bun vp help` or `bun --bun vp <command> --help` for command details. Machine-management commands such as `vp env doctor` require the optional global CLI.
 
