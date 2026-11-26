@@ -4,6 +4,8 @@ import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vite-plus/test";
 
+// Vitest's affected-test selection cannot follow the CLI subprocess into Compose.
+import "../src/cli/compose";
 import { createTestDirectory } from "./test-utils/directory";
 
 const cli = resolve("src/cli/main.ts");
@@ -54,8 +56,12 @@ async function fixture() {
     if (operation === "stop" && args.includes("-f") && !existsSync(args[args.indexOf("-f") + 1])) { console.error("compose file unavailable"); process.exit(29); }
     if (process.env.FIXTURE_FAIL?.split(",").includes(operation)) { console.error("native compose failure: " + operation); process.exit(operation === "stop" ? 23 : 17); }
     if (operation === "stop" && process.env.FIXTURE_HANG_STOP) {
-      process.on("SIGTERM", () => process.exit(0));
-      setInterval(() => {}, 1000);
+      process.on("SIGTERM", () => {
+        appendFileSync("events", "stop-exited-zero\\n");
+        process.exit(0);
+      });
+      appendFileSync("events", "stop-ready\\n");
+      setTimeout(() => process.exit(1), 4_000);
     }
     if (operation === "config") console.log(JSON.stringify({name: process.env.FIXTURE_PROJECT ?? ${JSON.stringify(cwd)}}));
     if (operation === "context") console.log(readFileSync("active-context", "utf8"));
@@ -81,7 +87,8 @@ function launch(
   args: string[] = [],
   command: "dev" | "preview" | "docker" = "dev",
 ) {
-  const child = spawn(bun, ["--no-env-file", cli, command, ...args], {
+  const preload = env.FIXTURE_HANG_STOP ? ["--preload", join(cwd, "advance-timeout.ts")] : [];
+  const child = spawn(bun, ["--no-env-file", ...preload, cli, command, ...args], {
     cwd,
     env: {
       ...process.env,
@@ -396,11 +403,29 @@ test("an unexpected application exit stops Compose and retains its failure if cl
 
 test("cleanup timeouts are failures even if the Docker command handles termination successfully", async () => {
   const cwd = await fixture();
+  // Advance only the Compose timer in the CLI process once fake Docker can handle SIGTERM.
+  await writeFile(
+    join(cwd, "advance-timeout.ts"),
+    `
+    import { readFileSync } from "node:fs";
+    const realSetTimeout = globalThis.setTimeout;
+    globalThis.setTimeout = (callback, delay, ...args) => {
+      if (delay !== 30_000) return realSetTimeout(callback, delay, ...args);
+      const timer = setInterval(() => {
+        if (!readFileSync("events", "utf8").includes("stop-ready")) return;
+        clearInterval(timer);
+        callback(...args);
+      }, 10);
+      return timer;
+    };
+  `,
+  );
   const app = launch(cwd, { FIXTURE_FAIL: "up", FIXTURE_HANG_STOP: "1" });
   expect(await app.exited).toBe(17);
   expect(app.output()).toContain("Docker command timed out");
   expect(app.output()).toContain("Failed to stop development Compose services");
-}, 40_000);
+  expect(await events(cwd)).toContain("stop-exited-zero");
+});
 
 test("overlapping sessions cannot stop each other's Compose project, and a killed session releases ownership", async () => {
   const cwd = await fixture();
