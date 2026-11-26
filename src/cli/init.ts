@@ -49,7 +49,7 @@ function parseOptions(rawArgs: string[]) {
 }
 
 const command = defineCommand({
-  meta: { description: "Initialize an empty project with local Vite+ tooling" },
+  meta: { description: "Initialize a Stack project with a TanStack Router frontend" },
   args: {
     name: {
       type: "positional",
@@ -72,7 +72,7 @@ const command = defineCommand({
     } else {
       if (!interactive)
         throw new Error("A project name is required. Use stack init my-app --no-editor.");
-      intro("Create an empty Stack project");
+      intro("Create a Stack project");
       const name = await text({
         message: "Project name",
         validate: async (value) => validateDestination(value ?? ""),
@@ -129,9 +129,7 @@ const command = defineCommand({
       );
       recovery = "bun run test";
       await runStep("Run tests", process.execPath, ["run", "test"], directory);
-      outro(
-        `Ready: ${directory}\nRun bun run check and bun run test. Add application code before dev/build.`,
-      );
+      outro(`Ready: ${directory}\nRun bun run dev from the project directory.`);
     } catch (error) {
       const quoted = "'" + directory.replaceAll("'", "'\\''") + "'";
       throw new Error(

@@ -1,12 +1,12 @@
 # Build from the repository root: docker build -f examples/fullstack/Dockerfile .
-FROM oven/bun:1.4.4 AS build
+FROM oven/bun:1.4.5 AS build
 WORKDIR /app
 COPY . .
 RUN bun install --frozen-lockfile --ignore-scripts
 RUN bun --no-env-file scripts/generate-database-exports.ts
 RUN cd examples/fullstack && bun run stack build
 
-FROM oven/bun:1.4.4 AS runtime
+FROM oven/bun:1.4.5 AS runtime
 WORKDIR /app
 # Stack publishes Bun/TypeScript sources and externalizes runtime packages.
 COPY --from=build /app/package.json ./package.json

@@ -10,11 +10,11 @@ export default defineConfig({
     !process.env.VITEST && existsSync(new URL("./src/index.html", import.meta.url))
       ? stack({
           api: existsSync(new URL("./src/server/index.ts", import.meta.url)) ? true : undefined,
-          router: { enableRouteGeneration: existsSync(new URL("./src/routes", import.meta.url)) },
         })
       : [],
   staged: { "*": "bun --bun vp check --fix --no-error-on-unmatched-pattern" },
   test: {
+    pool: "threads",
     root: fileURLToPath(new URL(".", import.meta.url)),
     include: ["src/**/*.{test,spec}.{ts,tsx,js,jsx}", "tests/**/*.{test,spec}.{ts,tsx,js,jsx}"],
     passWithNoTests: true,

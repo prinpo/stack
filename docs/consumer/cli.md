@@ -20,7 +20,7 @@ env = false
 
 For direct execution, `bun --no-env-file` also disables Bun dotenv loading.
 
-## Initialize an empty project
+## Initialize a project
 
 From the parent directory, run `bunx @prinpo/stack init`. It asks for a simple lowercase unscoped npm package name, then optional Zed/VS Code settings. Both or neither editor can be selected. All prompts finish before files are created.
 
@@ -31,7 +31,9 @@ bunx @prinpo/stack@nightly init my-app --editor zed --editor vscode
 
 A supplied name skips only the name prompt. Editor flags skip the editor prompt; without a terminal, omitted editor flags mean no editor files. Without a terminal or a name, initialization fails with usage instructions. Unknown editors, conflicting flags, path names, and all existing destinations are rejected before writing. `--editor` can be repeated; `--no-editor` cannot be combined with it.
 
-Initialization installs the exact Stack release running the command and that release's pinned local tooling, plus compatible React peers. It creates editable configuration, `AGENTS.md`, a README, Git on `main`, and hooks; then formats and checks files and runs Vitest. No source, database, example tests, initial commit, or remote is generated. Dev/build require application entry points later. On failure or interruption after creation, inspect the retained project and follow the recovery command. Cancelling a prompt creates nothing.
+Initialization installs the exact Stack release running the command and that release's pinned local tooling, plus compatible React peers. It creates a TanStack Router frontend, editable configuration, `AGENTS.md`, a README, and a Git repository on `main` with hooks. It then formats and checks files and runs Vitest. Run `bun run dev` in the new directory and edit `src/routes/index.tsx` to change the home page. Add backend and worker entry points as needed.
+
+On failure or interruption after creation, inspect the retained project and follow the recovery command. Cancelling a prompt creates nothing.
 
 Bun and Git are prerequisites. Linux is tested; the CLI does not reject other platforms, but unsupported operations may fail. Editor files do not install extensions: install Oxc for Zed or VS Code's recommended Vite Plus Extension Pack. Use local commands from the project root, such as `bun run check` and `bun run test`.
 

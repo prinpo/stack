@@ -4,7 +4,7 @@ Stack is a thin application framework that composes Bun, Elysia, Eden, React, Ta
 
 ## Installation
 
-With Bun and Git installed, create an empty project:
+With Bun and Git installed, create a project with a TanStack Router frontend.
 
 ```sh
 bunx @prinpo/stack init
@@ -23,11 +23,10 @@ Select an older published version with `bunx @prinpo/stack@<version> init`; the 
 
 ```sh
 cd my-app
-bun run check
-bun run test
+bun run dev
 ```
 
-Use the generated `AGENTS.md` to build the application. Once entry points exist, `bun run dev` starts the detected services, including a dedicated jobs worker when configured. Use `bun run build` followed by `bun run preview` to run the built project locally. For production, run `bun run start` for HTTP and `bun run worker` for each worker replica. See [application patterns](docs/consumer/application-patterns.md) for adding Stack to an existing application.
+Edit `src/routes/index.tsx` to change the home page. Use the generated `AGENTS.md` and the installed docs to extend the application. `bun run dev` starts additional services as you add backend or worker entry points. Use `bun run build` followed by `bun run preview` to run the built project locally. For production, run `bun run start` for HTTP and `bun run worker` for each worker replica. See [application patterns](docs/consumer/application-patterns.md) for adding Stack to an existing application.
 
 Start with the [documentation entry point](docs/consumer/README.md), [capability map](docs/consumer/capabilities.md), and [application patterns](docs/consumer/application-patterns.md). The references cover all Stack-owned helpers and operational CLI workflows; native APIs link to upstream documentation.
 

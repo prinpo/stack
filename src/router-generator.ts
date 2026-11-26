@@ -41,7 +41,6 @@ export function routerGenerator(options: Partial<Config>, context: RouterPluginC
     name: "prinpo:routes",
     enforce: "pre",
     async configResolved(config) {
-      if (options.enableRouteGeneration === false) return;
       generator = new Generator({
         root: config.root,
         config: getConfig(
